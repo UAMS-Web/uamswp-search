@@ -66,7 +66,7 @@ final class Query {
     private static function number($value): string { return (string)max(0, min(100, is_numeric($value) && is_finite((float)$value) ? (float)$value : 0)); }
     private static function field_score(array $groups, array $config): string {
         global $wpdb;
-        $custom = function_exists('has_filter') && has_filter('uams_search_fields');
+        $custom = (float)$config['related_provider_weight'] !== 1.0 || function_exists('has_filter') && has_filter('uams_search_fields');
         foreach (['fields','taxonomies'] as $source) { foreach ($config[$source] as $weights) { foreach ($weights as $weight) { if ((float)$weight !== 1.0) { $custom = true; } } } }
         if (!$custom) { return '0'; }
         $tokens = [];
@@ -86,7 +86,8 @@ final class Query {
         foreach ($sites as $site) {
             $p = $wpdb->get_blog_prefix($site) . 'posts'; $m = $wpdb->get_blog_prefix($site) . 'postmeta';
             $visibility = "((p.post_type<>'attachment' AND p.post_status='publish') OR (p.post_type='attachment' AND p.post_mime_type='application/pdf' AND p.post_status IN ('inherit','publish') AND (p.post_parent=0 OR EXISTS (SELECT 1 FROM `$p` parent WHERE parent.ID=p.post_parent AND parent.post_status='publish' AND parent.post_password=''))))";
-            $clauses[] = "(i.site_id=" . (int)$site . " AND EXISTS (SELECT 1 FROM `$p` p WHERE p.ID=i.object_id AND p.post_password='' AND BINARY p.post_type=BINARY i.post_type AND $visibility) AND NOT EXISTS (SELECT 1 FROM `$m` m WHERE m.post_id=i.object_id AND ((m.meta_key='_uams_search_exclude' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_hidden' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_searchable' AND m.meta_value='0') OR (i.post_type='location' AND m.meta_key='location_hidden' AND m.meta_value NOT IN ('','0')))))";
+            $clause = "(i.site_id=" . (int)$site . " AND EXISTS (SELECT 1 FROM `$p` p WHERE p.ID=i.object_id AND p.post_password='' AND BINARY p.post_type=BINARY i.post_type AND $visibility) AND NOT EXISTS (SELECT 1 FROM `$m` m WHERE m.post_id=i.object_id AND ((m.meta_key='_uams_search_exclude' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_hidden' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_searchable' AND m.meta_value='0') OR (i.post_type='location' AND m.meta_key='location_hidden' AND m.meta_value NOT IN ('','0')))))";
+            $clauses[] = '(' . $clause . ' AND ' . Related::public_sql($p, $m) . ')';
         }
         return implode(' OR ', $clauses);
     }
