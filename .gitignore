@@ -13,3 +13,4 @@
 /.phpunit.cache/
 /test-results/
 /tests/.preview.html
+/tests/.rebuild-preview.html

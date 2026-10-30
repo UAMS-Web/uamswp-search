@@ -16,7 +16,7 @@ final class DB {
     }
     public static function ready(): bool {
         global $wpdb;
-        if (get_site_option('uams_search_version') !== UAMS_SEARCH_VERSION) { return false; }
+        if (get_site_option('uams_search_version') !== UAMS_SEARCH_SCHEMA_VERSION) { return false; }
         if (self::$table_ready !== null) { return self::$table_ready; }
         $t = self::table();
         return self::$table_ready = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($t))) === $t;
@@ -85,7 +85,7 @@ final class DB {
             day DATE NOT NULL, count BIGINT UNSIGNED NOT NULL DEFAULT 1,
             PRIMARY KEY (site_id,search_hash,day), KEY retention (day)
         ) ENGINE=InnoDB $collation");
-        update_site_option('uams_search_version', UAMS_SEARCH_VERSION);
+        update_site_option('uams_search_version', UAMS_SEARCH_SCHEMA_VERSION);
         self::$table_ready = true;
     }
     private static function dictionary_collation(): void {

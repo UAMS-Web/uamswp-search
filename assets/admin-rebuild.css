@@ -1,0 +1,4 @@
+#uams-search-rebuild [hidden]{display:none!important}
+#uams-search-rebuild progress{display:block;width:100%;max-width:40rem;height:1.25rem;accent-color:#2271b1}
+#uams-search-rebuild{padding-block:1rem}
+#uams-rebuild-error{color:#8a2424;font-weight:600;overflow-wrap:anywhere}

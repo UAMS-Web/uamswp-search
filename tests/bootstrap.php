@@ -1,6 +1,7 @@
 <?php
 require dirname(__DIR__) . '/includes/autoload.php';
-defined('UAMS_SEARCH_VERSION') || define('UAMS_SEARCH_VERSION', '0.1.0');
+defined('UAMS_SEARCH_VERSION') || define('UAMS_SEARCH_VERSION', '0.2.0');
+defined('UAMS_SEARCH_SCHEMA_VERSION') || define('UAMS_SEARCH_SCHEMA_VERSION', '0.1.0');
 // Unit tests need only the option/filter seam, not a running WordPress database.
 $GLOBALS['uams_test_options'] = [];
 $GLOBALS['uams_test_filters'] = [];

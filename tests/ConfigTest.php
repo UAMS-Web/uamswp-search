@@ -9,7 +9,7 @@ function get_sites($args) {
 }
 
 final class ConfigTest extends TestCase {
-    protected function setUp(): void { $GLOBALS['uams_test_multisite'] = true; }
+    protected function setUp(): void { $GLOBALS['uams_test_multisite'] = true; $GLOBALS['uams_test_options'] = []; $GLOBALS['uams_test_filters'] = []; }
     protected function tearDown(): void { unset($GLOBALS['uams_test_multisite'], $GLOBALS['uams_test_environment'], $GLOBALS['uams_test_logged_in']); }
     public function testProductionNeverIncludesNoIndexSites(): void {
         $GLOBALS['uams_test_environment'] = 'production'; $GLOBALS['uams_test_logged_in'] = true;
@@ -22,5 +22,20 @@ final class ConfigTest extends TestCase {
     public function testSignedInLocalPreviewIncludesOnlyHealthySites(): void {
         $GLOBALS['uams_test_environment'] = 'local'; $GLOBALS['uams_test_logged_in'] = true;
         self::assertSame([1,4], Config::public_sites());
+    }
+    public function testStagingPreviewIncludesNoIndexSitesWithoutShowingThemToVisitors(): void {
+        $GLOBALS['uams_test_environment'] = 'staging'; $GLOBALS['uams_test_logged_in'] = true;
+        self::assertSame([1,4], Config::public_sites());
+        $GLOBALS['uams_test_logged_in'] = false;
+        self::assertSame([1], Config::public_sites());
+        self::assertSame([1,4], Config::index_sites());
+    }
+    public function testExplicitPreviewSettingWorksOnUnlabelledStagingServers(): void {
+        $GLOBALS['uams_test_environment'] = 'production'; $GLOBALS['uams_test_logged_in'] = true;
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true];
+        self::assertSame([1,4], Config::public_sites());
+        $GLOBALS['uams_test_logged_in'] = false;
+        self::assertSame([1], Config::public_sites());
+        self::assertSame([1,4], Config::index_sites());
     }
 }

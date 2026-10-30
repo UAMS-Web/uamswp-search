@@ -1,12 +1,13 @@
 # Verification record
 
-Build date: 2026-10-29. Reference: local `uamshealth`, read only. Downloads and checks were retried after the session allowed access requests.
+Build date: 2026-10-30. Version: 0.2.0. Reference: local `uamshealth`, read only. Downloads and checks were retried after the session allowed access requests.
 
 ## Verified by execution
 
-- **PHP:** 22 tests and 153 assertions pass on PHP 8.4.27 with project-local PHPUnit 11.5.57. They cover Porter examples, short stems, phrases/operators, nested objects/null/booleans, escaped excerpts, phonetic examples, API identity/pagination, and cache/fallback boundaries.
+- **PHP:** 24 tests and 159 assertions pass on PHP 8.4.27 with project-local PHPUnit 11.5.57. They cover Porter examples, short stems, phrases/operators, nested objects/null/booleans, escaped excerpts, phonetic examples, API identity/pagination, cache/fallback boundaries, staging defaults, and explicit signed-in no-index previews.
 - **Database:** 35 integration checks pass on a disposable WordPress 7.0.5 install with a fresh MySQL 9.4.0 server. They cover Unicode ligature dictionary keys, long short-token storage, legacy mixed-collation tables, schema setup without global stopword changes, real GI/ENT full-text matching, words across sources, phrases, synonyms/corrections, per-field ranking and explain scores, private/excluded posts, real PDF attachments and cached text, private PDF parents, scanned-PDF filename matches, queue revisions/retries, staged rebuilding, two-connection locking, and retention.
 - **Network:** 13 multisite checks pass on the same disposable server. They cover overlapping post IDs, site scope, real main-query totals/pagination, cache safety, public/preview REST access, rebuilding one site, excluded/archived sites, and remote posts made private before queue processing.
+- **Browser rebuild:** 36 additional real database checks pass for start/counts, duplicate requests, pause/resume, staged publication, queued edits, stale-tab rejection, cancel, no-index visibility, changed settings, and AJAX permissions/nonces. Failure injection proves a failed cancellation checkpoint retains staged rows. A second database connection proves busy stale requests cannot adopt newer jobs. Separate PHP processes deliberately exit three times during a post; durable checkpoints survive and the next request skips that item while completing the rest. Chromium checks the actual rendered admin controls with intercepted responses: start, preview checkbox, pause, page reload/resume, failed response, cancel, completion, sequential requests, late pause/cancel actions at completion (including busy responses), text safety, axe, and reflow at 1280/320 pixels.
 - **Browser:** Chromium 156 / Playwright checks pass for Arrow Up/Down, Escape, Tab, Enter, late responses, text-only suggestion titles, and a normal form with JavaScript disabled. Axe finds no violations for the selected WCAG 2.0/2.1/2.2 A/AA rules at 1280 and 320 pixels. No horizontal overflow was found. Tests use the real plugin component with fixture data and intercepted API responses, not the full theme or Google block.
 - **PDFs:** Poppler and the updated PHP parser extract a real fixture PDF. A text-free fixture returns no text. A deliberately slow child is killed at the deadline; a child exceeding its memory limit fails without stopping the parent.
 
@@ -30,8 +31,10 @@ composer test
 npm ci
 npx playwright install chromium
 npm run test:browser
+npm run test:rebuild-browser
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/integration.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/multisite.php
+UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/rebuild.php
 python3 scripts/build.py
 ```
 

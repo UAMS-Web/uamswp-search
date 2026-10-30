@@ -4,7 +4,7 @@ require __DIR__ . '/bootstrap.php';
 use UAMS_Search\{Integration, Excerpt};
 $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true];
 $GLOBALS['uams_test_options']['uams_search_google'] = false;
-$GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_VERSION;
+$GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
 class PreviewDB {
     public string $base_prefix = 'wp_';
     public function prepare($query, ...$args) { return vsprintf(str_replace(['%s','%d'], ["'%s'", '%d'], $query), $args); }
