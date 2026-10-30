@@ -127,6 +127,24 @@ try {
     $m = DB::table('misses');
     $wpdb->query("UPDATE `$m` SET day=UTC_DATE()-INTERVAL 91 DAY WHERE search_text='uamsfixture-no-results'"); Misses::purge();
     $check((int)$wpdb->get_var("SELECT COUNT(*) FROM `$m` WHERE search_text='uamsfixture-no-results'") === 0, 'No-result searches older than 90 days are removed');
+    // Fill today's rows for this site to the limit, then go past it with new and repeated searches.
+    $today = static fn() => (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `$m` WHERE site_id=%d AND day=UTC_DATE()", $site));
+    $count_of = static fn(string $text) => (int)$wpdb->get_var($wpdb->prepare("SELECT COALESCE(SUM(count),0) FROM `$m` WHERE site_id=%d AND day=UTC_DATE() AND search_text=%s", $site, $text));
+    // An interrupted earlier run can leave fixture rows behind, which would start this count past the limit.
+    $wpdb->query($wpdb->prepare("DELETE FROM `$m` WHERE site_id=%d AND search_text LIKE %s", $site, 'uamsfixture%'));
+    $miss = $token . 'miss';
+    Misses::record($miss . 'first');
+    for ($i = $today(); $i < Misses::DAILY_LIMIT; $i++) { Misses::record($miss . 'fill' . $i); }
+    $check($today() === Misses::DAILY_LIMIT, 'Distinct no-result searches fill to the daily limit');
+    for ($i = 0; $i < 5; $i++) { Misses::record($miss . 'over' . $i); }
+    $check($today() === Misses::DAILY_LIMIT && $count_of($miss . 'over0') === 0, 'New searches past the daily limit add no rows');
+    Misses::record($miss . 'first'); Misses::record($miss . 'first');
+    $check($count_of($miss . 'first') === 3 && $today() === Misses::DAILY_LIMIT, 'A search recorded earlier today still counts after the limit is reached');
+    $wpdb->query($wpdb->prepare("DELETE FROM `$m` WHERE site_id=%d AND search_text LIKE %s", $site, 'uamsfixture%'));
+    $off = $config; $off['logging'] = false; update_site_option('uams_search_settings', $off);
+    Misses::record($miss . 'disabled');
+    $check($count_of($miss . 'disabled') === 0, 'Nothing is recorded while logging is off');
+    update_site_option('uams_search_settings', $config);
     WP_CLI::success("$checks database integration checks passed.");
 } finally {
     foreach ($temporary_filters as $filter) { remove_filter('uams_search_include_post', $filter, 10); }
@@ -136,5 +154,6 @@ try {
         $wpdb->delete(DB::table(), ['site_id' => $site, 'object_id' => $id]);
         $wpdb->delete(DB::table('queue'), ['site_id' => $site, 'object_id' => $id]);
     }
+    if (DB::ready()) { $wpdb->query($wpdb->prepare('DELETE FROM `' . DB::table('misses') . '` WHERE site_id=%d AND search_text LIKE %s', $site, 'uamsfixture%')); }
     update_site_option('uams_search_settings', $old);
 }
