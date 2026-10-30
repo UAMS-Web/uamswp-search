@@ -22,11 +22,12 @@ final class Related {
         if (!$field) { return []; }
         // Raw ACF values also support Find-a-Doc installations using ACF custom tables.
         $value = function_exists('get_field') ? get_field($field, $post->ID, false) : get_post_meta($post->ID, $field, true);
-        $fields = [];
+        $fields = []; $weight = (float)Config::get()['related_provider_weight'];
         foreach (self::ids($value) as $id) {
-            // Keep dependencies even when a provider is hidden: publishing it must refresh this page.
-            $item = ['provider_id' => $id, 'text' => '', 'weight' => (float)Config::get()['related_provider_weight'], 'source' => 'fields'];
             $provider = get_post($id);
+            if ($provider && $provider->post_type !== 'provider') { continue; }
+            // Keep dependencies even when a provider is hidden: publishing it must refresh this page.
+            $item = ['provider_id' => $id, 'text' => '', 'weight' => $weight, 'source' => 'fields'];
             if ($provider && $provider->post_type === 'provider' && Extractor::eligible($provider)) {
                 $item['provider_title'] = $provider->post_title;
                 $item['text'] = Text::plain($provider->post_title);

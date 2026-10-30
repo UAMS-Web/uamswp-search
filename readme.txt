@@ -27,6 +27,11 @@ The optional All of UAMS block loads Google Custom Search, matching the referenc
 
 == Changelog ==
 
+= 0.3.0 =
+* Find linked locations, expertise, conditions, and treatments by provider name.
+* Refresh related pages after provider edits, with live guards against stale hidden or private names.
+* Rebuild the index after updating to include related provider names.
+
 = 0.2.0 =
 * Add a full-index rebuild button with saved progress, pause, resume, and cancel.
 * Allow explicit no-index staging previews without changing search-engine visibility.
