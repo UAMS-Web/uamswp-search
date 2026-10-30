@@ -35,6 +35,7 @@ if (!class_exists('WP_Post')) { #[AllowDynamicProperties] class WP_Post { public
 if (!class_exists('WP_Query')) {
     class WP_Query {
         public int $found_posts = 0; public int $max_num_pages = 0;
+        public array $query = [];
         public array $values = ['s' => 'heart', 'posts_per_page' => 10];
         public function get($key) { return $this->values[$key] ?? ''; }
         public function set($key, $value) { $this->values[$key] = $value; }
@@ -80,11 +81,36 @@ final class QueryTest extends TestCase {
         self::assertSame(42, $posts[0]->id);
         self::assertSame(1, $posts[0]->site);
         self::assertSame(21, $query->found_posts);
-        self::assertSame(3, $query->max_num_pages);
+        self::assertSame(2, $query->max_num_pages);
+        self::assertSame(20, $query->get('posts_per_page'));
         self::assertFalse($query->get('cache_results'));
         self::assertFalse($query->get('update_post_meta_cache'));
         self::assertFalse($query->get('update_post_term_cache'));
         self::assertArrayHasKey('1:42', Integration::$excerpts);
+    }
+    public function testPageSizeSettingAndExplicitOverrides(): void {
+        self::assertSame(20, Config::page_size());
+        $out = Query::run(['s' => 'heart', 'suggest' => false]);
+        self::assertSame(2, $out['pages']);
+        self::assertStringEndsWith('LIMIT 20 OFFSET 0', end($GLOBALS['wpdb']->queries));
+        $GLOBALS['uams_test_options']['uams_search_settings']['results_per_page'] = 30;
+        $GLOBALS['wpdb']->counts = [61];
+        $query = new WP_Query();
+        $query->values['paged'] = 2;
+        Integration::posts(null, $query);
+        self::assertSame(30, $query->get('posts_per_page'));
+        self::assertSame(3, $query->max_num_pages);
+        self::assertStringEndsWith('LIMIT 30 OFFSET 30', end($GLOBALS['wpdb']->queries));
+        $GLOBALS['wpdb']->counts = [61];
+        $query = new WP_Query();
+        $query->query = ['posts_per_page' => 7];
+        Integration::posts(null, $query);
+        self::assertSame(7, $query->get('posts_per_page'));
+        self::assertSame(9, $query->max_num_pages);
+        self::assertStringEndsWith('LIMIT 7 OFFSET 0', end($GLOBALS['wpdb']->queries));
+        foreach ([[0,1],[-5,1],[999,100],['bad',20],[[],20],[INF,20]] as [$input,$expected]) {
+            self::assertSame($expected, Config::page_size($input));
+        }
     }
     public function testExistingEngineAndMissingSchemaKeepCoreSearch(): void {
         $existing = [new WP_Post()];

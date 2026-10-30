@@ -76,6 +76,7 @@ final class Admin {
         self::capable(); check_admin_referer('uams_search_save');
         $input = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $c = Config::get();
+        $c['results_per_page'] = Config::page_size($input['results_per_page'] ?? 20);
         foreach (['enabled','live','logging','pdf','pdf_parent'] as $key) { $c[$key] = !empty($input[$key]); }
         $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map('intval', (array)($input['sites'] ?? []))));
         foreach (array_keys(Config::defaults()['weights']) as $key) { $c['weights'][$key] = self::number($input['weights'][$key] ?? 0); }
@@ -150,6 +151,7 @@ final class Admin {
         foreach (['enabled' => 'Use uams search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
             echo '<p><label><input type="checkbox" name="settings[' . esc_attr($key) . ']" value="1" ' . checked((bool)$c[$key], true, false) . '> ' . esc_html($label) . '</label></p>';
         }
+        echo '<p><label>Results per page <input type="number" name="settings[results_per_page]" min="1" max="100" step="1" value="' . Config::page_size() . '"></label><br>Default: 20. Choose 1 to 100. Changes apply without rebuilding the index.</p>';
         echo '<fieldset><legend><h3>Sub-sites in whole-website search</h3></legend>';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? get_blog_details($site)->blogname . ' (#' . $site . ')' : get_bloginfo('name');

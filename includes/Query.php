@@ -11,7 +11,7 @@ final class Query {
         $site = max(1, (int)($args['site'] ?? get_current_blog_id()));
         $scope = Config::scope($args['scope'] ?? null); $sites = Config::sites($scope, $site);
         if (!$sites) { return $empty; }
-        $limit = max(1, min(100, (int)($args['per_page'] ?? 10))); $page = max(1, min(10000, (int)($args['page'] ?? 1)));
+        $limit = Config::page_size($args['per_page'] ?? null); $page = max(1, min(10000, (int)($args['page'] ?? 1)));
         $c = Config::get(); $t = DB::table(); $type = $args['type'] ?? '';
         $types = array_values(array_intersect((array)$type, array_keys($c['types'])));
         $where = 'i.site_id IN (' . implode(',', array_map('intval', $sites)) . ") AND i.status IN ('ready','scanned')";

@@ -12,7 +12,7 @@ final class Integration {
         return (bool)Config::get()['enabled'] || (is_user_logged_in() && self::param('engine') === 'uams');
     }
     public static function args(): array {
-        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int)get_query_var('paged', 1)), 'per_page' => max(1, (int)get_option('posts_per_page', 10))];
+        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int)get_query_var('paged', 1)), 'per_page' => Config::page_size()];
     }
     public static function hooks(): void {
         add_filter('posts_pre_query', [self::class, 'posts'], 1, 2);
@@ -33,7 +33,7 @@ final class Integration {
     public static function posts($posts, \WP_Query $query) {
         if ($posts !== null || !$query->is_main_query() || !$query->is_search() || !in_array($query->get('fields'), ['', 'all'], true) || is_admin() || !self::active()) { return $posts; }
         try {
-            $args = ['s' => (string)$query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int)$query->get('paged')), 'per_page' => max(1, (int)($query->get('posts_per_page') ?: 10))];
+            $args = ['s' => (string)$query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int)$query->get('paged')), 'per_page' => Config::page_size($query->query['posts_per_page'] ?? null)];
             $results = Query::run($args); $out = [];
             foreach ($results['results'] as $result) {
                 $changed = get_current_blog_id() !== $result->site;
@@ -41,6 +41,7 @@ final class Integration {
                 try { $post = get_post($result->id); if ($post) { $post = clone $post; $post->id = $result->id; $post->site = $result->site; $post->blog_id = $result->site; $post->relevance = $result->relevance; $post->excerpt = $result->excerpt; $out[] = $post; self::$excerpts[$result->site . ':' . $result->id] = $result->excerpt; } }
                 finally { if ($changed) { restore_current_blog(); } }
             }
+            $query->set('posts_per_page', $args['per_page']);
             $query->found_posts = $results['total']; $query->max_num_pages = $results['pages'];
             // WordPress' ordinary post cache is keyed by local ID only. Cross-site IDs must never enter it.
             $query->set('cache_results', false);

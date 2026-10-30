@@ -131,3 +131,5 @@ The database name must start with `uams_search_test` and WordPress's environment
 - Run keyboard, screen-reader, and axe checks on the real theme at desktop/mobile sizes. Test the optional Google block separately.
 - Confirm PHP CLI/Poppler availability and run a complete index of the largest install under its real memory limits.
 - Confirm server cron, switch only after the comparisons pass, and observe the status/no-result views for two weeks. Roll back by disabling the visitor engine setting or deactivating the plugin.
+
+Set **Results per page** under **Network Admin > Settings > uams search**. The default is 20; choose 1 to 100. The setting applies immediately without rebuilding the index. Explicit API or WordPress query page sizes override this default.
