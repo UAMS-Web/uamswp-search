@@ -56,12 +56,12 @@
         const result = await request(op);
         if (result.busy) { say('Another batch is still running. Waiting…'); await wait(1000); continue; }
         if (op !== 'step') { pending = null; running = false; }
-        if (job.error || job.status !== 'running') running = false;
+        if (job.error || job.status !== 'running') { running = false; pending = null; }
         failure(job.error || ''); render();
         if (running) await wait(150);
       }
     } catch (e) { running = false; pending = null; failure(e.message); render(); }
-    finally { pumping = false; render(); }
+    finally { pumping = false; running = false; pending = null; render(); }
   };
   start.addEventListener('click', async () => {
     start.disabled = true; failure('');

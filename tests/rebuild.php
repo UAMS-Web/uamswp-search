@@ -65,7 +65,25 @@ try {
     $old_id = $job['id']; $job = Rebuild::start(true)['job'];
     try { Rebuild::step($old_id, 1); $check(false, 'A stale job ID must not control the new rebuild'); }
     catch (RuntimeException $e) { $check(str_contains($e->getMessage(), 'no longer current'), 'A stale browser tab cannot change a newer rebuild'); }
+    $other = new wpdb(DB_USER, DB_PASSWORD, DB_NAME, DB_HOST);
+    $lock = 'uams-search-' . md5($wpdb->dbname . $wpdb->base_prefix);
+    $check((int)$other->get_var($other->prepare('SELECT GET_LOCK(%s,0)', $lock)) === 1, 'Another connection holds the writer lock for the stale-tab test');
+    try {
+        foreach (['step','pause','cancel'] as $op) {
+            try { $op === 'step' ? Rebuild::step($old_id, 1) : Rebuild::$op($old_id); $check(false, 'Busy stale request must be rejected'); }
+            catch (RuntimeException $e) { $check(str_contains($e->getMessage(), 'no longer current'), 'A busy stale ' . $op . ' cannot adopt a newer job'); }
+        }
+        $check(Rebuild::cancel($job['id'])['busy'], 'A current busy request still waits safely');
+    } finally { $other->get_var($other->prepare('SELECT RELEASE_LOCK(%s)', $lock)); $other->close(); }
     $job = Rebuild::step($job['id'], $job['revision'], 2, 1)['job'];
+    $stage_count = (int)$wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('stage') . '`');
+    $reject_cancel = static fn($value, $old) => $old;
+    add_filter('pre_update_site_option_uams_search_rebuild', $reject_cancel, 10, 2);
+    try {
+        try { Rebuild::cancel($job['id']); $check(false, 'Failed checkpoint must refuse cancellation'); }
+        catch (RuntimeException $e) { $check(str_contains($e->getMessage(), 'save rebuild progress'), 'A failed cancellation checkpoint is reported'); }
+    } finally { remove_filter('pre_update_site_option_uams_search_rebuild', $reject_cancel, 10); }
+    $check($stage_count > 0 && (int)$wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('stage') . '`') === $stage_count && Rebuild::active(), 'A failed cancellation checkpoint retains staged rows for safe resume');
     $job = Rebuild::cancel($job['id'])['job'];
     $check($job['status'] === 'cancelled' && !Rebuild::active() && $find($token . 'after')['total'] === 1, 'Cancel leaves the previous live results available');
     $check((int)$wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM `' . DB::table('stage') . '` WHERE site_id=%d', $site)) === 0, 'Cancel removes only the unfinished staging rows');

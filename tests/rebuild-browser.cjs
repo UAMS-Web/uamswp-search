@@ -5,14 +5,14 @@ const html = fs.readFileSync(process.argv[2], 'utf8');
 (async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    let job = null, complete = false, fail = false, startedWithPreview = false, concurrent = 0, maximum = 0;
+    let busyFinal = false, holdFinal = false, releaseFinal, finalStarted, job = null, complete = false, fail = false, startedWithPreview = false, concurrent = 0, maximum = 0;
     const context = await browser.newContext();
     await context.route('https://uams-search.test/**', async route => {
       if (!route.request().url().endsWith('admin-ajax.php')) {
         return route.fulfill({ contentType: 'text/html', body: html.replace('job:null', `job:${JSON.stringify(job)}`) });
       }
       const data = new URLSearchParams(route.request().postData());
-      const op = data.get('op');
+      const op = data.get('op'); let busy = false;
       concurrent++; maximum = Math.max(maximum, concurrent);
       await new Promise(r => setTimeout(r, 80));
       concurrent--;
@@ -24,12 +24,13 @@ const html = fs.readFileSync(process.argv[2], 'utf8');
       if (op === 'pause') job.status = 'paused';
       if (op === 'cancel') job.status = 'cancelled';
       if (op === 'step') {
+        if (holdFinal) { busy = busyFinal; holdFinal = false; finalStarted(); await new Promise(resolve => { releaseFinal = resolve; }); }
         job.status = complete ? 'complete' : 'running'; job.checked++; job.site_checked++; job.revision++;
         if (complete) job.completed_sites = 1;
       }
-      await route.fulfill({ json: { success:true,data:{job,busy:false} } });
+      await route.fulfill({ json: { success:true,data:{job,busy} } });
     });
-    const page = await context.newPage();
+    const page = await context.newPage(); page.setDefaultTimeout(5000);
     const button = name => page.getByRole('button', { name, exact:true });
     await page.goto('https://uams-search.test/');
     await page.locator('#uams-rebuild-noindex').check();
@@ -53,6 +54,17 @@ const html = fs.readFileSync(process.argv[2], 'utf8');
     await button('Rebuild index').click();
     await page.getByRole('status').filter({ hasText:'Index rebuilt.' }).waitFor();
     assert.equal(await page.locator('progress').getAttribute('value'), '100');
+    for (const [action, busyResponse] of [['Pause rebuild',false],['Cancel rebuild',false],['Pause rebuild',true],['Cancel rebuild',true]]) {
+      holdFinal = true; busyFinal = busyResponse;
+      const held = new Promise(resolve => { finalStarted = resolve; });
+      await button('Rebuild index').click(); await held;
+      await button(action).click(); releaseFinal();
+      await page.getByRole('status').filter({hasText:'Index rebuilt.'}).waitFor();
+      const finished = page.waitForResponse(r => r.url().endsWith('admin-ajax.php') && new URLSearchParams(r.request().postData()).get('op') === 'step');
+      await button('Rebuild index').click(); await finished;
+      await page.getByRole('status').filter({hasText:'Index rebuilt.'}).waitFor();
+      assert.equal(job.status, 'complete', 'A late ' + action + ' must not control the next rebuild');
+    }
     assert.equal(maximum, 1, 'Requests must stay sequential');
     for (const width of [1280,320]) {
       await page.setViewportSize({width,height:900});

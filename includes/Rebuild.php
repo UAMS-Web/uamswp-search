@@ -60,10 +60,10 @@ final class Rebuild {
             return ['job' => $job, 'busy' => false];
         } finally { DB::unlock(); }
     }
-    private static function busy(): array { return ['job' => self::state(), 'busy' => true]; }
+    private static function busy(?string $id = null): array { return ['job' => $id === null ? self::state() : self::require_job($id), 'busy' => true]; }
     /** Duplicate/retried requests return the current cursor instead of repeating a batch. */
     public static function step(string $id, int $revision, int $limit = 25, int $seconds = 8): array {
-        if (!DB::lock()) { return self::busy(); }
+        if (!DB::lock()) { return self::busy($id); }
         try {
             $job = self::require_job($id);
             if (!in_array($job['status'], ['running', 'paused'], true) || $job['revision'] !== $revision) { return ['job' => $job, 'busy' => false]; }
@@ -94,7 +94,7 @@ final class Rebuild {
         return $job;
     }
     public static function pause(string $id): array {
-        if (!DB::lock()) { return self::busy(); }
+        if (!DB::lock()) { return self::busy($id); }
         try {
             $job = self::require_job($id);
             if ($job['status'] === 'running') { $job['status'] = 'paused'; self::save($job); }
@@ -103,14 +103,15 @@ final class Rebuild {
     }
     public static function cancel(string $id): array {
         global $wpdb;
-        if (!DB::lock()) { return self::busy(); }
+        if (!DB::lock()) { return self::busy($id); }
         try {
             $job = self::require_job($id);
             if (in_array($job['status'], ['running', 'paused'], true)) {
                 $site = $job['sites'][$job['site_index']]['id'] ?? 0;
-                if ($site) { DB::exec($wpdb->prepare('DELETE FROM `' . DB::table('stage') . '` WHERE site_id=%d', $site)); }
                 $job['status'] = 'cancelled'; $job['inflight'] = null; $job['error'] = '';
+                // Stop the saved cursor before deleting its data. A failed cleanup is safe to retry.
                 self::save($job);
+                if ($site) { DB::exec($wpdb->prepare('DELETE FROM `' . DB::table('stage') . '` WHERE site_id=%d', $site)); }
             }
             return ['job' => $job, 'busy' => false];
         } finally { DB::unlock(); }
