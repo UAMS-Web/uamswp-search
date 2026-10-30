@@ -111,20 +111,26 @@ final class Integration {
         if ($out['fallback']) { echo '<p>Not every word matched. These results match some of your words.</p>'; }
         if ($out['suggestion']) { echo '<p>Did you mean <a href="' . esc_url(self::url(['s' => $out['suggestion'], 'paged' => false])) . '">' . esc_html($out['suggestion']) . '</a>?</p>'; }
         if (!$out['total']) { echo '<p>No results found. Try fewer words or check the spelling.</p>'; if ((int)get_query_var('paged', 1) <= 1) { Misses::record(get_search_query(false)); } }
-        $provider_group = false;
+        $card_group = null;
         foreach ($out['results'] as $result) {
-            if ($result->post_type === 'provider') {
-                $card = ProviderCard::data($result);
+            $type = $result->post_type;
+            if ($type === 'provider' || $type === 'location') {
+                $card = $type === 'provider' ? ProviderCard::data($result) : LocationCard::data($result);
                 if (!$card) { continue; }
-                if (!$provider_group) { echo '<div class="uams-search-provider-cards card-list card-list-doctors">'; $provider_group = true; }
-                ProviderCard::render($card); continue;
+                if ($card_group !== $type) {
+                    if ($card_group !== null) { echo '</div>'; }
+                    echo $type === 'provider' ? '<div class="uams-search-provider-cards card-list card-list-doctors">' : '<div class="uams-search-location-cards card-list">';
+                    $card_group = $type;
+                }
+                if ($type === 'provider') { ProviderCard::render($card); } else { LocationCard::render($card); }
+                continue;
             }
-            if ($provider_group) { echo '</div>'; $provider_group = false; }
+            if ($card_group !== null) { echo '</div>'; $card_group = null; }
             echo '<article class="uams-search-result"><h3><a href="' . esc_url($result->url) . '">' . esc_html($result->title ?: 'Untitled');
             if ($result->post_type === 'attachment') { echo ' <span>(PDF, ' . esc_html(size_format($result->file_size)) . ')</span>'; }
             echo '</a></h3><p>' . wp_kses($result->excerpt, ['mark' => []]) . '</p></article>';
         }
-        if ($provider_group) { echo '</div>'; }
+        if ($card_group !== null) { echo '</div>'; }
         // paginate_links expects a literal placeholder in base.
         if ($out['pages'] > 1) {
             $links = paginate_links(['base' => str_replace('999999999', '%#%', self::url(['paged' => 999999999])), 'current' => max(1, (int)get_query_var('paged', 1)), 'total' => $out['pages'], 'type' => 'list']);

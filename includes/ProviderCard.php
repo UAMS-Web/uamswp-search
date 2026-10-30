@@ -3,19 +3,6 @@ namespace UAMS_Search;
 
 /** Present current provider fields in the card layout used by Find-a-Doc. */
 final class ProviderCard {
-    private static function text($value): string {
-        return is_string($value) || is_int($value) || is_float($value) ? Text::plain((string)$value) : '';
-    }
-    private static function field(string $name, $object) {
-        if (function_exists('get_field')) { return get_field($name, $object, false); }
-        return $object instanceof \WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
-    }
-    private static function term($value, string $taxonomy): ?\WP_Term {
-        if (!is_int($value) && !(is_string($value) && ctype_digit($value))) { return null; }
-        if ((int)$value < 1) { return null; }
-        $term = get_term((int)$value, $taxonomy);
-        return $term instanceof \WP_Term ? $term : null;
-    }
     public static function data(object $result): ?array {
         $site = (int)$result->site; $id = (int)$result->id;
         if ($site < 1 || $id < 1 || !in_array($site, Config::public_sites(), true)) { return null; }
@@ -26,26 +13,26 @@ final class ProviderCard {
             if (!$post || $post->post_type !== 'provider' || !Extractor::eligible($post)) { return null; }
             $parts = []; $usable_name = [];
             foreach (['physician_first_name','physician_middle_name','physician_last_name','physician_pedigree'] as $key) {
-                $value = self::text(self::field($key, $id)); if ($value !== '') { $parts[] = $value; }
+                $value = CardFields::text(CardFields::field($key, $id)); if ($value !== '') { $parts[] = $value; }
                 $usable_name[$key] = $value;
             }
             $use_parts = $usable_name['physician_first_name'] !== '' && $usable_name['physician_last_name'] !== '';
-            $name = $use_parts ? implode(' ', $parts) : self::text($post->post_title);
+            $name = $use_parts ? implode(' ', $parts) : CardFields::text($post->post_title);
             if ($use_parts) {
-                $degrees = []; $values = self::field('physician_degree', $id);
+                $degrees = []; $values = CardFields::field('physician_degree', $id);
                 foreach (is_array($values) ? $values : [$values] as $value) {
-                    $term = self::term($value, 'degree');
-                    if ($term && ($degree = self::text($term->name)) !== '') { $degrees[] = $degree; }
+                    $term = CardFields::term($value, 'degree');
+                    if ($term && ($degree = CardFields::text($term->name)) !== '') { $degrees[] = $degree; }
                 }
                 if ($degrees) { $name .= ', ' . implode(', ', array_unique($degrees)); }
             }
             if ($name === '') { $name = 'Provider'; }
             $subtitle = '';
-            if (in_array(self::field('physician_resident', $id), [true, 1, '1'], true)) { $subtitle = 'Resident Physician'; }
+            if (CardFields::flag(CardFields::field('physician_resident', $id))) { $subtitle = 'Resident Physician'; }
             else {
-                $title = self::field('physician_title', $id);
-                $term = self::term(is_array($title) ? reset($title) : $title, 'clinical_title');
-                if ($term) { $subtitle = self::text(self::field('clinical_specialization_title', $term)) ?: self::text($term->name); }
+                $title = CardFields::field('physician_title', $id);
+                $term = CardFields::term(is_array($title) ? reset($title) : $title, 'clinical_title');
+                if ($term) { $subtitle = CardFields::text(CardFields::field('clinical_specialization_title', $term)) ?: CardFields::text($term->name); }
             }
             $image = ''; $thumbnail = get_post_thumbnail_id($id);
             if ($thumbnail) { $image = wp_get_attachment_image($thumbnail, 'medium', false, ['class'=>'card-img-top','alt'=>$name,'loading'=>'lazy']); }
