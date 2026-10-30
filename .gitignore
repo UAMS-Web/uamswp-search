@@ -1,4 +1,5 @@
 .DS_Store
+/.claude/worktrees/
 /vendor/bin/
 /vendor/composer/
 /vendor/phpunit/
