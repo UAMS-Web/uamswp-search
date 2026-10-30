@@ -3,10 +3,10 @@ namespace UAMS_Search;
 
 final class Admin {
     public static function hooks(): void {
-        add_action('network_admin_menu', static fn() => add_submenu_page('settings.php', 'UAMS Search', 'UAMS Search', 'manage_network_options', 'uams-search', [self::class, 'page']));
+        add_action('network_admin_menu', static fn() => add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']));
         add_action('admin_menu', static function () {
-            add_options_page('UAMS Search', 'UAMS Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
-            if (!is_multisite()) { add_options_page('UAMS Search Index', 'UAMS Search Index', 'manage_options', 'uams-search', [self::class, 'page']); }
+            add_options_page('uams search', 'uams search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
+            if (!is_multisite()) { add_options_page('uams search index', 'uams search index', 'manage_options', 'uams-search', [self::class, 'page']); }
             // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
             global $menu;
             foreach ($menu as $item) {
@@ -36,8 +36,8 @@ final class Admin {
     private static function home(): string { return is_multisite() ? network_admin_url('settings.php?page=uams-search') : admin_url('options-general.php?page=uams-search'); }
     public static function notice(): void {
         if (!current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
-        if (!DB::ready()) { echo '<div class="notice notice-warning"><p>UAMS Search needs its index tables. <a href="' . esc_url(self::home()) . '">Open search settings</a>.</p></div>'; }
-        elseif (Config::needs_rebuild()) { echo '<div class="notice notice-warning"><p>Some UAMS Search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>'; }
+        if (!DB::ready()) { echo '<div class="notice notice-warning"><p>uams search needs its index tables. <a href="' . esc_url(self::home()) . '">Open search settings</a>.</p></div>'; }
+        elseif (Config::needs_rebuild()) { echo '<div class="notice notice-warning"><p>Some uams search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>'; }
     }
     public static function setup(): void {
         self::capable(); check_admin_referer('uams_search_setup');
@@ -112,13 +112,13 @@ final class Admin {
     }
     public static function page(): void {
         self::capable(); $c = Config::get();
-        echo '<div class="wrap"><h1>UAMS Search</h1><p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
+        echo '<div class="wrap"><h1>uams search</h1><p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
         if (!DB::ready()) {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_setup">'; wp_nonce_field('uams_search_setup'); submit_button('Create index tables'); echo '</form></div>'; return;
         }
         self::status();
         echo '<h2>Network settings</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_save">'; wp_nonce_field('uams_search_save');
-        foreach (['enabled' => 'Use UAMS Search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
+        foreach (['enabled' => 'Use uams search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
             echo '<p><label><input type="checkbox" name="settings[' . esc_attr($key) . ']" value="1" ' . checked((bool)$c[$key], true, false) . '> ' . esc_html($label) . '</label></p>';
         }
         echo '<fieldset><legend><h3>Sub-sites in whole-website search</h3></legend>';

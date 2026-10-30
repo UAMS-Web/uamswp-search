@@ -1,4 +1,4 @@
-# UAMS Search
+# uams search
 
 WordPress multisite search owned by UAMS. The build includes core indexing and relevance, PDF text, synonyms, spelling links, no-result counts, and keyboard-accessible live search. It uses the install's InnoDB full-text indexes. No external search service is used. The optional existing Google “All of UAMS” block still contacts Google.
 
@@ -8,11 +8,11 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 
 1. Upload `dist/uams-search-0.1.0.zip` and network-activate it. On single-site WordPress, activate normally. SearchWP can stay active.
 2. Run `wp uams-search doctor`. Requirements: PHP 8.1+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
-3. Open Network Admin → Settings → UAMS Search. Confirm post types, fields, and included sites. Run `wp uams-search index --all`.
+3. Open Network Admin → Settings → uams search. Confirm post types, fields, and included sites. Run `wp uams-search index --all`.
 4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
-5. After all release checks pass, enable “Use UAMS Search for visitors” and disable SearchWP. Leave the old plugins installed through the comparison period so rollback is easy.
+5. After all release checks pass, enable “Use uams search for visitors” and disable SearchWP. Leave the old plugins installed through the comparison period so rollback is easy.
 
-On a single-site install, index controls are under Settings → UAMS Search Index. Each site's scope is under Settings → UAMS Search, and under UAMS Settings → Search when the existing top-level menu is available. The older reference theme has no usable settings hook for its Google block, so the plugin preserves the block's default visibility and supplies its own per-site checkbox and filter.
+On a single-site install, index controls are under Settings → uams search Index. Each site's scope is under Settings → uams search, and under UAMS Settings → Search when the existing top-level menu is available. The older reference theme has no usable settings hook for its Google block, so the plugin preserves the block's default visibility and supplies its own per-site checkbox and filter.
 
 ## Operations
 
@@ -44,9 +44,9 @@ Changing fields, taxonomies, stop words, PDF enablement, or PDF link destination
 
 The read-only reference was `/Users/bpmore/Herd/uamshealth`. No files in that site were changed. Its search template runs several secondary queries and does not match the newer template described in the spec. The plugin therefore supplies a Genesis search template while its engine is selected. It renders a combined, paginated list with h1 → h2 → h3 headings, visible scope/type links, safe excerpts, and the existing Google block. It does not reuse the old provider/location card layout.
 
-Relevanssi and Ajax Search Pro yield only after UAMS Search has successfully answered that query. They keep handling ordinary searches and fallback requests. On a local WordPress environment, CLI indexing and signed-in previews can include healthy sub-sites marked noindex; anonymous visitors and production environments keep the normal site visibility rule. No search-engine visibility setting is changed.
+Relevanssi and Ajax Search Pro yield only after uams search has successfully answered that query. They keep handling ordinary searches and fallback requests. On a local WordPress environment, CLI indexing and signed-in previews can include healthy sub-sites marked noindex; anonymous visitors and production environments keep the normal site visibility rule. No search-engine visibility setting is changed.
 
-Outside an active search request, the theme stays in control. A missing index or a query error leaves the existing search running. A signed-in `engine=wordpress` request bypasses UAMS Search and lets the existing engine run. On other themes, the plugin supplies a header/main/footer template, which can be replaced with `uams_search_template`.
+Outside an active search request, the theme stays in control. A missing index or a query error leaves the existing search running. A signed-in `engine=wordpress` request bypasses uams search and lets the existing engine run. On other themes, the plugin supplies a header/main/footer template, which can be replaced with `uams_search_template`.
 
 Find-a-Doc defaults were taken from its actual saved field definitions: provider names and clinical text, location names/address/about text, expertise excerpts/alternate names, and its relevant taxonomies. Only explicitly configured fields are read. Object-valued fields are skipped and logged. `physician_hidden`, an explicit `physician_searchable=0`, and `location_hidden` are respected both while indexing and while querying. Related object IDs are not silently treated as names. An integration can resolve an explicitly selected relationship through `uams_search_field_value`.
 

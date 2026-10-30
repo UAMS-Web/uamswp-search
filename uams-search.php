@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: UAMS Search
+ * Plugin Name: uams search
  * Description: Install-wide database search, PDFs, spelling suggestions, and accessible live search.
  * Version: 0.1.0
  * Author: UAMS Web
