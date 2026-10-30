@@ -6,15 +6,19 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 
 ## Install on staging
 
-1. Upload `dist/uams-search-0.1.0.zip` and network-activate it. On single-site WordPress, activate normally. SearchWP can stay active.
-2. Run `wp uams-search doctor`. Requirements: PHP 8.1+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
-3. Open Network Admin → Settings → uams search. Confirm post types, fields, and included sites. Run `wp uams-search index --all`.
+1. Upload `dist/uams-search-0.2.0.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
+2. Open Network Admin → Settings → uams search. Requirements: PHP 8.1+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
+3. Confirm and save post types, fields, and included sites. Click **Rebuild index** and keep the page open. For staging sites marked no-index, leave **Include no-index sites for signed-in previews** checked. No server command access is needed.
 4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
 5. After all release checks pass, enable “Use uams search for visitors” and disable SearchWP. Leave the old plugins installed through the comparison period so rollback is easy.
 
 On a single-site install, index controls are under Settings → uams search Index. Each site's scope is under Settings → uams search, and under UAMS Settings → Search when the existing top-level menu is available. The older reference theme has no usable settings hook for its Google block, so the plugin preserves the block's default visibility and supplies its own per-site checkbox and filter.
 
 ## Operations
+
+The browser rebuild saves its progress after each item. Use **Pause rebuild**, **Resume rebuild**, or **Cancel rebuild** on the settings page. If the tab closes or a request fails, reopen the page and resume. The browser drives short requests; the full rebuild does not depend on WP-Cron. Saved edits and CLI indexing wait until the browser rebuild finishes or is cancelled. A repeatedly interrupted item is marked failed after three attempts so other items can finish. Cancellation discards unfinished staged content; already completed sites retain their new content. Reload the page after completion to refresh the status counts.
+
+Command-line tools remain available when the server provides access:
 
 ```sh
 wp uams-search index --site=1
@@ -44,7 +48,7 @@ Changing fields, taxonomies, stop words, PDF enablement, or PDF link destination
 
 The read-only reference was `/Users/bpmore/Herd/uamshealth`. No files in that site were changed. Its search template runs several secondary queries and does not match the newer template described in the spec. The plugin therefore supplies a Genesis search template while its engine is selected. It renders a combined, paginated list with h1 → h2 → h3 headings, visible scope/type links, safe excerpts, and the existing Google block. It does not reuse the old provider/location card layout.
 
-Relevanssi and Ajax Search Pro yield only after uams search has successfully answered that query. They keep handling ordinary searches and fallback requests. On a local WordPress environment, CLI indexing and signed-in previews can include healthy sub-sites marked noindex; anonymous visitors and production environments keep the normal site visibility rule. No search-engine visibility setting is changed.
+Relevanssi and Ajax Search Pro yield only after uams search has successfully answered that query. They keep handling ordinary searches and fallback requests. Healthy sub-sites marked noindex can be indexed for signed-in previews with the rebuild checkbox. This defaults on in local, development, and staging environments, and can be explicitly enabled on a staging host with any environment label. Anonymous visitors keep the normal site visibility rule. No search-engine visibility setting is changed.
 
 Outside an active search request, the theme stays in control. A missing index or a query error leaves the existing search running. A signed-in `engine=wordpress` request bypasses uams search and lets the existing engine run. On other themes, the plugin supplies a header/main/footer template, which can be replaced with `uams_search_template`.
 

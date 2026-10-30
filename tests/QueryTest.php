@@ -51,7 +51,7 @@ final class QueryTest extends TestCase {
         defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
         $GLOBALS['wpdb'] = new QueryFixtureDB();
         $GLOBALS['uams_test_filters'] = [];
-        $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_VERSION, 'uams_search_settings' => ['enabled' => true]];
+        $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => ['enabled' => true]];
         Integration::$excerpts = [];
     }
     public function testApiUsesObjectIdAndSeparateTotal(): void {

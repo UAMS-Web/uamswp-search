@@ -17,6 +17,8 @@ final class Admin {
         add_action('admin_post_uams_search_site', [self::class, 'save_site']);
         add_action('admin_post_uams_search_retry', [self::class, 'retry']);
         add_action('admin_post_uams_search_setup', [self::class, 'setup']);
+        add_action('wp_ajax_uams_search_rebuild', [self::class, 'rebuild_ajax']);
+        add_action('admin_enqueue_scripts', [self::class, 'rebuild_assets']);
         add_action('admin_notices', [self::class, 'notice']);
         add_action('network_admin_notices', [self::class, 'notice']);
         add_filter('attachment_fields_to_edit', static function ($fields, $post) {
@@ -34,10 +36,36 @@ final class Admin {
         if (!current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { wp_die('You cannot manage search settings.'); }
     }
     private static function home(): string { return is_multisite() ? network_admin_url('settings.php?page=uams-search') : admin_url('options-general.php?page=uams-search'); }
+    public static function rebuild_assets(): void {
+        if (Integration::param('page') !== 'uams-search' || !current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
+        wp_enqueue_script('uams-search-rebuild', plugins_url('assets/admin-rebuild.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
+        wp_enqueue_style('uams-search-rebuild', plugins_url('assets/admin-rebuild.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION);
+        wp_localize_script('uams-search-rebuild', 'UAMSRebuild', ['url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('uams_search_rebuild'), 'job' => Rebuild::state()]);
+    }
+    public static function rebuild_ajax(): void {
+        if (!current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { wp_send_json_error(['message' => 'You cannot rebuild this search index.'], 403); }
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { wp_send_json_error(['message' => 'Use a POST request.'], 405); }
+        check_ajax_referer('uams_search_rebuild', 'nonce');
+        $op = isset($_POST['op']) && is_scalar($_POST['op']) ? sanitize_key(wp_unslash((string)$_POST['op'])) : '';
+        $id = isset($_POST['job_id']) && is_scalar($_POST['job_id']) ? sanitize_text_field(wp_unslash((string)$_POST['job_id'])) : '';
+        $revision = isset($_POST['revision']) && is_scalar($_POST['revision']) ? absint($_POST['revision']) : 0;
+        try {
+            $result = match ($op) {
+                'start' => Rebuild::start(($_POST['include_noindex'] ?? '') === '1'),
+                'step' => Rebuild::step($id, $revision),
+                'pause' => Rebuild::pause($id),
+                'cancel' => Rebuild::cancel($id),
+                'status' => ['job' => Rebuild::state(), 'busy' => false],
+                default => throw new \InvalidArgumentException('Unknown rebuild action.'),
+            };
+        } catch (\Throwable $e) { wp_send_json_error(['message' => $e->getMessage()], $e instanceof \InvalidArgumentException ? 400 : 500); }
+        wp_send_json_success($result);
+    }
     public static function notice(): void {
         if (!current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
         if (!DB::ready()) { echo '<div class="notice notice-warning"><p>uams search needs its index tables. <a href="' . esc_url(self::home()) . '">Open search settings</a>.</p></div>'; }
         elseif (Config::needs_rebuild()) { echo '<div class="notice notice-warning"><p>Some uams search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>'; }
+        if (DB::ready() && Rebuild::active()) { echo '<div class="notice notice-info"><p>A browser rebuild is in progress or paused. Saved edits remain queued until it finishes or is cancelled. <a href="' . esc_url(self::home() . '#uams-search-rebuild') . '">Resume or cancel the rebuild</a>.</p></div>'; }
     }
     public static function setup(): void {
         self::capable(); check_admin_referer('uams_search_setup');
@@ -116,6 +144,7 @@ final class Admin {
         if (!DB::ready()) {
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_setup">'; wp_nonce_field('uams_search_setup'); submit_button('Create index tables'); echo '</form></div>'; return;
         }
+        self::rebuild_controls();
         self::status();
         echo '<h2>Network settings</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_save">'; wp_nonce_field('uams_search_save');
         foreach (['enabled' => 'Use uams search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
@@ -152,6 +181,17 @@ final class Admin {
         echo '<p><label for="uams-synonyms">Synonyms, one rule per line, such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">' . esc_textarea(implode("\n", $synonyms)) . '</textarea></p>';
         self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']); self::numeric('settings[pdf_timeout]', 'PDF time limit, seconds', $c['pdf_timeout'], 120);
         submit_button('Save network settings'); echo '</form></div>';
+    }
+    public static function rebuild_controls(): void {
+        $include = Config::get()['preview_noindex'] || (!Config::site_ids(false) && Config::site_ids(true));
+        echo '<section id="uams-search-rebuild" aria-labelledby="uams-rebuild-heading"><h2 id="uams-rebuild-heading">Rebuild index</h2>';
+        echo '<p>Build the full index without command-line access. Keep this page open while it runs. If you leave, come back and choose Resume rebuild.</p>';
+        echo '<p>Existing results stay available. Each site switches to its new index when its content is ready. Saved edits wait in the queue until the rebuild finishes or is cancelled.</p>';
+        echo '<p><label><input id="uams-rebuild-noindex" type="checkbox" ' . checked((bool)$include, true, false) . '> Include no-index sites for signed-in previews</label><br><span class="description">This does not change search-engine visibility. No-index sites stay excluded from signed-out search results.</span></p>';
+        echo '<p><button type="button" id="uams-rebuild-start" class="button button-primary">Rebuild index</button> <button type="button" id="uams-rebuild-resume" class="button button-primary" hidden>Resume rebuild</button> <button type="button" id="uams-rebuild-pause" class="button" hidden>Pause rebuild</button> <button type="button" id="uams-rebuild-cancel" class="button" hidden>Cancel rebuild</button></p>';
+        echo '<progress id="uams-rebuild-progress" aria-label="Index rebuild progress" value="0" max="100"></progress>';
+        echo '<p id="uams-rebuild-status" role="status" aria-live="polite" aria-atomic="true">Ready to rebuild.</p><p id="uams-rebuild-counts"></p><p id="uams-rebuild-error" role="alert" hidden></p>';
+        echo '<noscript><p>JavaScript is required for the browser rebuild. Enable it, then reload this page.</p></noscript></section>';
     }
     private static function numeric(string $name, string $label, $value, int $max = 100): void {
         echo '<p><label>' . esc_html($label) . ' <input type="number" min="0" max="' . $max . '" step="0.1" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"></label></p>';

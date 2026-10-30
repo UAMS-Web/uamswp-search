@@ -15,6 +15,7 @@ final class Queue {
         if (!DB::lock()) { $stats['busy'] = true; return $stats; }
         $start = microtime(true); $q = DB::table('queue');
         try {
+            if (Rebuild::active()) { $stats['busy'] = true; return $stats; }
             $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM `$q` WHERE attempts<3 AND available_at<=UTC_TIMESTAMP() ORDER BY queued_at,site_id,object_id LIMIT %d", max(1, min(10000, $limit))), ARRAY_A);
             if ($wpdb->last_error) { throw new \RuntimeException($wpdb->last_error); }
             foreach ($rows as $entry) {

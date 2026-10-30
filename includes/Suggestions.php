@@ -6,7 +6,7 @@ final class Suggestions {
         global $wpdb;
         $words = DB::table('words'); $docs = DB::table('word_docs');
         DB::exec($wpdb->prepare("UPDATE `$words` w INNER JOIN `$docs` d ON d.word=w.word SET w.frequency=GREATEST(1,w.frequency)-1 WHERE d.site_id=%d AND d.object_id=%d", $site, $id));
-        $wpdb->delete($docs, ['site_id' => $site, 'object_id' => $id]);
+        if ($wpdb->delete($docs, ['site_id' => $site, 'object_id' => $id]) === false) { throw new \RuntimeException($wpdb->last_error); }
     }
     public static function record(array $row): void {
         global $wpdb;

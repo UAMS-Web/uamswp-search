@@ -14,7 +14,8 @@ final class CLI {
     public function index(array $args, array $assoc): void {
         $this->guard(function () use ($assoc) {
             DB::install();
-            $sites = isset($assoc['all']) ? Config::public_sites() : [(int)($assoc['site'] ?? get_current_blog_id())];
+            $sites = isset($assoc['all']) ? Config::index_sites() : [(int)($assoc['site'] ?? get_current_blog_id())];
+            if (!$sites) { throw new \RuntimeException('No sites are eligible. Use the rebuild button in uams search settings to include no-index sites for signed-in previews.'); }
             foreach ($sites as $site) {
                 $stats = Indexer::rebuild($site, $assoc['post-type'] ?? null);
                 \WP_CLI::log(sprintf('Site %d: %d indexed, %d failed.', $site, $stats['indexed'], $stats['errors']));
@@ -59,9 +60,9 @@ final class CLI {
     public function reindex(array $args, array $assoc): void {
         $this->guard(function () use ($args, $assoc) {
             $site = (int)$assoc['site']; $id = (int)$args[0];
-            if (!in_array($site, Config::public_sites(), true) || $id < 1) { throw new \InvalidArgumentException('Invalid site or post'); }
+            if (!in_array($site, Config::index_sites(), true) || $id < 1) { throw new \InvalidArgumentException('Invalid site or post'); }
             if (!DB::lock()) { throw new \RuntimeException('Another indexer is running'); }
-            try { $row = Indexer::one($site, $id); \WP_CLI::log(wp_json_encode($row, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); }
+            try { if (Rebuild::active()) { throw new \RuntimeException('Resume or cancel the browser rebuild before reindexing.'); } $row = Indexer::one($site, $id); \WP_CLI::log(wp_json_encode($row, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)); }
             finally { DB::unlock(); }
             if ($row['status'] === 'error') { throw new \RuntimeException($row['error']); }
         });
