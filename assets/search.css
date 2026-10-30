@@ -1,0 +1,24 @@
+.uams-search-main,.uams-search-results{max-width:72rem;margin-inline:auto;padding:1.5rem;overflow-wrap:anywhere}
+.uams-search-form{max-width:42rem;margin-block:1.5rem}
+.uams-search-form label{display:block;font-weight:700;margin-bottom:.4rem}
+.uams-search-input{position:relative;display:flex;gap:.5rem;flex-wrap:wrap}
+.uams-search-input input{flex:1;min-width:10rem;padding:.75rem;border:1px solid #555;border-radius:.2rem;font:inherit}
+.uams-search-input button{padding:.75rem 1.25rem;background:#740024;color:#fff;border:2px solid #740024;border-radius:.2rem;font:inherit;font-weight:700;min-height:44px}
+.uams-search-results a{color:#740024;text-decoration:underline;text-underline-offset:.15em}
+.uams-search-results a:visited{color:#532350}
+.uams-search-results :focus-visible,.uams-search-form :focus-visible{outline:3px solid #005fcc;outline-offset:3px}
+.uams-search-filters{display:flex;flex-wrap:wrap;gap:.5rem 1rem;list-style:none;padding:0;margin-block:1rem}
+.uams-search-filters a{display:inline-block;padding:.4rem .2rem;min-height:24px}
+.uams-search-filters [aria-current]{font-weight:800;text-decoration-thickness:3px}
+.uams-search-result{padding-block:1.25rem;border-bottom:1px solid #c9c9c9}
+.uams-search-result h3{margin:0 0 .5rem;font-size:1.35rem;line-height:1.4}
+.uams-search-result p{margin:0;line-height:1.6}
+.uams-search-results mark{background:#fff0a8;color:#151515;font-weight:800;padding:0 .08em}
+.uams-search-options{position:absolute;z-index:1000;top:100%;left:0;right:0;max-height:22rem;overflow:auto;background:#fff;color:#151515;border:1px solid #555;box-shadow:0 .5rem 1rem #0002;list-style:none;margin:0;padding:.25rem}
+.uams-search-options[hidden]{display:none}
+.uams-search-options [role=option]{padding:.75rem;cursor:pointer;min-height:44px}
+.uams-search-options [aria-selected=true],.uams-search-options [role=option]:hover{background:#740024;color:#fff;text-decoration:underline}
+.uams-search-sr{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.uams-search-results .page-numbers{display:flex;flex-wrap:wrap;gap:1rem;list-style:none;padding:1rem 0}
+.uams-search-results .page-numbers a,.uams-search-results .page-numbers span{padding:.25rem;min-width:24px;min-height:24px}
+@media(forced-colors:active){.uams-search-results mark{outline:1px solid Mark;color:MarkText;background:Mark}.uams-search-options [aria-selected=true]{outline:2px solid Highlight}}

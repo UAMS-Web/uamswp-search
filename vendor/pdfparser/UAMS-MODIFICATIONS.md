@@ -1,0 +1,2 @@
+Bundled smalot/pdfparser 2.13.1, commit a71c6dd38e60a995fdb4d36e4433b8b3557c65dc, from the official upstream release archive. LGPL-3.0 license and runtime source are included. All source namespaces, including dynamic class name strings, were changed from Smalot\PdfParser to UAMS_Search_Vendor\PdfParser to avoid WordPress plugin dependency conflicts. Native mbstring, iconv and zlib are required; no polyfill is bundled. Used only inside a resource-limited child process.
+Upstream archive SHA256: 3b08be1574e0853689cbddf8cad7cde7165b5098e8f39f49a1e98bbd917cb468

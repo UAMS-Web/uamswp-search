@@ -1,0 +1,15 @@
+.DS_Store
+/vendor/bin/
+/vendor/composer/
+/vendor/phpunit/
+/vendor/sebastian/
+/vendor/nikic/
+/vendor/myclabs/
+/vendor/phar-io/
+/vendor/theseer/
+/vendor/staabm/
+/vendor/autoload.php
+/node_modules/
+/.phpunit.cache/
+/test-results/
+/tests/.preview.html

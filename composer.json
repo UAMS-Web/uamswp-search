@@ -1,0 +1,10 @@
+{
+  "name": "uams-web/uams-search",
+  "description": "UAMS-owned WordPress multisite search without external search services",
+  "type": "wordpress-plugin",
+  "license": "GPL-3.0-or-later",
+  "require": { "php": ">=8.1", "ext-mbstring": "*", "ext-zlib": "*", "ext-json": "*", "ext-iconv": "*" },
+  "require-dev": { "phpunit/phpunit": "^10.5 || ^11.5" },
+  "scripts": { "test": "phpunit -c phpunit.xml", "build": "python3 scripts/build.py" },
+  "config": { "allow-plugins": false, "sort-packages": true }
+}

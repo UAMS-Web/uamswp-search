@@ -1,0 +1,51 @@
+category,query,expected_site_id,expected_object_id,notes
+short,GI,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+short,ENT,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+short,MRI,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+short,ER,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+short,OB,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+short,OB GYN,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+condition,breast cancer,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+treatment,knee replacement,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+condition,heart disease,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,cardiology,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,cardiac care,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,primary care,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,family medicine,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,pediatrics,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,orthopedics,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,neurology,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,dermatology,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,ophthalmology,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,psychiatry,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+service,physical therapy,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+condition,diabetes,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+condition,asthma,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+condition,stroke,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+treatment,hip replacement,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+treatment,mammogram,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+treatment,colonoscopy,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+location,Little Rock,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+location,North Little Rock,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+location,Fayetteville,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+location,clinic,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,parking,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,billing,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,MyChart,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,careers,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,appointments,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,medical records,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,patient portal,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,emergency,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,insurance,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+common,directions,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+phrase,"""breast cancer""",,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+phrase,"""knee replacement""",,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+partial,cardio,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+partial,ortho,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+spelling,cardiolgy,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+spelling,dermatolgy,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+fallback,cardiology uamsnonexistentword,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+unicode,women’s health,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+field,clinical focus,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.
+pdf,patient guide,,,Draft: content owner must supply expected results; add real full/partial/misspelled provider names.

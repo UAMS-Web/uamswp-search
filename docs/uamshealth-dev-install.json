@@ -1,0 +1,66 @@
+{
+  "url": "https://uamshealth-dev.test/",
+  "environment": "local",
+  "network_active": true,
+  "visitor_search_enabled": false,
+  "database_ready": true,
+  "eligible_sites": 30,
+  "cron_disabled": true,
+  "relevanssi_active": true,
+  "ajax_search_active": true,
+  "index": [
+    {
+      "status": "error",
+      "count": "3"
+    },
+    {
+      "status": "ready",
+      "count": "5099"
+    },
+    {
+      "status": "scanned",
+      "count": "37"
+    }
+  ],
+  "indexed_sites": 30,
+  "failures": [
+    {
+      "error": "PDF exceeds size limit",
+      "count": "3"
+    }
+  ],
+  "searches": {
+    "GI": {
+      "total": 40,
+      "fallback": false
+    },
+    "ENT": {
+      "total": 572,
+      "fallback": false
+    },
+    "MRI": {
+      "total": 121,
+      "fallback": false
+    },
+    "parking": {
+      "total": 297,
+      "fallback": false
+    },
+    "breast cancer": {
+      "total": 100,
+      "fallback": false
+    }
+  },
+  "anonymous_uams_active": false,
+  "preview": {
+    "uams_owned": true,
+    "total": 40,
+    "returned": 10,
+    "totals_preserved": true,
+    "relevanssi_yields": true,
+    "ajax_search_yields": true,
+    "template": "search-genesis.php",
+    "rest_status": 200,
+    "suggestions": 6
+  }
+}
