@@ -14,3 +14,7 @@
 /test-results/
 /tests/.preview.html
 /tests/.rebuild-preview.html
+
+/tests/.provider-preview.html
+
+/tests/.location-preview.html

@@ -31,10 +31,10 @@ function get_post_type_object($type) { return (object)['labels' => (object)['nam
 function size_format($size) { return number_format($size / 1024) . ' KB'; }
 function paginate_links($args) { return ''; }
 class PreviewQuery {
-    public function get($key) { return ['results' => [
+    public function get($key) { $results = $GLOBALS['uams_preview_results'] ?? [
         (object)['title' => 'Heart care', 'url' => 'https://uams-search.test/heart-care/', 'post_type' => 'page', 'excerpt' => Excerpt::make(['Find heart care and cardiology services at UAMS.'], 'heart')],
         (object)['title' => 'Heart clinic guide', 'url' => 'https://uams-search.test/guide.pdf', 'post_type' => 'attachment', 'file_size' => 24000, 'excerpt' => Excerpt::make(['Read our heart clinic guide before your visit.'], 'heart')],
-    ], 'total' => 2, 'pages' => 1, 'fallback' => true, 'suggestion' => 'heart care']; }
+    ]; return ['results' => $results, 'total' => count($results), 'pages' => 1, 'fallback' => true, 'suggestion' => 'heart care']; }
 }
 $wp_query = new PreviewQuery();
 echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>UAMS Search component test</title><style>body{font:18px/1.5 Arial,sans-serif;margin:0;background:#fff;color:#151515}';

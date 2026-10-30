@@ -6,6 +6,7 @@ final class Config {
         return [
             'enabled' => false, 'live' => true, 'logging' => true,
             'preview_noindex' => function_exists('wp_get_environment_type') && in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
+            'results_per_page' => 20,
             'sites' => null, 'related_provider_weight' => 0.25,
             'weights' => ['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1],
             'types' => ['provider' => 1.5, 'expertise' => 1.3, 'location' => 1.2, 'condition' => 1.0, 'treatment' => 1.0, 'page' => 1.0, 'post' => 0.8, 'attachment' => 0.8],
@@ -27,6 +28,10 @@ final class Config {
     public static function get(): array {
         $saved = get_site_option('uams_search_settings', []);
         return apply_filters('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
+    }
+    public static function page_size($value = null): int {
+        $value = $value ?? (self::get()['results_per_page'] ?? 20);
+        return is_scalar($value) && is_numeric($value) && is_finite((float)$value) ? max(1, min(100, (int)$value)) : 20;
     }
     public static function public_sites(): array {
         if (!is_multisite()) { return [get_current_blog_id()]; }

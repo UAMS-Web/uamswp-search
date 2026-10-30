@@ -6,7 +6,7 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 
 ## Install on staging
 
-1. Upload `dist/uams-search-0.3.0.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
+1. Upload `dist/uams-search-0.5.0.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
 2. Open Network Admin → Settings → uams search. Requirements: PHP 8.1+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
 3. Confirm and save post types, fields, and included sites. Click **Rebuild index** and keep the page open. For staging sites marked no-index, leave **Include no-index sites for signed-in previews** checked. No server command access is needed.
 4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
@@ -46,7 +46,7 @@ Changing fields, taxonomies, stop words, PDF enablement, or PDF link destination
 
 ## Theme and Find-a-Doc
 
-The read-only reference was `/Users/bpmore/Herd/uamshealth`. No files in that site were changed. Its search template runs several secondary queries and does not match the newer template described in the spec. The plugin therefore supplies a Genesis search template while its engine is selected. It renders a combined, paginated list with h1 → h2 → h3 headings, visible scope/type links, safe excerpts, and the existing Google block. It does not reuse the old provider/location card layout.
+The read-only reference was `/Users/bpmore/Herd/uamshealth`. No files in that site were changed. Its search template runs several secondary queries and does not match the newer template described in the spec. The plugin therefore supplies a Genesis search template while its engine is selected. It renders a combined, paginated list with h1 → h2 → h3 headings, visible scope/type links, safe excerpts, and the existing Google block. Provider results use portrait cards matching the location-page Find-a-Doc layout: name and degrees, clinical title (or Resident Physician), and a View Profile link. Other results retain their text excerpts. Consecutive provider results share a responsive card row without changing relevance order or pagination. Card fields and images are read on the result's own sub-site, with safe name/image fallbacks. Location results use the directory's landscape cards with linked titles/parents, inherited parent addresses/photos, child phone routing, valid directions, and closure or modified-hours notices. Hidden/private parent details are not inherited. These details are read live on the result's own site. Updating from 0.3.0 to 0.4.0 or 0.5.0 does not require another index rebuild.
 
 Relevanssi and Ajax Search Pro yield only after uams search has successfully answered that query. They keep handling ordinary searches and fallback requests. Healthy sub-sites marked noindex can be indexed for signed-in previews with the rebuild checkbox. This defaults on in local, development, and staging environments, and can be explicitly enabled on a staging host with any environment label. Anonymous visitors keep the normal site visibility rule. No search-engine visibility setting is changed.
 
@@ -131,3 +131,5 @@ The database name must start with `uams_search_test` and WordPress's environment
 - Run keyboard, screen-reader, and axe checks on the real theme at desktop/mobile sizes. Test the optional Google block separately.
 - Confirm PHP CLI/Poppler availability and run a complete index of the largest install under its real memory limits.
 - Confirm server cron, switch only after the comparisons pass, and observe the status/no-result views for two weeks. Roll back by disabling the visitor engine setting or deactivating the plugin.
+
+Set **Results per page** under **Network Admin > Settings > uams search**. The default is 20; choose 1 to 100. The setting applies immediately without rebuilding the index. Explicit API or WordPress query page sizes override this default.
