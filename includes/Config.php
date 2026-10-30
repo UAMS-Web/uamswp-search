@@ -6,7 +6,7 @@ final class Config {
         return [
             'enabled' => false, 'live' => true, 'logging' => true,
             'preview_noindex' => function_exists('wp_get_environment_type') && in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
-            'sites' => null,
+            'sites' => null, 'related_provider_weight' => 0.25,
             'weights' => ['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1],
             'types' => ['provider' => 1.5, 'expertise' => 1.3, 'location' => 1.2, 'condition' => 1.0, 'treatment' => 1.0, 'page' => 1.0, 'post' => 0.8, 'attachment' => 0.8],
             'fields' => [
@@ -54,7 +54,7 @@ final class Config {
     }
     public static function fingerprint(): string {
         $c = self::get();
-        return hash('sha256', wp_json_encode([$c['fields'], $c['taxonomies'], $c['stopwords'], array_keys($c['types']), $c['pdf'], $c['pdf_parent'], $c['pdf_max_mb'], $c['pdf_timeout'], $c['preview_noindex']]));
+        return hash('sha256', wp_json_encode([$c['fields'], $c['taxonomies'], $c['stopwords'], array_keys($c['types']), $c['pdf'], $c['pdf_parent'], $c['pdf_max_mb'], $c['pdf_timeout'], $c['preview_noindex'], Related::VERSION, $c['related_provider_weight']]));
     }
     public static function needs_rebuild(): bool {
         $fingerprint = self::fingerprint();

@@ -22,6 +22,7 @@ final class Queue {
                 $memory = wp_convert_hr_to_bytes(ini_get('memory_limit'));
                 if (microtime(true) - $start >= $seconds || ($memory > 0 && memory_get_usage(true) > $memory * 0.8)) { break; }
                 // Re-read current post state even for delete events, so delete/restore races are safe.
+                Related::queue_dependents((int)$entry['site_id'], (int)$entry['object_id']);
                 $result = Indexer::one((int)$entry['site_id'], (int)$entry['object_id']);
                 if ($result['status'] === 'error') {
                     DB::exec($wpdb->prepare("UPDATE `$q` SET attempts=attempts+1, available_at=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE) WHERE site_id=%d AND object_id=%d AND revision=%d", $entry['site_id'], $entry['object_id'], $entry['revision']));

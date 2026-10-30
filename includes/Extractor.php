@@ -28,6 +28,7 @@ final class Extractor {
             self::log_skips($value, $post->ID, $name);
             $fields[$name] = ['text' => Text::flatten($value), 'weight' => max(0, (float)$weight), 'source' => 'fields'];
         }
+        $fields = array_merge($fields, Related::fields($post));
         $blocks = parse_blocks($post->post_content);
         self::blocks($blocks, $field_list, $fields);
         foreach (($config['taxonomies'][$post->post_type] ?? []) as $taxonomy => $weight) {
