@@ -1,6 +1,6 @@
 # Verification record
 
-Build date: 2026-10-30. Version: 0.4.0. Reference: local `uamshealth`, read only. Downloads and checks were retried after the session allowed access requests.
+Build date: 2026-10-30. Version: 0.5.0. Reference: local `uamshealth`, read only. Downloads and checks were retried after the session allowed access requests.
 
 ## Verified by execution
 
@@ -11,6 +11,7 @@ Build date: 2026-10-30. Version: 0.4.0. Reference: local `uamshealth`, read only
 - **Browser rebuild:** 36 additional real database checks pass for start/counts, duplicate requests, pause/resume, staged publication, queued edits, stale-tab rejection, cancel, no-index visibility, changed settings, and AJAX permissions/nonces. Failure injection proves a failed cancellation checkpoint retains staged rows. A second database connection proves busy stale requests cannot adopt newer jobs. Separate PHP processes deliberately exit three times during a post; durable checkpoints survive and the next request skips that item while completing the rest. Chromium checks the actual rendered admin controls with intercepted responses: start, preview checkbox, pause, page reload/resume, failed response, cancel, completion, sequential requests, late pause/cancel actions at completion (including busy responses), text safety, axe, and reflow at 1280/320 pixels.
 - **Browser:** Chromium 156 / Playwright checks pass for Arrow Up/Down, Escape, Tab, Enter, late responses, text-only suggestion titles, and a normal form with JavaScript disabled. Axe finds no violations for the selected WCAG 2.0/2.1/2.2 A/AA rules at 1280 and 320 pixels. No horizontal overflow was found. Tests use the real plugin component with fixture data and intercepted API responses, not the full theme or Google block.
 - **Provider cards:** 26 real WordPress checks cover live name/degree/clinical-title/resident fields, malformed and partial names, portraits, missing data, escaping, private/excluded providers, mixed-result order, counts/pagination, same-ID sub-sites, and caller/cache restoration. The partial-name regression fails with its guard disabled. Component browser checks pass at 1440/768/320 pixels for portrait ratio, profile-link keyboard access, 44px targets, escaping, axe, and reflow. A full Genesis page rendered from the local WordPress install also passes the search-region axe checks with its actual HTTPS styles and images loaded; Barnes uses the reference name, degree, clinical title, and portrait with ACF active. Full-site/Google accessibility and the remote host remain unverified.
+- **Location cards:** 40 real WordPress checks cover live location titles, parent photo/address inheritance and overrides, child-owned phone routing and patient labels, extensions, malformed values, closures/reopening/modified hours, both ACF group shapes, WordPress timezone parsing, map ranges including zero, private parents/hidden children, escaping, mixed card/text order, counts/pagination, and same-ID sub-sites. Removing the null-byte date guard fails its negative case; restoring malformed CSS selectors fails the browser's computed-style check. Landscape cards, phone/map actions, fallbacks, keyboard access, 44px actions, axe, and reflow pass component checks at 1440/768/320 pixels. The full Genesis preview with loaded HTTPS styles/images also passes the search-region axe, landscape-ratio, viewport-fit, and measured directory typography checks at those widths. With the real ACF custom-table read path active, both Adult Genetics Clinic cards match their directory title, parent, inherited photo, address, appointment number/patient label, and directions. The remote search response remains unverified.
 - **PDFs:** Poppler and the updated PHP parser extract a real fixture PDF. A text-free fixture returns no text. A deliberately slow child is killed at the deadline; a child exceeding its memory limit fails without stopping the parent.
 
 PHP and JavaScript syntax checks pass. The upload ZIP is checked for integrity, runtime-only contents, checksum accuracy, and execution of its unpacked PDF worker. Developer dependencies have project lock files. The temporary WordPress install has its own database, uploads, and configuration; it only reads reference WordPress core files. The reference `uamshealth` install was not changed. A later, user-authorized install activated UAMS Search on the separate local `uamshealth-dev` network, with visitor search off; see [the install record](UAMSHEALTH-DEV-INSTALL.md).
@@ -35,11 +36,13 @@ npx playwright install chromium
 npm run test:browser
 npm run test:rebuild-browser
 npm run test:provider-browser
+npm run test:location-browser
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/integration.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/multisite.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/rebuild.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/related.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/provider-cards.php
+UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/location-cards.php
 python3 scripts/build.py
 ```
 

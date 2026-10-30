@@ -9,7 +9,7 @@ final class LocationCard {
         return array_values(array_filter(array_map([CardFields::class, 'text'], $lines), static fn($line) => $line !== ''));
     }
     private static function date($value): ?\DateTimeImmutable {
-        if (!is_string($value) || $value === '') { return null; }
+        if (!is_string($value) || $value === '' || strlen($value) > 40 || str_contains($value, "\0")) { return null; }
         foreach (['Ymd','Y-m-d','F j, Y'] as $format) {
             $date = \DateTimeImmutable::createFromFormat('!' . $format, $value, wp_timezone());
             if ($date && $date->format($format) === $value) { return $date; }
@@ -33,7 +33,9 @@ final class LocationCard {
         foreach (['location_modified_hours','location_telemed_modified_hours'] as $prefix) {
             $keys = [$prefix === 'location_modified_hours' ? $prefix : $prefix . '_query', $prefix . '_start_date', $prefix . '_end', $prefix . '_end_date'];
             $values = [];
-            foreach ($keys as $key) { $values[] = array_key_exists($key, $hours) ? $hours[$key] : CardFields::field('location_hours_group_' . $key, $id); }
+            foreach ($keys as $key) {
+                $values[] = array_key_exists($key, $hours) ? $hours[$key] : (array_key_exists('field_' . $key, $hours) ? $hours['field_' . $key] : CardFields::field('location_hours_group_' . $key, $id));
+            }
             [$enabled,$start_value,$end_known,$end_value] = $values;
             $start = self::date($start_value); $end = self::date($end_value);
             if (CardFields::flag($enabled) && $start && $start <= $today->modify('+30 days') && (!CardFields::flag($end_known) || ($end && $end >= $today))) { $starts[] = $start; }
@@ -44,7 +46,7 @@ final class LocationCard {
     }
     private static function phone($value): ?array {
         if (!is_string($value) && !is_int($value)) { return null; }
-        $raw = trim((string)$value); $extension = '';
+        $raw = trim((string)$value); if (strlen($raw) > 100) { return null; } $extension = '';
         if (preg_match('/(?:ext\.?|x|#)\s*(\d{1,6})\s*$/i', $raw, $match, PREG_OFFSET_CAPTURE)) {
             $extension = $match[1][0]; $raw = substr($raw, 0, $match[0][1]);
         }

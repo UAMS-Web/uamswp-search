@@ -27,6 +27,11 @@ The optional All of UAMS block loads Google Custom Search, matching the referenc
 
 == Changelog ==
 
+= 0.5.0 =
+* Display location search results as directory cards with parent/address/photo inheritance, phones, notices, and location/directions actions.
+* Preserve provider cards and mixed-result order, with safe live fields and mobile support.
+* No additional index rebuild is needed when updating from 0.3.0 or 0.4.0.
+
 = 0.4.0 =
 * Display provider search results as portrait cards with degrees, clinical titles, and profile links.
 * Preserve mixed-result order and pagination, with mobile and keyboard support.

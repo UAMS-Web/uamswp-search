@@ -4,7 +4,8 @@
   "scripts": {
     "test:browser": "php tests/render-preview.php > tests/.preview.html && node tests/browser.cjs tests/.preview.html",
     "test:rebuild-browser": "php tests/render-rebuild-preview.php > tests/.rebuild-preview.html && node tests/rebuild-browser.cjs tests/.rebuild-preview.html",
-    "test:provider-browser": "php tests/render-provider-preview.php > tests/.provider-preview.html && node tests/provider-browser.cjs tests/.provider-preview.html"
+    "test:provider-browser": "php tests/render-provider-preview.php > tests/.provider-preview.html && node tests/provider-browser.cjs tests/.provider-preview.html",
+    "test:location-browser": "php tests/render-location-preview.php > tests/.location-preview.html && node tests/location-browser.cjs tests/.location-preview.html"
   },
   "devDependencies": {
     "axe-core": "^4.10.0",
