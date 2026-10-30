@@ -27,6 +27,11 @@ The optional All of UAMS block loads Google Custom Search, matching the referenc
 
 == Changelog ==
 
+= 0.4.0 =
+* Display provider search results as portrait cards with degrees, clinical titles, and profile links.
+* Preserve mixed-result order and pagination, with mobile and keyboard support.
+* Read current provider details on their own sub-site; no new index rebuild is needed from 0.3.0.
+
 = 0.3.0 =
 * Find linked locations, expertise, conditions, and treatments by provider name.
 * Refresh related pages after provider edits, with live guards against stale hidden or private names.

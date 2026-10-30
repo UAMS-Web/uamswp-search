@@ -24,12 +24,14 @@ final class ProviderCard {
         try {
             $post = get_post($id);
             if (!$post || $post->post_type !== 'provider' || !Extractor::eligible($post)) { return null; }
-            $parts = [];
+            $parts = []; $usable_name = [];
             foreach (['physician_first_name','physician_middle_name','physician_last_name','physician_pedigree'] as $key) {
                 $value = self::text(self::field($key, $id)); if ($value !== '') { $parts[] = $value; }
+                $usable_name[$key] = $value;
             }
-            $name = $parts ? implode(' ', $parts) : self::text($post->post_title);
-            if ($parts) {
+            $use_parts = $usable_name['physician_first_name'] !== '' && $usable_name['physician_last_name'] !== '';
+            $name = $use_parts ? implode(' ', $parts) : self::text($post->post_title);
+            if ($use_parts) {
                 $degrees = []; $values = self::field('physician_degree', $id);
                 foreach (is_array($values) ? $values : [$values] as $value) {
                     $term = self::term($value, 'degree');
