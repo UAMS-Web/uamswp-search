@@ -1,15 +1,6 @@
 .DS_Store
 /.claude/worktrees/
-/vendor/bin/
-/vendor/composer/
-/vendor/phpunit/
-/vendor/sebastian/
-/vendor/nikic/
-/vendor/myclabs/
-/vendor/phar-io/
-/vendor/theseer/
-/vendor/staabm/
-/vendor/autoload.php
+/vendor/
 /node_modules/
 /.phpunit.cache/
 /test-results/
