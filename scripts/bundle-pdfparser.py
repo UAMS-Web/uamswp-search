@@ -14,7 +14,7 @@ VERSION = '2.13.1'
 COMMIT = 'a71c6dd38e60a995fdb4d36e4433b8b3557c65dc'
 root = Path(__file__).resolve().parents[1]
 archive = Path(sys.argv[1])
-target = root / 'vendor/pdfparser'
+target = root / 'lib/pdfparser'
 with zipfile.ZipFile(archive) as package:
     prefix = package.namelist()[0].split('/')[0] + '/'
     source = [(n, n[len(prefix):]) for n in package.namelist() if n.startswith(prefix + 'src/') and not n.endswith('/')]
