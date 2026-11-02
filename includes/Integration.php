@@ -16,7 +16,6 @@ final class Integration {
     }
     public static function hooks(): void {
         add_filter('posts_pre_query', [self::class, 'posts'], 1, 2);
-        add_filter('relevanssi_search_ok', [self::class, 'allow_other_engine'], PHP_INT_MAX, 2);
         add_filter('asp_query_is_search', [self::class, 'allow_other_engine'], PHP_INT_MAX, 2);
         add_filter('template_include', [self::class, 'template'], 99);
         add_filter('get_the_excerpt', [self::class, 'excerpt'], 99, 2);
@@ -26,7 +25,7 @@ final class Integration {
         add_shortcode('uams_search_form', static fn() => get_search_form(false));
     }
     public static function allow_other_engine($allowed, $query) {
-        // Only yield a query we already answered. Other engines keep normal searches,
+        // Only yield a query we already answered. Ajax Search Pro keeps normal searches,
         // secondary queries, and the error/missing-index fallback they handled before.
         return $query instanceof \WP_Query && is_array($query->get('uams_search_results')) ? false : $allowed;
     }
@@ -47,12 +46,18 @@ final class Integration {
             $query->set('update_post_meta_cache', false);
             $query->set('update_post_term_cache', false);
             $query->set('uams_search_results', $results);
+            if (!$results['total'] && $args['page'] <= 1) {
+                // Logging must never turn a successful search into a fallback.
+                try { Misses::record($args['s']); } catch (\Throwable $e) { error_log('UAMS Search: no-result log failed. ' . $e->getMessage()); }
+            }
             return $out;
         } catch (\Throwable $e) { error_log('UAMS Search: search failed; using WordPress. ' . $e->getMessage()); return $posts; }
     }
     public static function template(string $template): string {
         global $wp_query;
         if (!is_search() || !self::active() || !$wp_query->get('uams_search_results')) { return $template; }
+        // A theme that renders results itself (helpers in helpers.php) returns false here.
+        if (!apply_filters('uams_search_use_template', true, $template)) { return $template; }
         if (get_template() === 'genesis' || get_stylesheet() === 'uams-2020') { return dirname(__DIR__) . '/templates/search-genesis.php'; }
         return apply_filters('uams_search_template', dirname(__DIR__) . '/templates/search.php', $template);
     }
@@ -62,12 +67,25 @@ final class Integration {
     }
     public static function form(string $form): string {
         if (!self::active()) { return $form; }
-        $id = wp_unique_id('uams-search-');
         $scope = Config::scope(self::param('scope'));
+        // A theme that styles its own search form keeps it; only the plugin's fields are added.
+        if ($form !== '' && !apply_filters('uams_search_replace_form', true, $form)) { return self::augment($form, $scope); }
+        $id = wp_unique_id('uams-search-');
         $html = '<form role="search" method="get" action="' . esc_url(home_url('/')) . '" class="uams-search-form"><label for="' . esc_attr($id) . '">Search this website</label><div class="uams-search-input"><input type="search" name="s" id="' . esc_attr($id) . '" value="' . esc_attr(get_search_query(false)) . '" maxlength="200" autocomplete="off" data-uams-live="' . (Config::get()['live'] ? 'true' : 'false') . '"><button type="submit">Search</button></div><input type="hidden" name="scope" value="' . esc_attr($scope) . '">';
         if (is_user_logged_in() && self::param('engine') === 'uams') { $html .= '<input type="hidden" name="engine" value="uams">'; }
         if (isset(Config::get()['types'][self::param('type')])) { $html .= '<input type="hidden" name="type" value="' . esc_attr(self::param('type')) . '">'; }
         return $html . '</form>';
+    }
+    private static function augment(string $form, string $scope): string {
+        $extra = '';
+        // Live search attaches to inputs marked data-uams-live; mark the theme's search field.
+        if (Config::get()['live'] && strpos($form, 'data-uams-live') === false) { $form = preg_replace('/(<input\b[^>]*\bname=["\']s["\'])/i', '$1 data-uams-live="true"', $form, 1); }
+        if (strpos($form, 'name="scope"') === false) { $extra .= '<input type="hidden" name="scope" value="' . esc_attr($scope) . '">'; }
+        if (is_user_logged_in() && self::param('engine') === 'uams' && strpos($form, 'name="engine"') === false) { $extra .= '<input type="hidden" name="engine" value="uams">'; }
+        if (isset(Config::get()['types'][self::param('type')]) && strpos($form, 'name="type"') === false) { $extra .= '<input type="hidden" name="type" value="' . esc_attr(self::param('type')) . '">'; }
+        if ($extra === '') { return $form; }
+        $pos = strripos($form, '</form>');
+        return $pos === false ? $form : substr_replace($form, $extra, $pos, 0);
     }
     public static function assets(): void {
         if (!self::active()) { return; }
@@ -108,9 +126,8 @@ final class Integration {
         echo self::form('');
         self::filters();
         echo '<h2>' . esc_html(number_format_i18n($out['total']) . ' results') . '</h2>';
-        if ($out['fallback']) { echo '<p>Not every word matched. These results match some of your words.</p>'; }
-        if ($out['suggestion']) { echo '<p>Did you mean <a href="' . esc_url(self::url(['s' => $out['suggestion'], 'paged' => false])) . '">' . esc_html($out['suggestion']) . '</a>?</p>'; }
-        if (!$out['total']) { echo '<p>No results found. Try fewer words or check the spelling.</p>'; if ((int)get_query_var('paged', 1) <= 1) { Misses::record(get_search_query(false)); } }
+        self::notices();
+        if (!$out['total']) { echo '<p>No results found. Try fewer words or check the spelling.</p>'; }
         foreach ($out['results'] as $result) {
             echo '<article class="uams-search-result"><h3><a href="' . esc_url($result->url) . '">' . esc_html($result->title ?: 'Untitled');
             if ($result->post_type === 'attachment') { echo ' <span>(PDF, ' . esc_html(size_format($result->file_size)) . ')</span>'; }
@@ -129,7 +146,16 @@ final class Integration {
         if (is_user_logged_in() && self::param('engine') === 'uams') { $args['engine'] = 'uams'; }
         return add_query_arg(array_merge($args, $changes), home_url('/'));
     }
-    private static function filters(): void {
+    /** "Not every word matched" and "Did you mean" notes for the current main search. */
+    public static function notices(): void {
+        global $wp_query;
+        $out = $wp_query instanceof \WP_Query ? $wp_query->get('uams_search_results') : null;
+        if (!is_array($out)) { return; }
+        if (!empty($out['fallback'])) { echo '<p class="uams-search-notice">Not every word matched. These results match some of your words.</p>'; }
+        if (!empty($out['suggestion'])) { echo '<p class="uams-search-notice">Did you mean <a href="' . esc_url(self::url(['s' => $out['suggestion'], 'paged' => false])) . '">' . esc_html($out['suggestion']) . '</a>?</p>'; }
+    }
+    /** Scope and result-type links for the current main search. */
+    public static function filters(): void {
         echo '<nav aria-label="Search scope"><ul class="uams-search-filters">';
         foreach (['site' => 'This site', 'install' => 'Whole website'] as $scope => $label) {
             echo '<li><a href="' . esc_url(self::url(['scope' => $scope, 'paged' => false])) . '"' . (Config::scope(self::param('scope')) === $scope ? ' aria-current="true"' : '') . '>' . esc_html($label) . '</a></li>';

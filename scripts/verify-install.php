@@ -12,7 +12,6 @@ $report = [
     'database_ready' => DB::ready(),
     'eligible_sites' => count(Config::public_sites()),
     'cron_disabled' => defined('DISABLE_WP_CRON') && DISABLE_WP_CRON,
-    'relevanssi_active' => is_plugin_active('relevanssi-premium/relevanssi.php') || function_exists('relevanssi_query'),
     'ajax_search_active' => is_plugin_active('ajax-search-pro/ajax-search-pro.php'),
     'index' => $wpdb->get_results('SELECT status,COUNT(*) AS count FROM `' . DB::table() . '` GROUP BY status', ARRAY_A),
     'indexed_sites' => (int)$wpdb->get_var('SELECT COUNT(DISTINCT site_id) FROM `' . DB::table() . '`'),
@@ -39,7 +38,6 @@ try {
         'uams_owned' => is_array($own),
         'total' => $native->found_posts, 'returned' => count($native->posts),
         'totals_preserved' => is_array($own) && $native->found_posts === $own['total'],
-        'relevanssi_yields' => apply_filters('relevanssi_search_ok', true, $native) === false,
         'ajax_search_yields' => apply_filters('asp_query_is_search', true, $native) === false,
         'template' => basename(Integration::template(get_stylesheet_directory() . '/search.php')),
     ];

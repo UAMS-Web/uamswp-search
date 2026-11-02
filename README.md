@@ -9,8 +9,8 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 1. Upload `dist/uams-search-0.3.0.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
 2. Open Network Admin → Settings → uams search. Requirements: PHP 8.1+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
 3. Confirm and save post types, fields, and included sites. Click **Rebuild index** and keep the page open. For staging sites marked no-index, leave **Include no-index sites for signed-in previews** checked. No server command access is needed.
-4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
-5. After all release checks pass, enable “Use uams search for visitors” and disable SearchWP. Leave the old plugins installed through the comparison period so rollback is easy.
+4. While signed in, compare `/?s=heart&engine=uams` with the current search results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
+5. After all release checks pass, enable “Use uams search for visitors” and deactivate SearchWP and Relevanssi. Leave the old plugins installed through the comparison period so rollback is easy.
 
 On a single-site install, index controls are under Settings → uams search Index. Each site's scope is under Settings → uams search, and under UAMS Settings → Search when the existing top-level menu is available. The older reference theme has no usable settings hook for its Google block, so the plugin preserves the block's default visibility and supplies its own per-site checkbox and filter.
 
@@ -48,7 +48,9 @@ Changing fields, taxonomies, stop words, PDF enablement, or PDF link destination
 
 The read-only reference was `/Users/bpmore/Herd/uamshealth`. No files in that site were changed. Its search template runs several secondary queries and does not match the newer template described in the spec. The plugin therefore supplies a Genesis search template while its engine is selected. It renders a combined, paginated list with h1 → h2 → h3 headings, visible scope/type links, safe excerpts, and the existing Google block. It does not reuse the old provider/location card layout.
 
-Relevanssi and Ajax Search Pro yield only after uams search has successfully answered that query. They keep handling ordinary searches and fallback requests. Healthy sub-sites marked noindex can be indexed for signed-in previews with the rebuild checkbox. This defaults on in local, development, and staging environments, and can be explicitly enabled on a staging host with any environment label. Anonymous visitors keep the normal site visibility rule. No search-engine visibility setting is changed.
+Ajax Search Pro yields only after uams search has successfully answered that query. It keeps handling ordinary searches and fallback requests. Relevanssi compatibility has been removed; deactivate Relevanssi before enabling uams search for visitors. Healthy sub-sites marked noindex can be indexed for signed-in previews with the rebuild checkbox. This defaults on in local, development, and staging environments, and can be explicitly enabled on a staging host with any environment label. Anonymous visitors keep the normal site visibility rule. No search-engine visibility setting is changed.
+
+A theme that renders its own results page can keep it. Return false from `uams_search_use_template` to keep the theme's search template, and from `uams_search_replace_form` to keep the theme's search form (the plugin then adds only its hidden `scope`, `type` and preview fields). The theme can render the plugin's pieces with `uams_search_filters()` (scope and type links), `uams_search_notices()` ("Did you mean" and partial-match notes), `uams_search_results_meta()` (total, pages, fallback, suggestion) and `uams_search_excerpt()`. `uams_search_is_active()` is true when uams search answered the current main query. No-result searches are logged when the query is answered, whichever template renders the page. uams-2020 uses these hooks on its `uams-search-integration` branch.
 
 Outside an active search request, the theme stays in control. A missing index or a query error leaves the existing search running. A signed-in `engine=wordpress` request bypasses uams search and lets the existing engine run. On other themes, the plugin supplies a header/main/footer template, which can be replaced with `uams_search_template`.
 
@@ -85,7 +87,7 @@ $excerpt = uams_search_excerpt(get_the_ID(), get_current_blog_id());
 // The string is already escaped and contains only plugin-generated <mark> tags.
 ```
 
-Other filters: `uams_search_config`, `uams_search_include_post`, `uams_search_template`, `uams_search_google_enabled`, `uams_search_google_cx`, `uams_search_pdftotext`, and `uams_search_php_binary`. ACF block saved values use the same allowlist. Core dynamic blocks are not rendered and `the_content` is never called. ACF field resolver changes should be followed by a rebuild.
+Other filters: `uams_search_use_template`, `uams_search_replace_form`, `uams_search_config`, `uams_search_include_post`, `uams_search_template`, `uams_search_google_enabled`, `uams_search_google_cx`, `uams_search_pdftotext`, and `uams_search_php_binary`. ACF block saved values use the same allowlist. Core dynamic blocks are not rendered and `the_content` is never called. ACF field resolver changes should be followed by a rebuild.
 
 ## Database choices
 
