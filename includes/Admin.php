@@ -12,12 +12,12 @@ final class Admin {
             if (!is_multisite()) { add_options_page('uams search index', 'uams search index', 'manage_options', 'uams-search', [self::class, 'page']); }
             // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
             global $menu;
-            $featured_parent = 'tools.php';
+            $featured_parent = 'options-general.php';
             foreach ($menu as $item) {
                 if (strip_tags($item[0]) === 'UAMS Settings') { add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']); $featured_parent = $item[2]; break; }
             }
-            // Editors manage their own site's featured results.
-            add_submenu_page($featured_parent, 'Featured search results', 'Featured search results', 'edit_others_posts', 'uams-search-featured', static fn() => self::featured_page('site'));
+            // Site administrators manage their own site's featured results.
+            add_submenu_page($featured_parent, 'Featured search results', 'Featured search results', 'manage_options', 'uams-search-featured', static fn() => self::featured_page('site'));
         }, 99);
         add_action('admin_post_uams_search_save', [self::class, 'save']);
         add_action('admin_post_uams_search_site', [self::class, 'save_site']);
@@ -206,7 +206,7 @@ final class Admin {
     // ---------- Featured results ----------
     private static function featured_scope(): string {
         $scope = isset($_REQUEST['scope']) && $_REQUEST['scope'] === 'network' && is_multisite() ? 'network' : 'site';
-        if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'edit_others_posts')) { wp_die('You cannot manage featured search results.'); }
+        if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'manage_options')) { wp_die('You cannot manage featured search results.'); }
         return $scope;
     }
     private static function featured_url(string $scope, array $args = []): string {
@@ -214,7 +214,7 @@ final class Admin {
         return add_query_arg($args, $base);
     }
     public static function featured_page(string $scope): void {
-        if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'edit_others_posts')) { wp_die('You cannot manage featured search results.'); }
+        if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'manage_options')) { wp_die('You cannot manage featured search results.'); }
         $rules = Featured::rules($scope);
         $editing = null; $edit_id = Integration::param('edit');
         foreach ($rules as $rule) { if ($edit_id !== '' && ($rule['id'] ?? '') === $edit_id) { $editing = $rule; } }

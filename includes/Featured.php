@@ -7,7 +7,7 @@ namespace UAMS_Search;
  *
  * Install-wide rules live in a network option and are managed by network
  * admins. Each sub-site's rules live in that site's own option and are
- * managed by its editors. A rule matches when one of its keyword phrases
+ * managed by its administrators. A rule matches when one of its keyword phrases
  * appears in the search, compared word by word after stemming.
  */
 final class Featured {
