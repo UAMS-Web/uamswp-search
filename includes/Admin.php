@@ -5,19 +5,19 @@ final class Admin {
     public static function hooks(): void {
         add_action('network_admin_menu', static function () {
             add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']);
-            add_submenu_page('settings.php', 'Featured search results', 'Featured search results', 'manage_network_options', 'uams-search-featured', static fn() => self::featured_page('network'));
         });
         add_action('admin_menu', static function () {
-            add_options_page('uams search', 'uams search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
+            global $menu;
+            // One page per site with tabs (Settings, Featured results). It sits under UAMS Settings
+            // when that menu exists, otherwise under Settings.
+            $under_uams = false;
+            foreach ($menu as $item) { if (strip_tags($item[0]) === 'UAMS Settings') { $under_uams = true; } }
+            if (!$under_uams) { add_options_page('Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']); }
             if (!is_multisite()) { add_options_page('uams search index', 'uams search index', 'manage_options', 'uams-search', [self::class, 'page']); }
             // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
-            global $menu;
-            $featured_parent = 'options-general.php';
             foreach ($menu as $item) {
-                if (strip_tags($item[0]) === 'UAMS Settings') { add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']); $featured_parent = $item[2]; break; }
+                if (strip_tags($item[0]) === 'UAMS Settings') { add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']); break; }
             }
-            // Site administrators manage their own site's featured results.
-            add_submenu_page($featured_parent, 'Featured search results', 'Featured search results', 'manage_options', 'uams-search-featured', static fn() => self::featured_page('site'));
         }, 99);
         add_action('admin_post_uams_search_save', [self::class, 'save']);
         add_action('admin_post_uams_search_site', [self::class, 'save_site']);
@@ -43,9 +43,35 @@ final class Admin {
     private static function capable(): void {
         if (!current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { wp_die('You cannot manage search settings.'); }
     }
-    private static function home(): string { return is_multisite() ? network_admin_url('settings.php?page=uams-search') : admin_url('options-general.php?page=uams-search'); }
+    private static function home(string $tab = ''): string {
+        $url = is_multisite() ? network_admin_url('settings.php?page=uams-search') : admin_url('options-general.php?page=uams-search');
+        return $tab !== '' ? add_query_arg('tab', $tab, $url) : $url;
+    }
+    private static function site_home(string $tab = ''): string {
+        $url = admin_url('admin.php?page=uams-search-site');
+        return $tab !== '' ? add_query_arg('tab', $tab, $url) : $url;
+    }
+    /** Network page tabs. Settings tabs each save only their own fields. */
+    private const NETWORK_TABS = ['index' => 'Index', 'general' => 'General', 'content' => 'Content', 'types' => 'Result types', 'featured' => 'Featured results'];
+    private const SITE_TABS = ['settings' => 'Settings', 'featured' => 'Featured results'];
+    private static function current_tab(array $tabs): string {
+        $tab = Integration::param('tab');
+        return isset($tabs[$tab]) ? $tab : (string)array_key_first($tabs);
+    }
+    /** Tabs are links that reload the page; the current one has aria-current. */
+    private static function tabs(callable $url, array $tabs, string $current): void {
+        echo '<nav class="nav-tab-wrapper wp-clearfix" aria-label="Search settings sections">';
+        foreach ($tabs as $key => $label) {
+            $active = $key === $current;
+            echo '<a href="' . esc_url($url($key)) . '" class="nav-tab' . ($active ? ' nav-tab-active' : '') . '"' . ($active ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a>';
+        }
+        echo '</nav>';
+    }
+    private static function saved_notice(): void {
+        if (Integration::param('notice') === 'settings') { echo '<div class="notice notice-success" role="status"><p>Settings saved.</p></div>'; }
+    }
     public static function rebuild_assets(): void {
-        if (Integration::param('page') !== 'uams-search' || !current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
+        if (Integration::param('page') !== 'uams-search' || self::current_tab(self::NETWORK_TABS) !== 'index' || !current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
         wp_enqueue_script('uams-search-rebuild', plugins_url('assets/admin-rebuild.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
         wp_enqueue_style('uams-search-rebuild', plugins_url('assets/admin-rebuild.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION);
         wp_localize_script('uams-search-rebuild', 'UAMSRebuild', ['url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('uams_search_rebuild'), 'job' => Rebuild::state()]);
@@ -73,7 +99,7 @@ final class Admin {
         if (!current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
         if (!DB::ready()) { echo '<div class="notice notice-warning"><p>uams search needs its index tables. <a href="' . esc_url(self::home()) . '">Open search settings</a>.</p></div>'; }
         elseif (Config::needs_rebuild()) { echo '<div class="notice notice-warning"><p>Some uams search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>'; }
-        if (DB::ready() && Rebuild::active()) { echo '<div class="notice notice-info"><p>A browser rebuild is in progress or paused. Saved edits remain queued until it finishes or is cancelled. <a href="' . esc_url(self::home() . '#uams-search-rebuild') . '">Resume or cancel the rebuild</a>.</p></div>'; }
+        if (DB::ready() && Rebuild::active()) { echo '<div class="notice notice-info"><p>A browser rebuild is in progress or paused. Saved edits remain queued until it finishes or is cancelled. <a href="' . esc_url(self::home('index') . '#uams-search-rebuild') . '">Resume or cancel the rebuild</a>.</p></div>'; }
     }
     public static function setup(): void {
         self::capable(); check_admin_referer('uams_search_setup');
@@ -84,8 +110,17 @@ final class Admin {
         self::capable(); check_admin_referer('uams_search_save');
         $input = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $c = Config::get();
+        // Each settings tab posts only its own fields; leave the others as saved.
+        $section = isset($_POST['section']) && in_array($_POST['section'], ['general', 'content', 'types'], true) ? (string)$_POST['section'] : '';
+        if ($section === '') { wp_die('Unknown settings section.'); }
+        if ($section === 'general') {
         foreach (['enabled','live','logging','pdf','pdf_parent'] as $key) { $c[$key] = !empty($input[$key]); }
         $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map('intval', (array)($input['sites'] ?? []))));
+        $c['featured_max'] = max(1, min(Featured::MAX_ITEMS, (int)($input['featured_max'] ?? 3)));
+        $c['pdf_max_mb'] = max(1, min(100, self::number($input['pdf_max_mb'] ?? 20)));
+        $c['pdf_timeout'] = max(1, min(120, (int)($input['pdf_timeout'] ?? 30)));
+        }
+        if ($section === 'content') {
         foreach (array_keys(Config::defaults()['weights']) as $key) { $c['weights'][$key] = self::number($input['weights'][$key] ?? 0); }
         $types = []; $fields = []; $taxonomies = [];
         foreach ((array)($input['types'] ?? []) as $name => $values) {
@@ -113,6 +148,8 @@ final class Admin {
             foreach (explode(',', $parts[1]) as $value) { $value = implode(' ', Text::words($value)); if ($value !== '') { $alternates[] = mb_substr($value, 0, 100); } }
             $c['synonyms'][$key[0]] = array_slice(array_unique($alternates), 0, 10);
         }
+        }
+        if ($section === 'types') {
         $c['groups'] = [];
         foreach (preg_split('/\R/', is_scalar($input['groups'] ?? '') ? (string)$input['groups'] : '') as $line) {
             $parts = array_map('trim', explode('|', $line));
@@ -122,21 +159,30 @@ final class Admin {
             if ($slug && $label !== '' && $group_types) { $c['groups'][$slug] = ['label' => mb_substr($label, 0, 60), 'types' => $group_types]; }
         }
         if (!$c['groups']) { $c['groups'] = Config::defaults()['groups']; }
-        $c['featured_max'] = max(1, min(Featured::MAX_ITEMS, (int)($input['featured_max'] ?? 3)));
-        $c['pdf_max_mb'] = max(1, min(100, self::number($input['pdf_max_mb'] ?? 20)));
-        $c['pdf_timeout'] = max(1, min(120, (int)($input['pdf_timeout'] ?? 30)));
+        }
         if ($c['enabled'] && !DB::ready()) { wp_die('Create and build the index before enabling search.'); }
         update_site_option('uams_search_settings', $c);
-        wp_safe_redirect(self::home()); exit;
+        wp_safe_redirect(add_query_arg('notice', 'settings', self::home($section))); exit;
     }
     private static function number($value): float { return is_scalar($value) && is_numeric($value) && is_finite((float)$value) ? max(0, min(100, (float)$value)) : 0; }
     public static function site_page(): void {
         if (!current_user_can('manage_options')) { wp_die('You cannot manage this site.'); }
-        echo '<div class="wrap"><h1>Search settings</h1><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_site">';
+        $tab = self::current_tab(self::SITE_TABS);
+        echo '<div class="wrap"><h1>Search</h1>';
+        self::tabs([self::class, 'site_home'], self::SITE_TABS, $tab);
+        if ($tab === 'featured') { self::featured_section('site'); echo '</div>'; return; }
+        self::saved_notice();
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_site">';
         wp_nonce_field('uams_search_site');
         echo '<fieldset><legend><h2>Default search scope</h2></legend>';
         foreach (['site' => 'This sub-site', 'install' => 'Whole website'] as $value => $label) { echo '<p><label><input type="radio" name="scope" value="' . esc_attr($value) . '" ' . checked(Config::scope(), $value, false) . '> ' . esc_html($label) . '</label></p>'; }
-        echo '</fieldset><p><label><input type="checkbox" name="google" value="1" ' . checked((bool)get_option('uams_search_google', true), true, false) . '> Show the existing All of UAMS Google search</label></p>';
+        echo '</fieldset>';
+        if (apply_filters('uams_search_use_template', true, '')) {
+            echo '<p><label><input type="checkbox" name="google" value="1" ' . checked((bool)get_option('uams_search_google', true), true, false) . '> Show the existing All of UAMS Google search</label></p>';
+        } else {
+            // The theme renders its own results page, including the Google block and its setting.
+            echo '<input type="hidden" name="google" value="' . (get_option('uams_search_google', true) ? '1' : '') . '"><p>This theme controls the All of UAMS Google search block in its own search settings.</p>';
+        }
         submit_button('Save search settings'); echo '</form></div>';
     }
     public static function save_site(): void {
@@ -144,7 +190,7 @@ final class Admin {
         check_admin_referer('uams_search_site');
         update_option('uams_search_scope', Config::scope(is_scalar($_POST['scope'] ?? '') ? sanitize_text_field(wp_unslash($_POST['scope'])) : 'site'));
         update_option('uams_search_google', !empty($_POST['google']));
-        wp_safe_redirect(admin_url('options-general.php?page=uams-search-site')); exit;
+        wp_safe_redirect(add_query_arg('notice', 'settings', self::site_home('settings'))); exit;
     }
     public static function retry(): void {
         self::capable(); check_admin_referer('uams_search_retry');
@@ -154,17 +200,25 @@ final class Admin {
         $changed = get_current_blog_id() !== $site;
         if ($changed) { switch_to_blog($site); }
         try { Queue::push($id, 'upsert', $site); } finally { if ($changed) { restore_current_blog(); } }
-        wp_safe_redirect(self::home() . '#status'); exit;
+        wp_safe_redirect(self::home('index') . '#status'); exit;
     }
     public static function page(): void {
         self::capable(); $c = Config::get();
-        echo '<div class="wrap"><h1>uams search</h1><p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
+        echo '<div class="wrap"><h1>uams search</h1>';
         if (!DB::ready()) {
-            echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_setup">'; wp_nonce_field('uams_search_setup'); submit_button('Create index tables'); echo '</form></div>'; return;
+            echo '<p>Create the index tables to get started.</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_setup">'; wp_nonce_field('uams_search_setup'); submit_button('Create index tables'); echo '</form></div>'; return;
         }
-        self::rebuild_controls();
-        self::status();
-        echo '<h2>Network settings</h2><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_save">'; wp_nonce_field('uams_search_save');
+        $tab = self::current_tab(self::NETWORK_TABS);
+        self::tabs([self::class, 'home'], self::NETWORK_TABS, $tab);
+        self::saved_notice();
+        if ($tab === 'index') {
+            echo '<p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
+            self::rebuild_controls(); self::status(); echo '</div>'; return;
+        }
+        if ($tab === 'featured') { self::featured_section('network'); echo '</div>'; return; }
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_save"><input type="hidden" name="section" value="' . esc_attr($tab) . '">'; wp_nonce_field('uams_search_save');
+        if ($tab === 'general') {
+            echo '<h2>General</h2>';
         foreach (['enabled' => 'Use uams search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
             echo '<p><label><input type="checkbox" name="settings[' . esc_attr($key) . ']" value="1" ' . checked((bool)$c[$key], true, false) . '> ' . esc_html($label) . '</label></p>';
         }
@@ -173,9 +227,14 @@ final class Admin {
             $label = is_multisite() ? get_blog_details($site)->blogname . ' (#' . $site . ')' : get_bloginfo('name');
             echo '<p><label><input type="checkbox" name="settings[sites][]" value="' . (int)$site . '" ' . checked($c['sites'] === null || in_array($site, $c['sites'], true), true, false) . '> ' . esc_html($label) . '</label></p>';
         }
-        echo '</fieldset><fieldset><legend><h3>Source weights</h3></legend>';
+            echo '</fieldset>';
+            self::numeric('settings[featured_max]', 'Featured results shown per search', $c['featured_max'], Featured::MAX_ITEMS);
+            self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']); self::numeric('settings[pdf_timeout]', 'PDF time limit, seconds', $c['pdf_timeout'], 120);
+        }
+        if ($tab === 'content') {
+        echo '<fieldset><legend><h2>Source weights</h2></legend>';
         foreach ($c['weights'] as $key => $weight) { self::numeric('settings[weights][' . $key . ']', ucfirst($key), $weight); }
-        echo '</fieldset><h3>Content to index</h3><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
+        echo '</fieldset><h2>Content to index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
         $types = array_unique(array_merge(array_keys($c['types']), array_keys(get_post_types(['public' => true]))));
         foreach ($types as $type) {
             $object = get_post_type_object($type); $name = $object ? $object->labels->name : ucfirst($type);
@@ -197,11 +256,13 @@ final class Admin {
         echo '<p><label for="uams-stopwords">Extra stop words, separated by spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">' . esc_textarea(implode(' ', $c['stopwords'])) . '</textarea></p>';
         $synonyms = []; foreach ($c['synonyms'] as $key => $values) { $synonyms[] = $key . ' = ' . implode(', ', $values); }
         echo '<p><label for="uams-synonyms">Synonyms, one rule per line, such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">' . esc_textarea(implode("\n", $synonyms)) . '</textarea></p>';
+        }
+        if ($tab === 'types') {
+            echo '<h2>Result types</h2>';
         $groups = []; foreach ((array)$c['groups'] as $slug => $group) { $groups[] = $slug . ' | ' . ($group['label'] ?? $slug) . ' | ' . implode(', ', (array)($group['types'] ?? [])); }
         echo '<p><label for="uams-groups">Result-type links, one per line: <code>slug | Label | post_type, post_type</code></label><br><span id="uams-groups-help" class="description">Shown above the results in this order. A link only appears when it has results.</span><br><textarea id="uams-groups" name="settings[groups]" rows="8" cols="70" aria-describedby="uams-groups-help">' . esc_textarea(implode("\n", $groups)) . '</textarea></p>';
-        self::numeric('settings[featured_max]', 'Featured results shown per search', $c['featured_max'], Featured::MAX_ITEMS);
-        self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']); self::numeric('settings[pdf_timeout]', 'PDF time limit, seconds', $c['pdf_timeout'], 120);
-        submit_button('Save network settings'); echo '</form></div>';
+        }
+        submit_button('Save settings'); echo '</form></div>';
     }
     // ---------- Featured results ----------
     private static function featured_scope(): string {
@@ -210,15 +271,14 @@ final class Admin {
         return $scope;
     }
     private static function featured_url(string $scope, array $args = []): string {
-        $base = $scope === 'network' ? network_admin_url('settings.php?page=uams-search-featured') : admin_url('admin.php?page=uams-search-featured');
-        return add_query_arg($args, $base);
+        return add_query_arg($args, $scope === 'network' ? self::home('featured') : self::site_home('featured'));
     }
-    public static function featured_page(string $scope): void {
+    /** Featured results tab, on the network page or a site's Search page. */
+    public static function featured_section(string $scope): void {
         if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'manage_options')) { wp_die('You cannot manage featured search results.'); }
         $rules = Featured::rules($scope);
         $editing = null; $edit_id = Integration::param('edit');
         foreach ($rules as $rule) { if ($edit_id !== '' && ($rule['id'] ?? '') === $edit_id) { $editing = $rule; } }
-        echo '<div class="wrap"><h1>Featured search results</h1>';
         echo '<p>' . ($scope === 'network'
             ? 'These rules apply to searches on every sub-site of this website. Each sub-site\'s own rules show first.'
             : 'These rules apply to searches on this site. Network admins can also add rules for the whole website.') . '</p>';
@@ -248,7 +308,6 @@ final class Admin {
             echo '<h2>Add a featured result</h2>';
         }
         self::featured_form($scope, $editing);
-        echo '</div>';
     }
     private static function featured_form(string $scope, ?array $rule): void {
         $items = array_values((array)($rule['items'] ?? []));
