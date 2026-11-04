@@ -3,20 +3,28 @@ namespace UAMS_Search;
 
 final class Admin {
     public static function hooks(): void {
-        add_action('network_admin_menu', static fn() => add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']));
+        add_action('network_admin_menu', static function () {
+            add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']);
+            add_submenu_page('settings.php', 'Featured search results', 'Featured search results', 'manage_network_options', 'uams-search-featured', static fn() => self::featured_page('network'));
+        });
         add_action('admin_menu', static function () {
             add_options_page('uams search', 'uams search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
             if (!is_multisite()) { add_options_page('uams search index', 'uams search index', 'manage_options', 'uams-search', [self::class, 'page']); }
             // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
             global $menu;
+            $featured_parent = 'tools.php';
             foreach ($menu as $item) {
-                if (strip_tags($item[0]) === 'UAMS Settings') { add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']); break; }
+                if (strip_tags($item[0]) === 'UAMS Settings') { add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']); $featured_parent = $item[2]; break; }
             }
+            // Editors manage their own site's featured results.
+            add_submenu_page($featured_parent, 'Featured search results', 'Featured search results', 'edit_others_posts', 'uams-search-featured', static fn() => self::featured_page('site'));
         }, 99);
         add_action('admin_post_uams_search_save', [self::class, 'save']);
         add_action('admin_post_uams_search_site', [self::class, 'save_site']);
         add_action('admin_post_uams_search_retry', [self::class, 'retry']);
         add_action('admin_post_uams_search_setup', [self::class, 'setup']);
+        add_action('admin_post_uams_search_featured', [self::class, 'featured_save']);
+        add_action('admin_post_uams_search_featured_action', [self::class, 'featured_action']);
         add_action('wp_ajax_uams_search_rebuild', [self::class, 'rebuild_ajax']);
         add_action('admin_enqueue_scripts', [self::class, 'rebuild_assets']);
         add_action('admin_notices', [self::class, 'notice']);
@@ -105,6 +113,16 @@ final class Admin {
             foreach (explode(',', $parts[1]) as $value) { $value = implode(' ', Text::words($value)); if ($value !== '') { $alternates[] = mb_substr($value, 0, 100); } }
             $c['synonyms'][$key[0]] = array_slice(array_unique($alternates), 0, 10);
         }
+        $c['groups'] = [];
+        foreach (preg_split('/\R/', is_scalar($input['groups'] ?? '') ? (string)$input['groups'] : '') as $line) {
+            $parts = array_map('trim', explode('|', $line));
+            if (count($parts) !== 3) { continue; }
+            $slug = sanitize_key($parts[0]); $label = sanitize_text_field($parts[1]);
+            $group_types = array_values(array_filter(array_map('sanitize_key', explode(',', $parts[2]))));
+            if ($slug && $label !== '' && $group_types) { $c['groups'][$slug] = ['label' => mb_substr($label, 0, 60), 'types' => $group_types]; }
+        }
+        if (!$c['groups']) { $c['groups'] = Config::defaults()['groups']; }
+        $c['featured_max'] = max(1, min(Featured::MAX_ITEMS, (int)($input['featured_max'] ?? 3)));
         $c['pdf_max_mb'] = max(1, min(100, self::number($input['pdf_max_mb'] ?? 20)));
         $c['pdf_timeout'] = max(1, min(120, (int)($input['pdf_timeout'] ?? 30)));
         if ($c['enabled'] && !DB::ready()) { wp_die('Create and build the index before enabling search.'); }
@@ -179,8 +197,123 @@ final class Admin {
         echo '<p><label for="uams-stopwords">Extra stop words, separated by spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">' . esc_textarea(implode(' ', $c['stopwords'])) . '</textarea></p>';
         $synonyms = []; foreach ($c['synonyms'] as $key => $values) { $synonyms[] = $key . ' = ' . implode(', ', $values); }
         echo '<p><label for="uams-synonyms">Synonyms, one rule per line, such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">' . esc_textarea(implode("\n", $synonyms)) . '</textarea></p>';
+        $groups = []; foreach ((array)$c['groups'] as $slug => $group) { $groups[] = $slug . ' | ' . ($group['label'] ?? $slug) . ' | ' . implode(', ', (array)($group['types'] ?? [])); }
+        echo '<p><label for="uams-groups">Result-type links, one per line: <code>slug | Label | post_type, post_type</code></label><br><span id="uams-groups-help" class="description">Shown above the results in this order. A link only appears when it has results.</span><br><textarea id="uams-groups" name="settings[groups]" rows="8" cols="70" aria-describedby="uams-groups-help">' . esc_textarea(implode("\n", $groups)) . '</textarea></p>';
+        self::numeric('settings[featured_max]', 'Featured results shown per search', $c['featured_max'], Featured::MAX_ITEMS);
         self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']); self::numeric('settings[pdf_timeout]', 'PDF time limit, seconds', $c['pdf_timeout'], 120);
         submit_button('Save network settings'); echo '</form></div>';
+    }
+    // ---------- Featured results ----------
+    private static function featured_scope(): string {
+        $scope = isset($_REQUEST['scope']) && $_REQUEST['scope'] === 'network' && is_multisite() ? 'network' : 'site';
+        if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'edit_others_posts')) { wp_die('You cannot manage featured search results.'); }
+        return $scope;
+    }
+    private static function featured_url(string $scope, array $args = []): string {
+        $base = $scope === 'network' ? network_admin_url('settings.php?page=uams-search-featured') : admin_url('admin.php?page=uams-search-featured');
+        return add_query_arg($args, $base);
+    }
+    public static function featured_page(string $scope): void {
+        if (!current_user_can($scope === 'network' ? 'manage_network_options' : 'edit_others_posts')) { wp_die('You cannot manage featured search results.'); }
+        $rules = Featured::rules($scope);
+        $editing = null; $edit_id = Integration::param('edit');
+        foreach ($rules as $rule) { if ($edit_id !== '' && ($rule['id'] ?? '') === $edit_id) { $editing = $rule; } }
+        echo '<div class="wrap"><h1>Featured search results</h1>';
+        echo '<p>' . ($scope === 'network'
+            ? 'These rules apply to searches on every sub-site of this website. Each sub-site\'s own rules show first.'
+            : 'These rules apply to searches on this site. Network admins can also add rules for the whole website.') . '</p>';
+        echo '<p>Featured results appear in a box above the regular results on the first page, when a search contains one of the rule\'s keywords or phrases. "cancer" also matches "cancers" and "breast cancer". Up to ' . (int)Config::get()['featured_max'] . ' items show per search.</p>';
+        $notice = Integration::param('notice');
+        $messages = ['saved' => 'Featured result saved.', 'deleted' => 'Featured result deleted.', 'toggled' => 'Featured result updated.', 'invalid' => 'Not saved. Add at least one keyword and one item. Pages must be on this website; external links need a title.'];
+        if (isset($messages[$notice])) { echo '<div class="notice ' . ($notice === 'invalid' ? 'notice-error' : 'notice-success') . '" role="' . ($notice === 'invalid' ? 'alert' : 'status') . '"><p>' . esc_html($messages[$notice]) . '</p></div>'; }
+        echo '<h2>' . ($editing ? 'Edit featured result' : 'Current featured results') . '</h2>';
+        if (!$editing) {
+            if (!$rules) { echo '<p>No featured results yet.</p>'; }
+            else {
+                echo '<table class="widefat striped"><thead><tr><th scope="col">Keywords</th><th scope="col">Shows</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>';
+                foreach ($rules as $rule) {
+                    $titles = array_map(static fn($i) => ($i['title'] ?? '') !== '' ? $i['title'] : ($i['url'] ?? ''), (array)$rule['items']);
+                    echo '<tr><td>' . esc_html(implode(', ', (array)$rule['keywords'])) . '</td><td>' . esc_html(implode('; ', $titles)) . '</td><td>' . (empty($rule['active']) ? 'Off' : 'On') . '</td><td>';
+                    echo '<a href="' . esc_url(self::featured_url($scope, ['edit' => $rule['id']])) . '">Edit<span class="screen-reader-text"> ' . esc_html(implode(', ', (array)$rule['keywords'])) . '</span></a> ';
+                    foreach (['toggle' => empty($rule['active']) ? 'Turn on' : 'Turn off', 'delete' => 'Delete'] as $op => $label) {
+                        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="display:inline">';
+                        wp_nonce_field('uams_search_featured_action');
+                        echo '<input type="hidden" name="action" value="uams_search_featured_action"><input type="hidden" name="scope" value="' . esc_attr($scope) . '"><input type="hidden" name="op" value="' . esc_attr($op) . '"><input type="hidden" name="id" value="' . esc_attr($rule['id']) . '">';
+                        echo '<button type="submit" class="button-link' . ($op === 'delete' ? ' button-link-delete' : '') . '">' . esc_html($label) . '<span class="screen-reader-text"> ' . esc_html(implode(', ', (array)$rule['keywords'])) . '</span></button></form> ';
+                    }
+                    echo '</td></tr>';
+                }
+                echo '</tbody></table>';
+            }
+            echo '<h2>Add a featured result</h2>';
+        }
+        self::featured_form($scope, $editing);
+        echo '</div>';
+    }
+    private static function featured_form(string $scope, ?array $rule): void {
+        $items = array_values((array)($rule['items'] ?? []));
+        $count = max(3, count($items) + 1); $count = min(Featured::MAX_ITEMS, $count);
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        wp_nonce_field('uams_search_featured');
+        echo '<input type="hidden" name="action" value="uams_search_featured"><input type="hidden" name="scope" value="' . esc_attr($scope) . '">';
+        if ($rule) { echo '<input type="hidden" name="id" value="' . esc_attr($rule['id']) . '">'; }
+        echo '<p><label for="uams-featured-keywords"><strong>Keywords and phrases</strong></label><br><span id="uams-featured-keywords-help" class="description">One per line, such as <em>cancer</em> or <em>pay my bill</em>.</span><br>';
+        echo '<textarea id="uams-featured-keywords" name="rule[keywords]" rows="4" cols="60" aria-describedby="uams-featured-keywords-help" required>' . esc_textarea(implode("\n", (array)($rule['keywords'] ?? []))) . '</textarea></p>';
+        echo '<p><label><input type="checkbox" name="rule[active]" value="1" ' . checked($rule ? !empty($rule['active']) : true, true, false) . '> Show this featured result</label></p>';
+        for ($i = 0; $i < $count; $i++) {
+            $item = $items[$i] ?? ['kind' => 'post'];
+            $p = 'rule[items][' . $i . ']'; $id = 'uams-featured-' . $i;
+            echo '<fieldset style="padding:1rem;border:1px solid #c3c4c7;margin-block:1rem;max-width:44rem"><legend><strong>Item ' . ($i + 1) . '</strong>' . ($i > 0 ? ' (optional)' : '') . '</legend>';
+            echo '<p><label for="' . $id . '-kind">Type</label><br><select id="' . $id . '-kind" name="' . $p . '[kind]">';
+            foreach (['post' => 'Page or post on this website', 'link' => 'External link'] as $value => $label) { echo '<option value="' . $value . '" ' . selected($item['kind'] ?? 'post', $value, false) . '>' . esc_html($label) . '</option>'; }
+            echo '</select></p>';
+            $fields = [
+                'url' => ['URL', 'For a page on this website, paste its address. For an external link, the full address.', 'url'],
+                'title' => ['Title', 'Required for external links. For pages, leave blank to use the page title.', 'text'],
+                'description' => ['Description', 'Leave blank to use the page excerpt.', 'textarea'],
+                'image' => ['Image URL', 'Optional. Leave blank to use the page\'s featured image.', 'url'],
+                'image_alt' => ['Image alternative text', 'Describe the image. Leave blank if it is decorative.', 'text'],
+            ];
+            foreach ($fields as $key => [$label, $help, $type]) {
+                $value = (string)($item[$key] ?? '');
+                echo '<p><label for="' . $id . '-' . $key . '">' . esc_html($label) . '</label><br><span id="' . $id . '-' . $key . '-help" class="description">' . esc_html($help) . '</span><br>';
+                if ($type === 'textarea') { echo '<textarea id="' . $id . '-' . $key . '" name="' . $p . '[' . $key . ']" rows="2" cols="60" aria-describedby="' . $id . '-' . $key . '-help">' . esc_textarea($value) . '</textarea>'; }
+                else { echo '<input type="' . $type . '" class="regular-text" id="' . $id . '-' . $key . '" name="' . $p . '[' . $key . ']" value="' . esc_attr($value) . '" aria-describedby="' . $id . '-' . $key . '-help">'; }
+                echo '</p>';
+            }
+            echo '</fieldset>';
+        }
+        submit_button($rule ? 'Save featured result' : 'Add featured result');
+        if ($rule) { echo '<p><a href="' . esc_url(self::featured_url($scope)) . '">Cancel</a></p>'; }
+        echo '</form>';
+    }
+    public static function featured_save(): void {
+        check_admin_referer('uams_search_featured');
+        $scope = self::featured_scope();
+        $input = isset($_POST['rule']) && is_array($_POST['rule']) ? wp_unslash($_POST['rule']) : [];
+        $id = isset($_POST['id']) && is_scalar($_POST['id']) ? sanitize_text_field(wp_unslash((string)$_POST['id'])) : '';
+        $rules = Featured::rules($scope);
+        $rule = Featured::sanitize_rule($input, $id ?: null);
+        if (!$rule) { wp_safe_redirect(self::featured_url($scope, array_filter(['notice' => 'invalid', 'edit' => $id]))); exit; }
+        $replaced = false;
+        foreach ($rules as $i => $existing) { if ($id !== '' && ($existing['id'] ?? '') === $id) { $rules[$i] = $rule; $replaced = true; } }
+        if (!$replaced) { $rules[] = $rule; }
+        Featured::save_rules($scope, $rules);
+        wp_safe_redirect(self::featured_url($scope, ['notice' => 'saved'])); exit;
+    }
+    public static function featured_action(): void {
+        check_admin_referer('uams_search_featured_action');
+        $scope = self::featured_scope();
+        $id = isset($_POST['id']) && is_scalar($_POST['id']) ? sanitize_text_field(wp_unslash((string)$_POST['id'])) : '';
+        $op = isset($_POST['op']) && is_scalar($_POST['op']) ? sanitize_key(wp_unslash((string)$_POST['op'])) : '';
+        $rules = Featured::rules($scope);
+        foreach ($rules as $i => $rule) {
+            if (($rule['id'] ?? '') !== $id) { continue; }
+            if ($op === 'delete') { unset($rules[$i]); }
+            elseif ($op === 'toggle') { $rules[$i]['active'] = empty($rule['active']); }
+        }
+        Featured::save_rules($scope, $rules);
+        wp_safe_redirect(self::featured_url($scope, ['notice' => $op === 'delete' ? 'deleted' : 'toggled'])); exit;
     }
     public static function rebuild_controls(): void {
         $include = Config::get()['preview_noindex'] || (!Config::site_ids(false) && Config::site_ids(true));

@@ -19,6 +19,18 @@ final class Config {
                 'location' => array_fill_keys(['service_line', 'language', 'region', 'building', 'parking'], 1),
                 'expertise' => [], 'page' => [], 'post' => ['category' => 1, 'post_tag' => 1],
             ],
+            // Result-type links on the results page. One link can cover several post types.
+            'groups' => [
+                'providers' => ['label' => 'Providers', 'types' => ['provider']],
+                'locations' => ['label' => 'Locations', 'types' => ['location']],
+                'expertise' => ['label' => 'Areas of Expertise', 'types' => ['expertise']],
+                'conditions-treatments' => ['label' => 'Conditions & Treatments', 'types' => ['condition', 'treatment']],
+                'resources' => ['label' => 'Patient Resources', 'types' => ['clinical-resource']],
+                'news' => ['label' => 'News', 'types' => ['post']],
+                'pages' => ['label' => 'Pages', 'types' => ['page']],
+                'documents' => ['label' => 'Documents', 'types' => ['attachment']],
+            ],
+            'featured_max' => 3,
             'stopwords' => [], 'synonyms' => [],
             'pdf' => true, 'pdf_max_mb' => 20, 'pdf_timeout' => 30, 'pdf_parent' => false,
             'extract_warn_seconds' => 5, 'phrase_bonus' => 5, 'recency' => 0.15,
@@ -27,6 +39,26 @@ final class Config {
     public static function get(): array {
         $saved = get_site_option('uams_search_settings', []);
         return apply_filters('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
+    }
+    /** Type groups limited to indexed post types: slug => ['label' => string, 'types' => string[]]. */
+    public static function groups(): array {
+        $c = self::get(); $indexed = array_keys($c['types']);
+        if (!$c['pdf']) { $indexed = array_values(array_diff($indexed, ['attachment'])); }
+        $out = [];
+        foreach ((array)$c['groups'] as $slug => $group) {
+            if (!is_array($group)) { continue; }
+            $types = array_values(array_intersect((array)($group['types'] ?? []), $indexed));
+            $slug = sanitize_key((string)$slug);
+            if ($slug && $types) { $out[$slug] = ['label' => (string)($group['label'] ?? $slug), 'types' => $types]; }
+        }
+        return $out;
+    }
+    /** Post types for a ?type= value: a group slug, a single indexed post type, or [] for all. */
+    public static function types_for(string $value): array {
+        if ($value === '') { return []; }
+        $groups = self::groups();
+        if (isset($groups[$value])) { return $groups[$value]['types']; }
+        return isset(self::get()['types'][$value]) ? [$value] : [];
     }
     public static function public_sites(): array {
         if (!is_multisite()) { return [get_current_blog_id()]; }

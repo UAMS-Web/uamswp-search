@@ -5,7 +5,7 @@ final class Query {
     /** Returns results (id, site, relevance, excerpt), total, pages, fallback, suggestion. */
     public static function run(array $args): array {
         global $wpdb;
-        $empty = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
+        $empty = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null, 'counts' => []];
         $search = mb_substr(is_scalar($args['s'] ?? '') ? (string)$args['s'] : '', 0, 200);
         if (!DB::ready() || !($groups = Text::groups($search))) { return $empty; }
         $site = max(1, (int)($args['site'] ?? get_current_blog_id()));
@@ -19,8 +19,10 @@ final class Query {
         if (!$c['pdf']) { $configured = array_values(array_diff($configured, ['attachment'])); }
         if (!$configured) { return $empty; }
         $types = $types ?: $configured;
-        $where .= $wpdb->prepare(' AND i.post_type IN (' . implode(',', array_fill(0, count($types), '%s')) . ')', $types);
-        $where .= ' AND (' . self::public_sql($sites) . ')';
+        $public = ' AND (' . self::public_sql($sites) . ')';
+        // Unfiltered by the requested type, so the type links can show their counts.
+        $base = $where . $wpdb->prepare(' AND i.post_type IN (' . implode(',', array_fill(0, count($configured), '%s')) . ')', $configured) . $public;
+        $where .= $wpdb->prepare(' AND i.post_type IN (' . implode(',', array_fill(0, count($types), '%s')) . ')', $types) . $public;
         $boolean = Text::boolean($groups, true); $fallback = false;
         $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
         $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
@@ -29,6 +31,11 @@ final class Query {
             $boolean = Text::boolean($groups, false); $fallback = true;
             $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
             $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
+            if ($wpdb->last_error) { throw new \RuntimeException($wpdb->last_error); }
+        }
+        $counts = [];
+        if (!empty($args['counts'])) {
+            foreach ((array)$wpdb->get_results("SELECT i.post_type, COUNT(*) AS n FROM `$t` i WHERE $base AND $condition GROUP BY i.post_type", ARRAY_A) as $row) { $counts[$row['post_type']] = (int)$row['n']; }
             if ($wpdb->last_error) { throw new \RuntimeException($wpdb->last_error); }
         }
         $parts = []; $explain = [];
@@ -59,7 +66,7 @@ final class Query {
             }
             $results[] = $result;
         }
-        $out = ['results' => $results, 'total' => (int)$total, 'pages' => (int)ceil((int)$total / $limit), 'fallback' => $fallback && (int)$total > 0, 'suggestion' => null];
+        $out = ['results' => $results, 'total' => (int)$total, 'pages' => (int)ceil((int)$total / $limit), 'fallback' => $fallback && (int)$total > 0, 'suggestion' => null, 'counts' => $counts];
         if (($args['suggest'] ?? true) && (int)$total < 3) { $out['suggestion'] = Suggestions::suggest($search, $args); }
         return $out;
     }

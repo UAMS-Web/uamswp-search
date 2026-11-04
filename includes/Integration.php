@@ -12,7 +12,7 @@ final class Integration {
         return (bool)Config::get()['enabled'] || (is_user_logged_in() && self::param('engine') === 'uams');
     }
     public static function args(): array {
-        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int)get_query_var('paged', 1)), 'per_page' => max(1, (int)get_option('posts_per_page', 10))];
+        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => Config::types_for(self::param('type')), 'page' => max(1, (int)get_query_var('paged', 1)), 'per_page' => max(1, (int)get_option('posts_per_page', 10))];
     }
     public static function hooks(): void {
         add_filter('posts_pre_query', [self::class, 'posts'], 1, 2);
@@ -32,8 +32,16 @@ final class Integration {
     public static function posts($posts, \WP_Query $query) {
         if ($posts !== null || !$query->is_main_query() || !$query->is_search() || !in_array($query->get('fields'), ['', 'all'], true) || is_admin() || !self::active()) { return $posts; }
         try {
-            $args = ['s' => (string)$query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int)$query->get('paged')), 'per_page' => max(1, (int)($query->get('posts_per_page') ?: 10))];
+            $args = ['s' => (string)$query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => Config::types_for(self::param('type')), 'counts' => true, 'page' => max(1, (int)$query->get('paged')), 'per_page' => max(1, (int)($query->get('posts_per_page') ?: 10))];
             $results = Query::run($args); $out = [];
+            // Featured results show on the first page of an unfiltered search and are not repeated below.
+            $results['featured'] = []; $featured_keys = [];
+            if ($args['page'] === 1 && self::param('type') === '') {
+                try { $results['featured'] = Featured::for_search($args['s'], max(1, min(Featured::MAX_ITEMS, (int)Config::get()['featured_max']))); }
+                catch (\Throwable $e) { error_log('UAMS Search: featured results failed. ' . $e->getMessage()); }
+                foreach ($results['featured'] as $item) { if ($item->kind === 'post') { $featured_keys[$item->site . ':' . $item->id] = true; } }
+            }
+            if ($featured_keys) { $results['results'] = array_values(array_filter($results['results'], static fn($r) => !isset($featured_keys[$r->site . ':' . $r->id]))); }
             foreach ($results['results'] as $result) {
                 $changed = get_current_blog_id() !== $result->site;
                 if ($changed) { switch_to_blog($result->site); }
@@ -73,7 +81,7 @@ final class Integration {
         $id = wp_unique_id('uams-search-');
         $html = '<form role="search" method="get" action="' . esc_url(home_url('/')) . '" class="uams-search-form"><label for="' . esc_attr($id) . '">Search this website</label><div class="uams-search-input"><input type="search" name="s" id="' . esc_attr($id) . '" value="' . esc_attr(get_search_query(false)) . '" maxlength="200" autocomplete="off" data-uams-live="' . (Config::get()['live'] ? 'true' : 'false') . '"><button type="submit">Search</button></div><input type="hidden" name="scope" value="' . esc_attr($scope) . '">';
         if (is_user_logged_in() && self::param('engine') === 'uams') { $html .= '<input type="hidden" name="engine" value="uams">'; }
-        if (isset(Config::get()['types'][self::param('type')])) { $html .= '<input type="hidden" name="type" value="' . esc_attr(self::param('type')) . '">'; }
+        if (Config::types_for(self::param('type'))) { $html .= '<input type="hidden" name="type" value="' . esc_attr(self::param('type')) . '">'; }
         return $html . '</form>';
     }
     private static function augment(string $form, string $scope): string {
@@ -82,7 +90,7 @@ final class Integration {
         if (Config::get()['live'] && strpos($form, 'data-uams-live') === false) { $form = preg_replace('/(<input\b[^>]*\bname=["\']s["\'])/i', '$1 data-uams-live="true"', $form, 1); }
         if (strpos($form, 'name="scope"') === false) { $extra .= '<input type="hidden" name="scope" value="' . esc_attr($scope) . '">'; }
         if (is_user_logged_in() && self::param('engine') === 'uams' && strpos($form, 'name="engine"') === false) { $extra .= '<input type="hidden" name="engine" value="uams">'; }
-        if (isset(Config::get()['types'][self::param('type')]) && strpos($form, 'name="type"') === false) { $extra .= '<input type="hidden" name="type" value="' . esc_attr(self::param('type')) . '">'; }
+        if (Config::types_for(self::param('type')) && strpos($form, 'name="type"') === false) { $extra .= '<input type="hidden" name="type" value="' . esc_attr(self::param('type')) . '">'; }
         if ($extra === '') { return $form; }
         $pos = strripos($form, '</form>');
         return $pos === false ? $form : substr_replace($form, $extra, $pos, 0);
@@ -109,7 +117,7 @@ final class Integration {
             ],
             'callback' => static function ($request) {
                 try {
-                    $out = Query::run(['s' => $request['s'], 'site' => get_current_blog_id(), 'scope' => Config::scope($request->get_param('scope')), 'type' => $request->get_param('type') ?: '', 'per_page' => 6, 'suggest' => false]);
+                    $out = Query::run(['s' => $request['s'], 'site' => get_current_blog_id(), 'scope' => Config::scope($request->get_param('scope')), 'type' => Config::types_for((string)($request->get_param('type') ?: '')), 'per_page' => 6, 'suggest' => false]);
                     $items = array_map(static fn($r) => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title . ($r->post_type === 'attachment' ? ' (PDF, ' . size_format($r->file_size) . ')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
                     $response = new \WP_REST_Response(['items' => $items, 'total' => $out['total']], 200);
                     $response->header('Cache-Control', 'no-store'); return $response;
@@ -127,6 +135,15 @@ final class Integration {
         self::filters();
         echo '<h2>' . esc_html(number_format_i18n($out['total']) . ' results') . '</h2>';
         self::notices();
+        if ($featured = self::featured()) {
+            echo '<section class="uams-search-featured" aria-labelledby="uams-search-featured-heading"><h2 id="uams-search-featured-heading">Featured results</h2>';
+            foreach ($featured as $item) {
+                echo '<article class="uams-search-result uams-search-result--featured"><h3><a href="' . esc_url($item->url) . '">' . esc_html($item->title) . '</a></h3>';
+                if ($item->description !== '') { echo '<p>' . esc_html($item->description) . '</p>'; }
+                echo '</article>';
+            }
+            echo '</section>';
+        }
         if (!$out['total']) { echo '<p>No results found. Try fewer words or check the spelling.</p>'; }
         foreach ($out['results'] as $result) {
             echo '<article class="uams-search-result"><h3><a href="' . esc_url($result->url) . '">' . esc_html($result->title ?: 'Untitled');
@@ -154,19 +171,37 @@ final class Integration {
         if (!empty($out['fallback'])) { echo '<p class="uams-search-notice">Not every word matched. These results match some of your words.</p>'; }
         if (!empty($out['suggestion'])) { echo '<p class="uams-search-notice">Did you mean <a href="' . esc_url(self::url(['s' => $out['suggestion'], 'paged' => false])) . '">' . esc_html($out['suggestion']) . '</a>?</p>'; }
     }
-    /** Scope and result-type links for the current main search. */
+    /** Scope and result-type links for the current main search. Type links show their result counts. */
     public static function filters(): void {
-        echo '<nav aria-label="Search scope"><ul class="uams-search-filters">';
-        foreach (['site' => 'This site', 'install' => 'Whole website'] as $scope => $label) {
-            echo '<li><a href="' . esc_url(self::url(['scope' => $scope, 'paged' => false])) . '"' . (Config::scope(self::param('scope')) === $scope ? ' aria-current="true"' : '') . '>' . esc_html($label) . '</a></li>';
+        global $wp_query;
+        $out = $wp_query instanceof \WP_Query ? $wp_query->get('uams_search_results') : null;
+        $counts = is_array($out) ? (array)($out['counts'] ?? []) : [];
+        $current = self::param('type');
+        $groups = Config::groups();
+        if ($current !== '' && !isset($groups[$current]) && isset(Config::get()['types'][$current])) {
+            // A single post type requested directly keeps a link of its own.
+            $object = get_post_type_object($current);
+            $groups[$current] = ['label' => $object ? $object->labels->name : $current, 'types' => [$current]];
         }
-        echo '</ul></nav><nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="' . esc_url(self::url(['type' => false, 'paged' => false])) . '"' . (self::param('type') === '' ? ' aria-current="true"' : '') . '>All types</a></li>';
-        foreach (Config::get()['types'] as $type => $boost) {
-            $object = get_post_type_object($type);
-            if (!$object || ($type === 'attachment' && !Config::get()['pdf'])) { continue; }
-            echo '<li><a href="' . esc_url(self::url(['type' => $type, 'paged' => false])) . '"' . (self::param('type') === $type ? ' aria-current="true"' : '') . '>' . esc_html($type === 'attachment' ? 'PDFs' : $object->labels->name) . '</a></li>';
+        echo '<nav class="uams-search-types" aria-label="Result type"><ul class="uams-search-filters">';
+        echo '<li><a href="' . esc_url(self::url(['type' => false, 'paged' => false])) . '"' . ($current === '' ? ' aria-current="page"' : '') . '>All' . ($counts ? ' <span class="uams-search-count">(' . esc_html(number_format_i18n(array_sum($counts))) . ')</span>' : '') . '</a></li>';
+        foreach ($groups as $slug => $group) {
+            $n = 0; foreach ($group['types'] as $type) { $n += (int)($counts[$type] ?? 0); }
+            if (!$n && $current !== $slug) { continue; } // Hide types with no results, but keep the one in use.
+            echo '<li><a href="' . esc_url(self::url(['type' => $slug, 'paged' => false])) . '"' . ($current === $slug ? ' aria-current="page"' : '') . '>' . esc_html($group['label']) . ' <span class="uams-search-count">(' . esc_html(number_format_i18n($n)) . ')</span></a></li>';
         }
         echo '</ul></nav>';
+        echo '<nav class="uams-search-scope" aria-label="Search scope"><ul class="uams-search-filters">';
+        foreach (['site' => 'This site', 'install' => 'Whole website'] as $scope => $label) {
+            echo '<li><a href="' . esc_url(self::url(['scope' => $scope, 'paged' => false])) . '"' . (Config::scope(self::param('scope')) === $scope ? ' aria-current="page"' : '') . '>' . esc_html($label) . '</a></li>';
+        }
+        echo '</ul></nav>';
+    }
+    /** Featured items for the current main search (first page, no type filter). */
+    public static function featured(): array {
+        global $wp_query;
+        $out = $wp_query instanceof \WP_Query ? $wp_query->get('uams_search_results') : null;
+        return is_array($out) ? (array)($out['featured'] ?? []) : [];
     }
     private static function google(): void {
         // The reference theme always shows this block; newer settings integrations can override this filter.
