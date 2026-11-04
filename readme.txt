@@ -2,7 +2,7 @@
 Contributors: uams-web
 Requires at least: 6.4
 Requires PHP: 8.1
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,6 +26,16 @@ Optional no-result logging stores search text, date, site, and count, without IP
 The optional All of UAMS block loads Google Custom Search, matching the reference theme's existing behavior. The local engine itself sends no queries to an external search service.
 
 == Changelog ==
+
+= 0.4.0 =
+* Add featured results: keyword rules that show chosen pages or external links above the regular results. Install-wide rules for network admins, per-site rules for site administrators.
+* Group post types into result-type links with counts, editable under Result types.
+* Let a theme keep its own results template and search form, with helpers for type links, notes, featured results and type labels.
+* Rank "Did you mean" by likely typo, so very common words such as "can" lose to specific ones.
+* Put the network and site admin on one tabbed page each, with settings in columns and tables.
+* Log searches with no results whichever template renders the page.
+* Remove Relevanssi compatibility. Deactivate Relevanssi before enabling visitor search.
+* No index rebuild is needed to update from 0.3.0.
 
 = 0.3.0 =
 * Find linked locations, expertise, conditions, and treatments by provider name.
