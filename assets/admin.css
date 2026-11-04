@@ -1,0 +1,27 @@
+/* uams search admin layout. Uses WordPress admin colors and table styles. */
+.uams-admin .form-table th { width: 16rem; }
+.uams-admin .uams-admin-note { color: #50575e; max-width: 48rem; }
+.uams-admin .uams-admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem 2rem; align-items: start; }
+.uams-admin .uams-admin-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: .25rem 1.5rem; margin: 0; padding: 0; list-style: none; }
+.uams-admin .uams-admin-inline { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; align-items: center; margin: .5rem 0 0; }
+.uams-admin table.uams-admin-table { max-width: 64rem; margin: .5rem 0 1.5rem; }
+.uams-admin table.uams-admin-table th, .uams-admin table.uams-admin-table td { vertical-align: middle; }
+.uams-admin table.uams-admin-table input[type=number] { width: 5.5rem; }
+.uams-admin table.uams-admin-table input[type=text] { width: 100%; }
+.uams-admin table.uams-admin-weights { width: auto; }
+.uams-admin table.uams-admin-weights th, .uams-admin table.uams-admin-weights td { text-align: center; padding-inline: 1.25rem; }
+.uams-admin .uams-admin-card { background: #fff; border: 1px solid #c3c4c7; box-shadow: 0 1px 1px rgba(0,0,0,.04); padding: 0 1.25rem 1rem; margin: 0 0 1.25rem; max-width: 64rem; }
+.uams-admin .uams-admin-card > h3 { margin: 1rem 0 .25rem; }
+.uams-admin .uams-admin-card table { margin-bottom: .5rem; }
+.uams-admin .uams-admin-muted { color: #646970; font-weight: 400; }
+.uams-admin textarea.large-text { max-width: 40rem; }
+.uams-admin .uams-admin-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); gap: 1rem; max-width: 72rem; }
+.uams-admin .uams-admin-items fieldset { background: #fff; border: 1px solid #c3c4c7; padding: .25rem 1rem 1rem; margin: 0; }
+.uams-admin .uams-admin-items legend { font-weight: 600; padding: 0 .25rem; }
+.uams-admin .uams-admin-items label { display: block; font-weight: 600; margin-top: .75rem; }
+.uams-admin .uams-admin-items .description { display: block; font-weight: 400; }
+.uams-admin .uams-admin-items input[type=text], .uams-admin .uams-admin-items input[type=url], .uams-admin .uams-admin-items select, .uams-admin .uams-admin-items textarea { width: 100%; max-width: none; }
+.uams-admin .form-table fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.uams-admin .uams-admin-card input[type=text] { width: 100%; }
+.uams-admin .uams-admin-card input[type=number] { width: 5.5rem; }
+.uams-admin .uams-admin-grid textarea.large-text { width: 100%; max-width: none; }

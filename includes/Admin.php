@@ -71,6 +71,7 @@ final class Admin {
         if (Integration::param('notice') === 'settings') { echo '<div class="notice notice-success" role="status"><p>Settings saved.</p></div>'; }
     }
     public static function rebuild_assets(): void {
+        if (in_array(Integration::param('page'), ['uams-search', 'uams-search-site'], true)) { wp_enqueue_style('uams-search-admin', plugins_url('assets/admin.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION); }
         if (Integration::param('page') !== 'uams-search' || self::current_tab(self::NETWORK_TABS) !== 'index' || !current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) { return; }
         wp_enqueue_script('uams-search-rebuild', plugins_url('assets/admin-rebuild.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
         wp_enqueue_style('uams-search-rebuild', plugins_url('assets/admin-rebuild.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION);
@@ -150,14 +151,17 @@ final class Admin {
         }
         }
         if ($section === 'types') {
-        $c['groups'] = [];
-        foreach (preg_split('/\R/', is_scalar($input['groups'] ?? '') ? (string)$input['groups'] : '') as $line) {
-            $parts = array_map('trim', explode('|', $line));
-            if (count($parts) !== 3) { continue; }
-            $slug = sanitize_key($parts[0]); $label = sanitize_text_field($parts[1]);
-            $group_types = array_values(array_filter(array_map('sanitize_key', explode(',', $parts[2]))));
-            if ($slug && $label !== '' && $group_types) { $c['groups'][$slug] = ['label' => mb_substr($label, 0, 60), 'types' => $group_types]; }
+        $c['groups'] = []; $rows = [];
+        foreach ((array)($input['groups'] ?? []) as $row) {
+            if (!is_array($row)) { continue; }
+            $label = sanitize_text_field(is_scalar($row['label'] ?? '') ? (string)$row['label'] : '');
+            $group_types = array_values(array_filter(array_map('sanitize_key', explode(',', is_scalar($row['types'] ?? '') ? (string)$row['types'] : ''))));
+            $slug = sanitize_key(is_scalar($row['slug'] ?? '') ? (string)$row['slug'] : '') ?: sanitize_title($label);
+            if ($label === '' || !$group_types || !$slug) { continue; }
+            $rows[] = ['order' => (int)($row['order'] ?? 99), 'slug' => $slug, 'label' => mb_substr($label, 0, 60), 'types' => $group_types];
         }
+        usort($rows, static fn($x, $y) => $x['order'] <=> $y['order']);
+        foreach ($rows as $row) { if (!isset($c['groups'][$row['slug']])) { $c['groups'][$row['slug']] = ['label' => $row['label'], 'types' => $row['types']]; } }
         if (!$c['groups']) { $c['groups'] = Config::defaults()['groups']; }
         }
         if ($c['enabled'] && !DB::ready()) { wp_die('Create and build the index before enabling search.'); }
@@ -168,7 +172,7 @@ final class Admin {
     public static function site_page(): void {
         if (!current_user_can('manage_options')) { wp_die('You cannot manage this site.'); }
         $tab = self::current_tab(self::SITE_TABS);
-        echo '<div class="wrap"><h1>Search</h1>';
+        echo '<div class="wrap uams-admin"><h1>Search</h1>';
         self::tabs([self::class, 'site_home'], self::SITE_TABS, $tab);
         if ($tab === 'featured') { self::featured_section('site'); echo '</div>'; return; }
         self::saved_notice();
@@ -204,7 +208,7 @@ final class Admin {
     }
     public static function page(): void {
         self::capable(); $c = Config::get();
-        echo '<div class="wrap"><h1>uams search</h1>';
+        echo '<div class="wrap uams-admin"><h1>uams search</h1>';
         if (!DB::ready()) {
             echo '<p>Create the index tables to get started.</p><form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_setup">'; wp_nonce_field('uams_search_setup'); submit_button('Create index tables'); echo '</form></div>'; return;
         }
@@ -217,52 +221,90 @@ final class Admin {
         }
         if ($tab === 'featured') { self::featured_section('network'); echo '</div>'; return; }
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '"><input type="hidden" name="action" value="uams_search_save"><input type="hidden" name="section" value="' . esc_attr($tab) . '">'; wp_nonce_field('uams_search_save');
-        if ($tab === 'general') {
-            echo '<h2>General</h2>';
-        foreach (['enabled' => 'Use uams search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
-            echo '<p><label><input type="checkbox" name="settings[' . esc_attr($key) . ']" value="1" ' . checked((bool)$c[$key], true, false) . '> ' . esc_html($label) . '</label></p>';
-        }
-        echo '<fieldset><legend><h3>Sub-sites in whole-website search</h3></legend>';
+        if ($tab === 'general') { self::general_tab($c); }
+        if ($tab === 'content') { self::content_tab($c); }
+        if ($tab === 'types') { self::types_tab($c); }
+        submit_button('Save settings'); echo '</form></div>';
+    }
+    // ---------- Settings tabs ----------
+    private static function check(string $name, bool $on, string $label): string {
+        return '<label><input type="checkbox" name="' . esc_attr($name) . '" value="1" ' . checked($on, true, false) . '> ' . esc_html($label) . '</label>';
+    }
+    private static function number_input(string $name, string $id, $value, float $max = 100, float $step = 0.1, string $label = ''): string {
+        return '<input type="number" min="0" max="' . esc_attr($max) . '" step="' . esc_attr($step) . '" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . ($label !== '' ? ' aria-label="' . esc_attr($label) . '"' : '') . '>';
+    }
+    private static function general_tab(array $c): void {
+        echo '<h2>General</h2><table class="form-table" role="presentation"><tbody>';
+        echo '<tr><th scope="row">Visitor search</th><td>' . self::check('settings[enabled]', (bool)$c['enabled'], 'Use uams search for visitors') . '<p class="description">While off, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p></td></tr>';
+        echo '<tr><th scope="row">Live suggestions</th><td>' . self::check('settings[live]', (bool)$c['live'], 'Show suggestions as people type') . '</td></tr>';
+        echo '<tr><th scope="row">No-result log</th><td>' . self::check('settings[logging]', (bool)$c['logging'], 'Keep search text with no results for up to 90 days') . '<p class="description">Stores only the search text, date and site. Search text can include health terms.</p></td></tr>';
+        echo '<tr><th scope="row"><label for="uams-featured-max">Featured results per search</label></th><td>' . self::number_input('settings[featured_max]', 'uams-featured-max', $c['featured_max'], Featured::MAX_ITEMS, 1) . '</td></tr>';
+        echo '<tr><th scope="row">PDFs</th><td>' . self::check('settings[pdf]', (bool)$c['pdf'], 'Index PDFs') . '<br>' . self::check('settings[pdf_parent]', (bool)$c['pdf_parent'], 'Link PDFs to their parent page when available');
+        echo '<p class="uams-admin-inline"><label for="uams-pdf-mb">Largest PDF, MB</label> ' . self::number_input('settings[pdf_max_mb]', 'uams-pdf-mb', $c['pdf_max_mb'], 100, 1) . ' <label for="uams-pdf-timeout">Time limit, seconds</label> ' . self::number_input('settings[pdf_timeout]', 'uams-pdf-timeout', $c['pdf_timeout'], 120, 1) . '</p></td></tr>';
+        echo '<tr><th scope="row">Sub-sites in whole-website search</th><td><fieldset><legend class="screen-reader-text">Sub-sites in whole-website search</legend><ul class="uams-admin-sites">';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? get_blog_details($site)->blogname . ' (#' . $site . ')' : get_bloginfo('name');
-            echo '<p><label><input type="checkbox" name="settings[sites][]" value="' . (int)$site . '" ' . checked($c['sites'] === null || in_array($site, $c['sites'], true), true, false) . '> ' . esc_html($label) . '</label></p>';
+            echo '<li><label><input type="checkbox" name="settings[sites][]" value="' . (int)$site . '" ' . checked($c['sites'] === null || in_array($site, $c['sites'], true), true, false) . '> ' . esc_html($label) . '</label></li>';
         }
-            echo '</fieldset>';
-            self::numeric('settings[featured_max]', 'Featured results shown per search', $c['featured_max'], Featured::MAX_ITEMS);
-            self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']); self::numeric('settings[pdf_timeout]', 'PDF time limit, seconds', $c['pdf_timeout'], 120);
-        }
-        if ($tab === 'content') {
-        echo '<fieldset><legend><h2>Source weights</h2></legend>';
-        foreach ($c['weights'] as $key => $weight) { self::numeric('settings[weights][' . $key . ']', ucfirst($key), $weight); }
-        echo '</fieldset><h2>Content to index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
+        echo '</ul></fieldset></td></tr></tbody></table>';
+    }
+    private static function content_tab(array $c): void {
+        echo '<h2>Source weights</h2><p class="uams-admin-note">How much a match in each part of a post counts. Higher numbers rank higher.</p>';
+        echo '<table class="widefat striped uams-admin-table uams-admin-weights"><thead><tr>';
+        $names = ['title' => 'Title', 'terms' => 'Taxonomy terms', 'fields' => 'ACF fields', 'content' => 'Content', 'pdf' => 'PDF text'];
+        foreach (array_keys($c['weights']) as $key) { echo '<th scope="col"><label for="uams-weight-' . esc_attr($key) . '">' . esc_html($names[$key] ?? ucfirst($key)) . '</label></th>'; }
+        echo '</tr></thead><tbody><tr>';
+        foreach ($c['weights'] as $key => $weight) { echo '<td>' . self::number_input('settings[weights][' . $key . ']', 'uams-weight-' . $key, $weight) . '</td>'; }
+        echo '</tr></tbody></table>';
+
         $types = array_unique(array_merge(array_keys($c['types']), array_keys(get_post_types(['public' => true]))));
+        $name_of = static function ($type) { $object = get_post_type_object($type); return $object ? $object->labels->name : ucfirst($type); };
+        echo '<h2>Content types</h2><p class="uams-admin-note">Choose what to index and boost whole content types. Rebuild all sites after changing what is indexed.</p>';
+        echo '<table class="widefat striped uams-admin-table"><thead><tr><th scope="col">Index</th><th scope="col">Content type</th><th scope="col">Slug</th><th scope="col">Boost</th><th scope="col">Fields</th><th scope="col">Taxonomies</th></tr></thead><tbody>';
         foreach ($types as $type) {
-            $object = get_post_type_object($type); $name = $object ? $object->labels->name : ucfirst($type);
-            echo '<fieldset style="padding:1rem;border:1px solid #aaa;margin-block:1rem"><legend><strong>' . esc_html($name . ' (' . $type . ')') . '</strong></legend>';
-            echo '<p><label><input type="checkbox" name="settings[types][' . esc_attr($type) . '][include]" value="1" ' . checked(isset($c['types'][$type]), true, false) . '> Include this content type</label></p>';
-            self::numeric('settings[types][' . $type . '][boost]', 'Type boost', $c['types'][$type] ?? 1);
+            $name = $name_of($type); $id = 'uams-type-' . sanitize_html_class($type);
+            echo '<tr><td><input type="checkbox" id="' . esc_attr($id) . '" name="settings[types][' . esc_attr($type) . '][include]" value="1" ' . checked(isset($c['types'][$type]), true, false) . '></td>';
+            echo '<td><label for="' . esc_attr($id) . '"><strong>' . esc_html($name) . '</strong></label></td><td><code>' . esc_html($type) . '</code></td>';
+            echo '<td>' . self::number_input('settings[types][' . $type . '][boost]', $id . '-boost', $c['types'][$type] ?? 1, 100, 0.1, $name . ' boost') . '</td>';
+            echo '<td>' . count($c['fields'][$type] ?? []) . '</td><td>' . count($c['taxonomies'][$type] ?? []) . '</td></tr>';
+        }
+        echo '</tbody></table>';
+
+        echo '<h2>Fields and taxonomies</h2><p class="uams-admin-note">Names of the ACF fields and taxonomies to index for each content type. Weights multiply the Fields or Terms source weight. Blank rows are ignored.</p>';
+        foreach ($types as $type) {
+            $name = $name_of($type);
+            echo '<section class="uams-admin-card" aria-labelledby="uams-card-' . esc_attr(sanitize_html_class($type)) . '"><h3 id="uams-card-' . esc_attr(sanitize_html_class($type)) . '">' . esc_html($name) . ' <span class="uams-admin-muted">(' . esc_html($type) . ')' . (isset($c['types'][$type]) ? '' : ', not indexed') . '</span></h3><div class="uams-admin-grid">';
             foreach (['fields' => 'ACF fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
                 $rows = $c[$group][$type] ?? [];
-                echo '<h4>' . esc_html($label) . '</h4><table><thead><tr><th scope="col">Name</th><th scope="col">Weight</th></tr></thead><tbody>';
-                $rows = array_merge(array_map(static fn($k, $v) => ['name' => $k, 'weight' => $v], array_keys($rows), array_values($rows)), array_fill(0, 3, ['name' => '', 'weight' => 1]));
+                $rows = array_merge(array_map(static fn($k, $v) => ['name' => $k, 'weight' => $v], array_keys($rows), array_values($rows)), array_fill(0, 2, ['name' => '', 'weight' => 1]));
+                echo '<table class="widefat striped"><caption class="screen-reader-text">' . esc_html($name . ' ' . $label) . '</caption><thead><tr><th scope="col">' . esc_html($label) . '</th><th scope="col">Weight</th></tr></thead><tbody>';
                 foreach ($rows as $i => $row) {
                     $prefix = 'settings[types][' . $type . '][' . $group . '][' . $i . ']';
-                    echo '<tr><td><input aria-label="' . esc_attr($name . ' ' . $label . ' name ' . ($i + 1)) . '" name="' . esc_attr($prefix . '[name]') . '" value="' . esc_attr($row['name']) . '"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="' . esc_attr($name . ' ' . $label . ' weight ' . ($i + 1)) . '" name="' . esc_attr($prefix . '[weight]') . '" value="' . esc_attr($row['weight']) . '"></td></tr>';
+                    echo '<tr><td><input type="text" aria-label="' . esc_attr($name . ' ' . $label . ' name ' . ($i + 1)) . '" name="' . esc_attr($prefix . '[name]') . '" value="' . esc_attr($row['name']) . '"></td><td>' . self::number_input($prefix . '[weight]', '', $row['weight'], 100, 0.1, $name . ' ' . $label . ' weight ' . ($i + 1)) . '</td></tr>';
                 }
                 echo '</tbody></table>';
             }
-            echo '</fieldset>';
+            echo '</div></section>';
         }
-        echo '<p><label for="uams-stopwords">Extra stop words, separated by spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">' . esc_textarea(implode(' ', $c['stopwords'])) . '</textarea></p>';
+
         $synonyms = []; foreach ($c['synonyms'] as $key => $values) { $synonyms[] = $key . ' = ' . implode(', ', $values); }
-        echo '<p><label for="uams-synonyms">Synonyms, one rule per line, such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">' . esc_textarea(implode("\n", $synonyms)) . '</textarea></p>';
+        echo '<h2>Words</h2><div class="uams-admin-grid"><p><label for="uams-stopwords"><strong>Extra stop words</strong></label><br><span id="uams-stopwords-help" class="description">Separated by spaces. Rebuild after changing.</span><br><textarea class="large-text" id="uams-stopwords" name="settings[stopwords]" rows="5" aria-describedby="uams-stopwords-help">' . esc_textarea(implode(' ', $c['stopwords'])) . '</textarea></p>';
+        echo '<p><label for="uams-synonyms"><strong>Synonyms</strong></label><br><span id="uams-synonyms-help" class="description">One rule per line, such as <code>heart = cardiac, cardiology</code>.</span><br><textarea class="large-text" id="uams-synonyms" name="settings[synonyms]" rows="5" aria-describedby="uams-synonyms-help">' . esc_textarea(implode("\n", $synonyms)) . '</textarea></p></div>';
+    }
+    private static function types_tab(array $c): void {
+        echo '<h2>Result types</h2><p class="uams-admin-note">The type links above search results, in this order. One link can cover several post types; separate them with commas. A link only shows when it has results. Clear a row\'s label to remove it.</p>';
+        $rows = [];
+        foreach ((array)$c['groups'] as $slug => $group) { $rows[] = ['slug' => $slug, 'label' => $group['label'] ?? $slug, 'types' => implode(', ', (array)($group['types'] ?? []))]; }
+        $rows = array_merge($rows, array_fill(0, 2, ['slug' => '', 'label' => '', 'types' => '']));
+        echo '<table class="widefat striped uams-admin-table"><thead><tr><th scope="col">Order</th><th scope="col">Label</th><th scope="col">Post types</th><th scope="col">Slug in the URL</th></tr></thead><tbody>';
+        foreach ($rows as $i => $row) {
+            $p = 'settings[groups][' . $i . ']'; $n = $i + 1;
+            echo '<tr><td>' . self::number_input($p . '[order]', '', $n, 99, 1, 'Order, row ' . $n) . '</td>';
+            echo '<td><input type="text" aria-label="Label, row ' . $n . '" name="' . esc_attr($p . '[label]') . '" value="' . esc_attr($row['label']) . '"></td>';
+            echo '<td><input type="text" aria-label="Post types, row ' . $n . '" name="' . esc_attr($p . '[types]') . '" value="' . esc_attr($row['types']) . '"></td>';
+            echo '<td><input type="text" aria-label="Slug, row ' . $n . '" name="' . esc_attr($p . '[slug]') . '" value="' . esc_attr($row['slug']) . '"></td></tr>';
         }
-        if ($tab === 'types') {
-            echo '<h2>Result types</h2>';
-        $groups = []; foreach ((array)$c['groups'] as $slug => $group) { $groups[] = $slug . ' | ' . ($group['label'] ?? $slug) . ' | ' . implode(', ', (array)($group['types'] ?? [])); }
-        echo '<p><label for="uams-groups">Result-type links, one per line: <code>slug | Label | post_type, post_type</code></label><br><span id="uams-groups-help" class="description">Shown above the results in this order. A link only appears when it has results.</span><br><textarea id="uams-groups" name="settings[groups]" rows="8" cols="70" aria-describedby="uams-groups-help">' . esc_textarea(implode("\n", $groups)) . '</textarea></p>';
-        }
-        submit_button('Save settings'); echo '</form></div>';
+        echo '</tbody></table>';
     }
     // ---------- Featured results ----------
     private static function featured_scope(): string {
@@ -322,8 +364,9 @@ final class Admin {
         for ($i = 0; $i < $count; $i++) {
             $item = $items[$i] ?? ['kind' => 'post'];
             $p = 'rule[items][' . $i . ']'; $id = 'uams-featured-' . $i;
-            echo '<fieldset style="padding:1rem;border:1px solid #c3c4c7;margin-block:1rem;max-width:44rem"><legend><strong>Item ' . ($i + 1) . '</strong>' . ($i > 0 ? ' (optional)' : '') . '</legend>';
-            echo '<p><label for="' . $id . '-kind">Type</label><br><select id="' . $id . '-kind" name="' . $p . '[kind]">';
+            if ($i === 0) { echo '<h3>Items to feature</h3><div class="uams-admin-items">'; }
+            echo '<fieldset><legend>Item ' . ($i + 1) . ($i > 0 ? ' <span class="uams-admin-muted">(optional)</span>' : '') . '</legend>';
+            echo '<p><label for="' . $id . '-kind">Type</label><select id="' . $id . '-kind" name="' . $p . '[kind]">';
             foreach (['post' => 'Page or post on this website', 'link' => 'External link'] as $value => $label) { echo '<option value="' . $value . '" ' . selected($item['kind'] ?? 'post', $value, false) . '>' . esc_html($label) . '</option>'; }
             echo '</select></p>';
             $fields = [
@@ -335,13 +378,14 @@ final class Admin {
             ];
             foreach ($fields as $key => [$label, $help, $type]) {
                 $value = (string)($item[$key] ?? '');
-                echo '<p><label for="' . $id . '-' . $key . '">' . esc_html($label) . '</label><br><span id="' . $id . '-' . $key . '-help" class="description">' . esc_html($help) . '</span><br>';
+                echo '<p><label for="' . $id . '-' . $key . '">' . esc_html($label) . '</label><span id="' . $id . '-' . $key . '-help" class="description">' . esc_html($help) . '</span>';
                 if ($type === 'textarea') { echo '<textarea id="' . $id . '-' . $key . '" name="' . $p . '[' . $key . ']" rows="2" cols="60" aria-describedby="' . $id . '-' . $key . '-help">' . esc_textarea($value) . '</textarea>'; }
                 else { echo '<input type="' . $type . '" class="regular-text" id="' . $id . '-' . $key . '" name="' . $p . '[' . $key . ']" value="' . esc_attr($value) . '" aria-describedby="' . $id . '-' . $key . '-help">'; }
                 echo '</p>';
             }
             echo '</fieldset>';
         }
+        echo '</div>';
         submit_button($rule ? 'Save featured result' : 'Add featured result');
         if ($rule) { echo '<p><a href="' . esc_url(self::featured_url($scope)) . '">Cancel</a></p>'; }
         echo '</form>';
