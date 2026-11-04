@@ -10,9 +10,23 @@ function uams_search_is_active(): bool {
     return \UAMS_Search\Integration::active() && $wp_query instanceof \WP_Query && is_array($wp_query->get('uams_search_results'));
 }
 
-/** Scope ("This site" / "Whole website") and result-type links, as plain lists of links. */
-function uams_search_filters(): void {
-    if (uams_search_is_active()) { \UAMS_Search\Integration::filters(); }
+/**
+ * Scope ("This site" / "Whole website") and result-type links, as plain lists of links.
+ * Optional $args: type_class and type_current_class, CSS classes for the type links.
+ */
+function uams_search_filters(array $args = []): void {
+    if (uams_search_is_active()) { \UAMS_Search\Integration::filters($args); }
+}
+
+/**
+ * The result-type link label for a post type, from the network setting
+ * (e.g. "News" for post), or null when no link covers only that type.
+ */
+function uams_search_type_label(string $post_type): ?string {
+    foreach (\UAMS_Search\Config::groups() as $group) {
+        if ($group['types'] === [$post_type]) { return $group['label']; }
+    }
+    return null;
 }
 
 /** "Did you mean" and "Not every word matched" notes. */

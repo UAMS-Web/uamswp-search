@@ -171,8 +171,14 @@ final class Integration {
         if (!empty($out['fallback'])) { echo '<p class="uams-search-notice">Not every word matched. These results match some of your words.</p>'; }
         if (!empty($out['suggestion'])) { echo '<p class="uams-search-notice">Did you mean <a href="' . esc_url(self::url(['s' => $out['suggestion'], 'paged' => false])) . '">' . esc_html($out['suggestion']) . '</a>?</p>'; }
     }
-    /** Scope and result-type links for the current main search. Type links show their result counts. */
-    public static function filters(): void {
+    /**
+     * Scope and result-type links for the current main search. Type links show their result counts.
+     * $args: type_class / type_current_class (CSS classes for type links, e.g. a theme's button classes).
+     */
+    public static function filters(array $args = []): void {
+        $type_class = isset($args['type_class']) ? trim((string)$args['type_class']) : '';
+        $current_class = isset($args['type_current_class']) ? trim((string)$args['type_current_class']) : $type_class;
+        $class = static fn(bool $current) => ($current ? $current_class : $type_class) !== '' ? ' class="' . esc_attr($current ? $current_class : $type_class) . '"' : '';
         global $wp_query;
         $out = $wp_query instanceof \WP_Query ? $wp_query->get('uams_search_results') : null;
         $counts = is_array($out) ? (array)($out['counts'] ?? []) : [];
@@ -184,11 +190,11 @@ final class Integration {
             $groups[$current] = ['label' => $object ? $object->labels->name : $current, 'types' => [$current]];
         }
         echo '<nav class="uams-search-types" aria-label="Result type"><ul class="uams-search-filters">';
-        echo '<li><a href="' . esc_url(self::url(['type' => false, 'paged' => false])) . '"' . ($current === '' ? ' aria-current="page"' : '') . '>All' . ($counts ? ' <span class="uams-search-count">(' . esc_html(number_format_i18n(array_sum($counts))) . ')</span>' : '') . '</a></li>';
+        echo '<li><a href="' . esc_url(self::url(['type' => false, 'paged' => false])) . '"' . $class($current === '') . ($current === '' ? ' aria-current="page"' : '') . '>All' . ($counts ? ' <span class="uams-search-count">(' . esc_html(number_format_i18n(array_sum($counts))) . ')</span>' : '') . '</a></li>';
         foreach ($groups as $slug => $group) {
             $n = 0; foreach ($group['types'] as $type) { $n += (int)($counts[$type] ?? 0); }
             if (!$n && $current !== $slug) { continue; } // Hide types with no results, but keep the one in use.
-            echo '<li><a href="' . esc_url(self::url(['type' => $slug, 'paged' => false])) . '"' . ($current === $slug ? ' aria-current="page"' : '') . '>' . esc_html($group['label']) . ' <span class="uams-search-count">(' . esc_html(number_format_i18n($n)) . ')</span></a></li>';
+            echo '<li><a href="' . esc_url(self::url(['type' => $slug, 'paged' => false])) . '"' . $class($current === $slug) . ($current === $slug ? ' aria-current="page"' : '') . '>' . esc_html($group['label']) . ' <span class="uams-search-count">(' . esc_html(number_format_i18n($n)) . ')</span></a></li>';
         }
         echo '</ul></nav>';
         echo '<nav class="uams-search-scope" aria-label="Search scope"><ul class="uams-search-filters">';
