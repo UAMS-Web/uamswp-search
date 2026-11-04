@@ -602,7 +602,7 @@ an empty result from an empty tracker.
 
 Vary the terms across the symptom, the affected file/handle/symbol, and the class/label: one
 query rarely surfaces a differently-worded dup. For work that spans repos, search the sibling
-repo too (swap the `repo:` qualifier, e.g. `repo:UAMS-Web/wordpress-importer`). If anything
+repo too (swap the `repo:` qualifier, e.g. `repo:UAMS-Web/aether-wordpress-importer`). If anything
 plausibly covers the concept: **link it and skip**, or add a comment / sharpen the existing
 issue: don't open a duplicate. Only file once you've confirmed nothing matches.
 
