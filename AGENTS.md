@@ -6,11 +6,34 @@ Everything above the generated section below belongs to this repository and is e
 
 ## About this repository
 
-This is a WordPress multisite search plugin. In Amp orbs, `.agents/setup` installs PHP 8.2, Composer, Poppler, locked PHP and npm development dependencies, and Playwright's Chromium and system dependencies. Node.js and npm come from the orb base image. Setup is safe to rerun after a lockfile changes; it preserves the bundled parser in `vendor/pdfparser/`. `.agents/resume` only checks tool availability and never reinstalls dependencies.
+This is a WordPress multisite search plugin. Runtime code is in `includes/`,
+`assets/`, and `templates/`; the bundled PDF parser is in `vendor/pdfparser/`.
+Do not remove that tracked library when installing Composer dependencies.
 
-Run `composer test`, `npm run test:browser`, and `npm run test:rebuild-browser` for the standalone PHP and browser component suites. Run `composer build` to produce the upload ZIP in `dist/`. Browser checks render PHP fixtures without a web server; `test:browser` also updates `docs/search-preview.png`, so do not commit that generated screenshot unless deliberately updating it.
+In Amp orbs, `.agents/setup` installs PHP 8.2, Composer, Poppler, locked PHP and
+npm development dependencies, and Playwright's Chromium and system dependencies.
+Node.js and npm come from the orb base image. Setup is safe to rerun after a
+lockfile changes. `.agents/resume` only checks tool and dependency availability
+and never reinstalls dependencies.
 
-Setup does not install WordPress, seed a database, or require secrets. Full integration tests require a separately provisioned disposable WordPress install with a database name starting with `uams_search_test` and environment type `local`; see the README's integration commands and guards. Component checks do not replace those integration or real-theme release checks.
+See `README.md` under **Tests and build** for orb setup, snapshot reuse, and
+environment repair instructions. Standalone tests need no secrets or running
+WordPress installation.
+
+- PHP tests: `composer test`.
+- Search component and accessibility tests: `npm run test:browser`. This command
+  overwrites the tracked screenshot `docs/search-preview.png`.
+- Rebuild component tests: `npm run test:rebuild-browser`.
+- Build the plugin ZIP: `composer build` (runs `python3 scripts/build.py` and
+  overwrites the current version's tracked ZIP and checksum in `dist/`).
+
+Do not commit generated screenshots or release files incidentally.
+
+Database integration tests require a separately provisioned, disposable WordPress
+installation with WP-CLI, a database name beginning with `uams_search_test`,
+environment type `local`, and `UAMS_SEARCH_TESTS=1`. Orb setup does not provision
+or run that integration environment. See `README.md` for the guarded commands.
+Component checks do not replace integration or real-theme release checks.
 
 <!-- uams-claude-skills:begin -->
 ## Shared skills and rules
