@@ -6,7 +6,27 @@ Everything above the generated section below belongs to this repository and is e
 
 ## About this repository
 
-Replace this section with what an agent needs to know before working here: what the repository is, how to install and run it, how to run its tests and checks, the conventions it follows, and anything that is true of this repository alone. The shared skills and rules below cover the organization-wide conventions; do not repeat them here.
+This is a WordPress multisite search plugin. Runtime code is in `includes/`,
+`assets/`, and `templates/`; the bundled PDF parser is in `vendor/pdfparser/`.
+Do not remove that tracked library when installing Composer dependencies.
+
+See `README.md` under **Tests and build** for orb setup, snapshot reuse, and
+environment repair instructions. Standalone tests need no secrets or running
+WordPress installation.
+
+- PHP tests: `composer test`.
+- Search component and accessibility tests: `npm run test:browser`. This command
+  overwrites the tracked screenshot `docs/search-preview.png`.
+- Rebuild component tests: `npm run test:rebuild-browser`.
+- Build the plugin ZIP: `composer build` (runs `python3 scripts/build.py` and
+  overwrites the current version's tracked ZIP and checksum in `dist/`).
+
+Do not commit generated screenshots or release files incidentally.
+
+Database integration tests require a separately provisioned, disposable WordPress
+installation with WP-CLI, a database name beginning with `uams_search_test`,
+environment type `local`, and `UAMS_SEARCH_TESTS=1`. Orb setup does not provision
+or run that integration environment. See `README.md` for the guarded commands.
 
 <!-- uams-claude-skills:begin -->
 ## Shared skills and rules
