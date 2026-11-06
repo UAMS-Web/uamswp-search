@@ -1,3 +1,19 @@
 *.pdf binary
 *.zip binary
 *.png binary
+
+/* export-ignore
+/.* export-ignore
+/uams-search.php -export-ignore
+/readme.txt -export-ignore
+/LICENSE -export-ignore
+/THIRD-PARTY.md -export-ignore
+/includes -export-ignore
+/assets -export-ignore
+/templates -export-ignore
+/vendor -export-ignore
+/vendor/* export-ignore
+/vendor/pdfparser -export-ignore
+/scripts -export-ignore
+/scripts/* export-ignore
+/scripts/pdf-worker.php -export-ignore

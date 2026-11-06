@@ -107,6 +107,22 @@ No-result logging stores only search text, UTC date, site, and count. Search tex
 
 ## Tests and build
 
+### Amp orbs
+
+Amp runs the executable `.agents/setup` when preparing an orb snapshot. It installs
+PHP 8.2 and its test extensions, Composer, Poppler, locked PHP/npm dependencies,
+and Playwright Chromium with its Debian libraries. Node 20+ comes from the orb
+base image. Matching snapshots reuse this environment; stale snapshots rerun
+setup, skipping installed system packages and cached browser downloads.
+
+`.agents/resume` only checks tool/dependency availability and never reinstalls
+anything. Run `.agents/setup` manually to repair missing dependencies. No secrets,
+authentication, or running services are needed for the unit and component suites.
+WordPress/database integration still requires a separate disposable local install
+with the database guards described below; setup does not create or connect to one.
+
+### Commands
+
 ```sh
 composer install
 composer test
