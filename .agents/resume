@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
 for tool in php composer node npm python3 pdftotext; do
-    command -v "$tool" >/dev/null
+    if ! command -v "$tool" >/dev/null; then
+        printf 'Missing %s; run .agents/setup to repair this orb.\n' "$tool" >&2
+        exit 1
+    fi
 done
-printf 'Orb toolchain available; no authentication or services need reconnecting.\n'
+if [[ ! -f vendor/autoload.php || ! -x node_modules/.bin/playwright ]]; then
+    printf 'Missing development dependencies; run .agents/setup to repair this orb.\n' >&2
+    exit 1
+fi
+printf 'Orb toolchain and development dependencies are available.\n'

@@ -10,7 +10,7 @@ step() {
     time "$@"
 }
 
-packages=(php8.2-cli php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip composer poppler-utils python3)
+packages=(php8.2-cli php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip composer poppler-utils python3 unzip)
 missing=()
 for package in "${packages[@]}"; do
     if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
@@ -23,8 +23,10 @@ if ((${#missing[@]})); then
     step 'Install PHP, Composer, PDF and build tools' sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
 fi
 
-step 'Check PHP version and locked platform requirements' php -r 'if (PHP_VERSION_ID < 80200) { fwrite(STDERR, "The locked test dependencies require PHP 8.2 or newer.\n"); exit(1); }'
+step 'Check Node version' node -e 'if (Number(process.versions.node.split(".")[0]) < 20) throw new Error("Playwright requires Node 20 or newer; use the current Amp orb base image.")'
+step 'Check PHP version' php -r 'if (PHP_VERSION_ID < 80200) { fwrite(STDERR, "The locked test dependencies require PHP 8.2 or newer.\n"); exit(1); }'
 step 'Install locked Composer dependencies' composer install --no-interaction --prefer-dist --no-progress
+step 'Check locked platform requirements' composer check-platform-reqs
 step 'Install locked browser test dependencies' npm ci --no-audit --no-fund
 
 if ! ./node_modules/.bin/playwright install-deps --dry-run chromium; then
