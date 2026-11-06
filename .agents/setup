@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
+SECONDS=0
+trap 'printf "Orb setup finished after %ss\n" "$SECONDS"' EXIT
+
+printf '\n[%ss] Checking Debian toolchain and Chromium libraries\n' "$SECONDS"
+packages=(
+    php8.2-cli php8.2-mbstring php8.2-xml php8.2-curl php8.2-zip
+    composer python3 poppler-utils unzip
+    fonts-liberation fonts-noto-color-emoji
+    libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0
+    libcairo2 libcups2 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0
+    libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 libxcomposite1
+    libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2
+)
+missing=()
+for package in "${packages[@]}"; do
+    if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+        missing+=("$package")
+    fi
+done
+if ((${#missing[@]})); then
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+fi
+
+node -e 'if (Number(process.versions.node.split(".")[0]) < 20) throw new Error("Playwright requires Node 20 or newer; use the current Amp orb base image.")'
+php --version
+composer --version
+node --version
+npm --version
+
+printf '\n[%ss] Installing locked PHP dependencies\n' "$SECONDS"
+composer install --no-interaction --prefer-dist --no-progress
+composer check-platform-reqs
+
+printf '\n[%ss] Installing locked browser-test dependencies\n' "$SECONDS"
+npm ci --no-audit --no-fund
+
+printf '\n[%ss] Ensuring matching Playwright Chromium is cached\n' "$SECONDS"
+./node_modules/.bin/playwright install chromium
+
+printf '\n[%ss] Ready for composer test, npm run test:browser, npm run test:rebuild-browser, and composer build\n' "$SECONDS"

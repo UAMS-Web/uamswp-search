@@ -1,4 +1,5 @@
 .DS_Store
+/.amp/portals/*
 /.claude/worktrees/
 /vendor/bin/
 /vendor/composer/
