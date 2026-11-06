@@ -6,7 +6,11 @@ Everything above the generated section below belongs to this repository and is e
 
 ## About this repository
 
-Replace this section with what an agent needs to know before working here: what the repository is, how to install and run it, how to run its tests and checks, the conventions it follows, and anything that is true of this repository alone. The shared skills and rules below cover the organization-wide conventions; do not repeat them here.
+This is a WordPress multisite search plugin. In Amp orbs, `.agents/setup` installs PHP 8.2, Composer, Poppler, locked PHP and npm development dependencies, and Playwright's Chromium and system dependencies. Node.js and npm come from the orb base image. Setup is safe to rerun after a lockfile changes; it preserves the bundled parser in `vendor/pdfparser/`. `.agents/resume` only checks tool availability and never reinstalls dependencies.
+
+Run `composer test`, `npm run test:browser`, and `npm run test:rebuild-browser` for the standalone PHP and browser component suites. Run `composer build` to produce the upload ZIP in `dist/`. Browser checks render PHP fixtures without a web server; `test:browser` also updates `docs/search-preview.png`, so do not commit that generated screenshot unless deliberately updating it.
+
+Setup does not install WordPress, seed a database, or require secrets. Full integration tests require a separately provisioned disposable WordPress install with a database name starting with `uams_search_test` and environment type `local`; see the README's integration commands and guards. Component checks do not replace those integration or real-theme release checks.
 
 <!-- uams-claude-skills:begin -->
 ## Shared skills and rules

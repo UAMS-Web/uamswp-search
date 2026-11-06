@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+for tool in php composer node npm python3 pdftotext; do
+    command -v "$tool" >/dev/null
+done
+printf 'Orb toolchain available; no authentication or services need reconnecting.\n'
