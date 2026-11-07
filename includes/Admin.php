@@ -3,7 +3,9 @@ namespace UAMS_Search;
 
 final class Admin {
     public static function hooks(): void {
-        add_action('network_admin_menu', static fn() => add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']));
+        add_action('network_admin_menu', static function () {
+            add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']);
+        });
         add_action('admin_menu', static function () {
             add_options_page('uams search', 'uams search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
             if (!is_multisite()) { add_options_page('uams search index', 'uams search index', 'manage_options', 'uams-search', [self::class, 'page']); }
