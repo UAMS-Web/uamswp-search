@@ -3,14 +3,16 @@
 if (!defined('WP_CLI') || !WP_CLI || getenv('UAMS_SEARCH_TESTS') !== '1' || !str_starts_with(DB_NAME, 'uams_search_test') || wp_get_environment_type() !== 'local') {
     throw new RuntimeException('Use a disposable local WordPress install with DB_NAME starting uams_search_test and UAMS_SEARCH_TESTS=1.');
 }
-if (!class_exists('UAMS_Search\\Query')) { throw new RuntimeException('Activate UAMS Search first.'); }
+
+if (!class_exists(Query::class)) { throw new RuntimeException('Activate UAMS Search first.'); }
+
 use UAMS_Search\{Config, DB, Indexer, Queue, Query, Suggestions, Misses};
 global $wpdb;
 $site = get_current_blog_id(); $created = []; $old = get_site_option('uams_search_settings', []); $checks = 0; $temporary_filters = [];
-$check = static function (bool $pass, string $message) use (&$checks) { if (!$pass) { throw new RuntimeException($message); } $checks++; WP_CLI::log('PASS: ' . $message); };
+$check = static function (bool $pass, string $message) use (&$checks): void { if (!$pass) { throw new RuntimeException($message); } $checks++; WP_CLI::log('PASS: ' . $message); };
 $make = static function (array $args) use (&$created) { $id = wp_insert_post(array_replace(['post_title' => 'Uamsfixturesentinel', 'post_status' => 'publish', 'post_type' => 'page'], $args), true); if (is_wp_error($id)) { throw new RuntimeException($id->get_error_message()); } $created[] = $id; return $id; };
-$search = static fn(string $s, array $args = []) => Query::run(array_replace(['s' => $s, 'site' => $site, 'scope' => 'site', 'suggest' => false], $args));
-$ids = static fn(array $out) => array_column($out['results'], 'id');
+$search = static fn(string $s, array $args = []): array => Query::run(array_replace(['s' => $s, 'site' => $site, 'scope' => 'site', 'suggest' => false], $args));
+$ids = static fn(array $out): array => array_column($out['results'], 'id');
 $token = 'uamsfixture' . strtolower(wp_generate_password(8, false, false));
 try {
     $global_stopwords = $wpdb->get_var('SELECT @@GLOBAL.innodb_ft_enable_stopword');
@@ -42,6 +44,7 @@ try {
         $mixed = $search("$token billing");
         $check(!$mixed['fallback'] && in_array($cross, $ids($mixed), true), 'Live-post checks tolerate legacy tables with different text collations');
     } finally { DB::exec("ALTER TABLE `$live_table` MODIFY post_type VARCHAR(20) CHARACTER SET utf8mb4 COLLATE $original_collation NOT NULL DEFAULT 'post'"); }
+
     $check(in_array($cross, $ids($search('GI')), true), 'Two-letter GI is found by the real full-text index');
     $check(in_array($cross, $ids($search('ENT')), true), 'Three-letter ENT is found by the real full-text index');
     $fallback = $search("$token uamsfixturedoesnotexist");
@@ -77,6 +80,7 @@ try {
     $check($weighted['results'][0]->scores['fields'] > 0, 'Explain reports a real full-text field score');
     $pdf_upload = wp_upload_bits('uamsfixture-text.pdf', null, file_get_contents(__DIR__ . '/../fixtures/text.pdf'));
     if ($pdf_upload['error']) { throw new RuntimeException($pdf_upload['error']); }
+
     $pdf_id = wp_insert_attachment(['post_title' => 'PDF fixture', 'post_mime_type' => 'application/pdf', 'post_status' => 'inherit', 'post_parent' => $cross], $pdf_upload['file']);
     $created[] = $pdf_id;
     $pdf_row = Indexer::one($site, $pdf_id);
@@ -90,6 +94,7 @@ try {
     wp_update_post(['ID' => $cross, 'post_status' => 'publish']);
     $scan_upload = wp_upload_bits('uamsfixture-scanned.pdf', null, file_get_contents(__DIR__ . '/../fixtures/scanned.pdf'));
     if ($scan_upload['error']) { throw new RuntimeException($scan_upload['error']); }
+
     $scan_id = wp_insert_attachment(['post_title' => 'Scanned fixture', 'post_mime_type' => 'application/pdf', 'post_status' => 'inherit'], $scan_upload['file']);
     $created[] = $scan_id;
     $scan_row = Indexer::one($site, $scan_id);
@@ -110,6 +115,7 @@ try {
     add_filter('uams_search_include_post', $bad, 10, 2); $temporary_filters[] = $bad;
     Queue::push($failing); Queue::push($second);
     for ($i = 0; $i < 3; $i++) { $wpdb->query("UPDATE `$q` SET available_at=UTC_TIMESTAMP()"); Queue::process(100, 30); }
+
     $check((int)$wpdb->get_var($wpdb->prepare("SELECT attempts FROM `$q` WHERE site_id=%d AND object_id=%d", $site, $failing)) === 3, 'A failed object stops after three tries');
     $check(Queue::process(100, 30)['processed'] === 0, 'Exhausted retries do not run forever');
     $check(in_array($second, $ids($search('uamsfixturecardiac')), true), 'A broken object does not block another object');
@@ -123,6 +129,7 @@ try {
         $name = 'uams-search-' . md5($wpdb->dbname . $wpdb->base_prefix);
         $check((int)$other->get_var($other->prepare('SELECT GET_LOCK(%s,0)', $name)) === 0, 'A second database connection cannot enter the writer lock');
     } finally { DB::unlock(); $other->close(); }
+
     Misses::record('uamsfixture-no-results');
     $m = DB::table('misses');
     $wpdb->query("UPDATE `$m` SET day=UTC_DATE()-INTERVAL 91 DAY WHERE search_text='uamsfixture-no-results'"); Misses::purge();
@@ -130,11 +137,13 @@ try {
     WP_CLI::success("$checks database integration checks passed.");
 } finally {
     foreach ($temporary_filters as $filter) { remove_filter('uams_search_include_post', $filter, 10); }
+
     foreach ($created as $id) {
         wp_delete_post($id, true);
         Suggestions::remove($site, $id);
         $wpdb->delete(DB::table(), ['site_id' => $site, 'object_id' => $id]);
         $wpdb->delete(DB::table('queue'), ['site_id' => $site, 'object_id' => $id]);
     }
+
     update_site_option('uams_search_settings', $old);
 }

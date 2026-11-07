@@ -3,30 +3,40 @@ namespace UAMS_Search;
 
 final class DB {
     private static ?bool $table_ready = null;
+
     public static function table(string $suffix = 'index'): string {
         global $wpdb;
         if (!in_array($suffix, ['index', 'queue', 'words', 'word_docs', 'misses', 'stopwords', 'stage'], true)) { throw new \InvalidArgumentException('Unknown table'); }
+
         return $wpdb->base_prefix . 'uams_search_' . $suffix;
     }
+
     public static function exec(string $sql): int {
         global $wpdb;
         $result = $wpdb->query($sql);
         if ($result === false) { throw new \RuntimeException($wpdb->last_error ?: 'Database operation failed'); }
+
         return $result;
     }
+
     public static function ready(): bool {
         global $wpdb;
         if (get_site_option('uams_search_version') !== UAMS_SEARCH_SCHEMA_VERSION) { return false; }
+
         if (self::$table_ready !== null) { return self::$table_ready; }
+
         $t = self::table();
         return self::$table_ready = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($t))) === $t;
     }
+
     public static function install(): void {
         global $wpdb;
         if (!extension_loaded('mbstring') || !extension_loaded('zlib') || !extension_loaded('iconv')) { throw new \RuntimeException('UAMS Search requires the mbstring, zlib and iconv PHP extensions.'); }
+
         if ((int)$wpdb->get_var('SELECT @@innodb_ft_min_token_size') !== 3) {
             throw new \RuntimeException('UAMS Search requires innodb_ft_min_token_size=3. Run wp uams-search doctor.');
         }
+
         $collation = $wpdb->get_charset_collate();
         $empty = self::table('stopwords');
         self::exec("CREATE TABLE IF NOT EXISTS `$empty` (`value` VARCHAR(30) NOT NULL) ENGINE=InnoDB $collation");
@@ -59,6 +69,7 @@ final class DB {
         } finally {
             self::exec($old === null ? 'SET SESSION innodb_ft_user_stopword_table = NULL' : $wpdb->prepare('SET SESSION innodb_ft_user_stopword_table = %s', $old));
         }
+
         $q = self::table('queue');
         self::exec("CREATE TABLE IF NOT EXISTS `$q` (
             site_id BIGINT UNSIGNED NOT NULL, object_id BIGINT UNSIGNED NOT NULL,
@@ -88,6 +99,7 @@ final class DB {
         update_site_option('uams_search_version', UAMS_SEARCH_SCHEMA_VERSION);
         self::$table_ready = true;
     }
+
     private static function dictionary_collation(): void {
         global $wpdb;
         $change = [];
@@ -95,16 +107,21 @@ final class DB {
             $table = self::table($suffix);
             $column = $wpdb->get_row("SHOW FULL COLUMNS FROM `$table` WHERE Field='word'", ARRAY_A);
             if (!$column) { throw new \RuntimeException($wpdb->last_error ?: 'Missing dictionary word column'); }
+
             if ($column['Collation'] !== 'utf8mb4_bin') { $change[] = $table; }
         }
-        if (!$change) { return; }
+
+        if ($change === []) { return; }
+
         if (!self::lock()) { throw new \RuntimeException('Another indexer is running. Retry schema setup after it finishes.'); }
+
         try {
             // PHP's token deduplication compares Unicode bytes. Use the same identity
             // for dictionary keys so ligatures such as first/ﬁrst cannot collide.
             foreach ($change as $table) { self::exec("ALTER TABLE `$table` MODIFY word VARCHAR(80) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL"); }
         } finally { self::unlock(); }
     }
+
     private static function short_token_storage(): void {
         global $wpdb;
         $change = [];
@@ -112,20 +129,26 @@ final class DB {
             $table = self::table($suffix);
             $column = $wpdb->get_row("SHOW FULL COLUMNS FROM `$table` WHERE Field='short_tokens'", ARRAY_A);
             if (!$column) { throw new \RuntimeException($wpdb->last_error ?: 'Missing short-token column'); }
+
             if (strtolower($column['Type']) !== 'longtext') { $change[] = $table; }
         }
-        if (!$change) { return; }
+
+        if ($change === []) { return; }
+
         if (!self::lock()) { throw new \RuntimeException('Another indexer is running. Retry schema setup after it finishes.'); }
+
         try {
             // Called while the session's empty stopword table is selected, since
             // this ALTER can rebuild the table and its full-text indexes.
             foreach ($change as $table) { self::exec("ALTER TABLE `$table` MODIFY short_tokens LONGTEXT NOT NULL"); }
         } finally { self::unlock(); }
     }
+
     public static function lock(): bool {
         global $wpdb;
         return (int)$wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,0)', 'uams-search-' . md5($wpdb->dbname . $wpdb->base_prefix))) === 1;
     }
+
     public static function unlock(): void {
         global $wpdb;
         $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', 'uams-search-' . md5($wpdb->dbname . $wpdb->base_prefix)));

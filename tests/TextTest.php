@@ -4,6 +4,7 @@ use UAMS_Search\{Text, Stemmer, Excerpt, Phonetic};
 
 final class TextTest extends TestCase {
     protected function setUp(): void { $GLOBALS['uams_test_options'] = []; $GLOBALS['uams_test_filters'] = []; }
+
     public function testNormalizationAndUnicode(): void {
         self::assertSame(['mri','ent','gi','o','neal','café','医生'], Text::words('MRI, ENT; GI / O’Neal Café 医生'));
         self::assertSame([], Text::words('?! 🩺'));
@@ -11,6 +12,7 @@ final class TextTest extends TestCase {
         self::assertSame('', Text::plain('<script>alert(1)</script><style>bad</style>'));
         self::assertSame('heart care & billing', Text::plain('<p>heart</p><p>care &amp; billing</p>'));
     }
+
     public function testPorterPublishedExamples(): void {
         $pairs = [
             'caresses'=>'caress','ponies'=>'poni','ties'=>'ti','caress'=>'caress','cats'=>'cat','feed'=>'feed','agreed'=>'agre','plastered'=>'plaster','bled'=>'bled','motoring'=>'motor','sing'=>'sing','conflated'=>'conflat','troubled'=>'troubl','sized'=>'size','hopping'=>'hop','tanned'=>'tan','falling'=>'fall','hissing'=>'hiss','fizzed'=>'fizz','failing'=>'fail','filing'=>'file','happy'=>'happi','sky'=>'sky',
@@ -19,14 +21,17 @@ final class TextTest extends TestCase {
         ];
         foreach ($pairs as $word => $expected) { self::assertSame($expected, Stemmer::stem($word), $word); }
     }
+
     public function testShortTermsMatchOnBothSides(): void {
         foreach (['GI','ER','OB','MRI','ENT'] as $word) { self::assertSame(Text::index($word), rtrim(Text::boolean(Text::groups($word), false), '*')); }
+
         self::assertSame('uamsshort6769zz', Text::index('GI'));
         self::assertSame('ent', Text::index('ENT'));
         // Stems that become two letters must also be encoded, not silently lost by InnoDB.
         self::assertStringStartsWith('uamsshort', Text::index('ties'));
         self::assertNotSame(Text::index('GI'), Text::index('ER'));
     }
+
     public function testPhraseAndBooleanOperatorsAreControlled(): void {
         self::assertSame('+"breast cancer" +park*', Text::boolean(Text::groups('"breast cancer" parking'), true));
         self::assertSame('+cardiologi* +park*', Text::boolean(Text::groups('+cardiology* -(parking)'), true));
@@ -35,13 +40,16 @@ final class TextTest extends TestCase {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['synonyms' => ['heart' => ['cardiac','cardiology','heart care']]];
         self::assertSame('+(heart* cardiac* cardiologi* "heart care")', Text::boolean(Text::groups('heart'), true));
     }
+
     public function testFlattenSkipsObjectsNullAndBoolean(): void {
         self::assertSame('care 12 doctor', Text::flatten(['care', 12, ['doctor', new stdClass()], null, false]));
         self::assertSame('', Text::flatten(null));
         self::assertSame('', Text::flatten(new stdClass()));
         $value = ['text']; for ($i = 0; $i < 15; $i++) { $value = [$value]; }
+
         self::assertSame('', Text::flatten($value));
     }
+
     public function testExcerptFindsBestWindowAndEscapes(): void {
         $source = implode(' ', array_fill(0, 40, 'filler')) . ' cardiology care cardiologist ' . implode(' ', array_fill(0, 40, 'end'));
         $html = Excerpt::make([$source], 'cardio');
@@ -54,6 +62,7 @@ final class TextTest extends TestCase {
         self::assertSame('<mark>Cardiology</mark> clinic', Excerpt::make(['unrelated content', 'Cardiology clinic', 'PDF cardiology'], 'cardiology'));
         self::assertSame('', Excerpt::make(['', ''], 'heart'));
     }
+
     public function testDoubleMetaphonePrimaryAndAlternate(): void {
         self::assertSame(['SM0','XMT'], Phonetic::encode('Smith'));
         self::assertSame(['XMT','SMT'], Phonetic::encode('Schmidt'));
