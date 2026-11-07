@@ -1,4 +1,5 @@
 <?php
+
 use UAMS_Search\Plugin;
 
 /**
@@ -32,8 +33,8 @@ defined('ABSPATH') || exit;
 define('UAMS_SEARCH_FILE', __FILE__);
 define('UAMS_SEARCH_VERSION', '0.3.0');
 define('UAMS_SEARCH_SCHEMA_VERSION', '0.1.0');
-require_once __DIR__ . '/includes/autoload.php';
-require_once __DIR__ . '/includes/helpers.php';
+require_once __DIR__.'/includes/autoload.php';
+require_once __DIR__.'/includes/helpers.php';
 register_activation_hook(__FILE__, [Plugin::class, 'activate']);
 register_deactivation_hook(__FILE__, [Plugin::class, 'deactivate']);
 add_action('plugins_loaded', [Plugin::class, 'boot'], 20);

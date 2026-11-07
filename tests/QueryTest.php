@@ -1,9 +1,12 @@
 <?php
+
 use PHPUnit\Framework\TestCase;
-use UAMS_Search\{Config, Query, Integration};
+use UAMS_Search\Integration;
+use UAMS_Search\Query;
 
 // These tests verify the API/WordPress boundary, not database full-text behavior.
-class QueryFixtureDB {
+class QueryFixtureDB
+{
     public string $base_prefix = 'wp_';
 
     public string $last_error = '';
@@ -12,29 +15,43 @@ class QueryFixtureDB {
 
     public array $queries = [];
 
-    public function esc_like($s) { return addcslashes($s, '_%\\'); }
+    public function esc_like($s)
+    {
+        return addcslashes($s, '_%\\');
+    }
 
-    public function prepare($sql, ...$args) {
-        if (count($args) === 1 && is_array($args[0])) { $args = $args[0]; }
+    public function prepare($sql, ...$args)
+    {
+        if (count($args) === 1 && is_array($args[0])) {
+            $args = $args[0];
+        }
 
         foreach ($args as $arg) {
-            $sql = preg_replace_callback('/%[sd]/', static fn($m): string => $m[0] === '%d' ? (string)(int)$arg : "'" . addslashes((string)$arg) . "'", $sql, 1);
+            $sql = preg_replace_callback('/%[sd]/', static fn ($m): string => $m[0] === '%d' ? (string) (int) $arg : "'".addslashes((string) $arg)."'", $sql, 1);
         }
 
         return $sql;
     }
 
-    public function get_blog_prefix($site) { return $site === 1 ? 'wp_' : 'wp_' . $site . '_'; }
+    public function get_blog_prefix($site)
+    {
+        return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
+    }
 
-    public function get_var($sql) {
+    public function get_var($sql)
+    {
         $this->queries[] = $sql;
-        if (str_starts_with($sql, 'SHOW TABLES')) { return 'wp_uams_search_index'; }
+        if (str_starts_with($sql, 'SHOW TABLES')) {
+            return 'wp_uams_search_index';
+        }
 
         return array_shift($this->counts) ?? 0;
     }
 
-    public function get_results($sql, $format) {
+    public function get_results($sql, $format)
+    {
         $this->queries[] = $sql;
+
         return [[
             'id' => 987, 'site_id' => 1, 'object_id' => 42, 'relevance' => 8.5,
             'title' => 'Heart care', 'url' => 'https://example.test/heart/', 'post_type' => 'page', 'file_size' => 0,
@@ -43,63 +60,100 @@ class QueryFixtureDB {
     }
 }
 
-if (!class_exists('WP_Post')) { #[AllowDynamicProperties] class WP_Post { public int $ID = 42; } }
-
-if (!class_exists('WP_Query')) {
-    class WP_Query {
-        public int $found_posts = 0; public int $max_num_pages = 0;
-
-        public array $values = ['s' => 'heart', 'posts_per_page' => 10];
-
-        public function get($key) { return $this->values[$key] ?? ''; }
-
-        public function set($key, $value): void { $this->values[$key] = $value; }
-
-        public function is_main_query(): bool { return true; }
-
-        public function is_search(): bool { return true; }
+if (! class_exists('WP_Post')) {
+    #[AllowDynamicProperties] class WP_Post
+    {
+        public int $ID = 42;
     }
 }
 
-function is_admin() { return false; }
+if (! class_exists('WP_Query')) {
+    class WP_Query
+    {
+        public int $found_posts = 0;
 
-function is_user_logged_in() { return $GLOBALS['uams_test_logged_in'] ?? false; }
+        public int $max_num_pages = 0;
 
-function get_post($id) { return new WP_Post(); }
+        public array $values = ['s' => 'heart', 'posts_per_page' => 10];
 
-final class QueryTest extends TestCase {
-    protected function setUp(): void {
+        public function get($key)
+        {
+            return $this->values[$key] ?? '';
+        }
+
+        public function set($key, $value): void
+        {
+            $this->values[$key] = $value;
+        }
+
+        public function is_main_query(): bool
+        {
+            return true;
+        }
+
+        public function is_search(): bool
+        {
+            return true;
+        }
+    }
+}
+
+function is_admin()
+{
+    return false;
+}
+
+function is_user_logged_in()
+{
+    return $GLOBALS['uams_test_logged_in'] ?? false;
+}
+
+function get_post($id)
+{
+    return new WP_Post;
+}
+
+final class QueryTest extends TestCase
+{
+    protected function setUp(): void
+    {
         defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
-        $GLOBALS['wpdb'] = new QueryFixtureDB();
+        $GLOBALS['wpdb'] = new QueryFixtureDB;
         $GLOBALS['uams_test_filters'] = [];
         $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => ['enabled' => true]];
         Integration::$excerpts = [];
     }
 
-    public function testApiUsesObjectIdAndSeparateTotal(): void {
+    public function test_api_uses_object_id_and_separate_total(): void
+    {
         $out = Query::run(['s' => 'heart', 'per_page' => 10, 'suggest' => false]);
         self::assertSame(42, $out['results'][0]->id);
         self::assertSame(1, $out['results'][0]->site);
-        self::assertSame(21, $out['total']); self::assertSame(3, $out['pages']);
+        self::assertSame(21, $out['total']);
+        self::assertSame(3, $out['pages']);
         self::assertFalse($out['fallback']);
         self::assertStringContainsString('<mark>Heart</mark>', $out['results'][0]->excerpt);
     }
 
-    public function testFallbackAndHostilePaginationAreBounded(): void {
+    public function test_fallback_and_hostile_pagination_are_bounded(): void
+    {
         $GLOBALS['wpdb']->counts = [0, 2];
         $out = Query::run(['s' => 'heart billing', 'page' => PHP_INT_MAX, 'per_page' => -10, 'suggest' => false]);
-        self::assertTrue($out['fallback']); self::assertSame(2, $out['total']);
+        self::assertTrue($out['fallback']);
+        self::assertSame(2, $out['total']);
         self::assertStringEndsWith('LIMIT 1 OFFSET 9999', end($GLOBALS['wpdb']->queries));
     }
 
-    public function testMalformedInputAndWrongSiteReturnNoResults(): void {
+    public function test_malformed_input_and_wrong_site_return_no_results(): void
+    {
         self::assertSame([], Query::run(['s' => ['heart']])['results']);
         self::assertSame([], Query::run(['s' => 'heart', 'site' => 999, 'scope' => 'site'])['results']);
         self::assertSame([], Query::run(['s' => 'the and with'])['results']);
     }
 
-    public function testCoreCacheCannotMixSiteIds(): void {
-        $query = new WP_Query();
+    public function test_core_cache_cannot_mix_site_ids(): void
+    {
+        $query = new WP_Query;
         $posts = Integration::posts(null, $query);
         self::assertCount(1, $posts);
         self::assertSame(42, $posts[0]->id);
@@ -112,15 +166,17 @@ final class QueryTest extends TestCase {
         self::assertArrayHasKey('1:42', Integration::$excerpts);
     }
 
-    public function testExistingEngineAndMissingSchemaKeepCoreSearch(): void {
-        $existing = [new WP_Post()];
-        self::assertSame($existing, Integration::posts($existing, new WP_Query()));
+    public function test_existing_engine_and_missing_schema_keep_core_search(): void
+    {
+        $existing = [new WP_Post];
+        self::assertSame($existing, Integration::posts($existing, new WP_Query));
         unset($GLOBALS['uams_test_options']['uams_search_version']);
-        self::assertNull(Integration::posts(null, new WP_Query()));
+        self::assertNull(Integration::posts(null, new WP_Query));
     }
 
-    public function testCompetingEnginesYieldOnlyAfterSuccessfulUamsSearch(): void {
-        $query = new WP_Query();
+    public function test_competing_engines_yield_only_after_successful_uams_search(): void
+    {
+        $query = new WP_Query;
         self::assertTrue(Integration::allow_other_engine(true, $query));
         self::assertFalse(Integration::allow_other_engine(false, $query));
         Integration::posts(null, $query);
