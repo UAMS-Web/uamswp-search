@@ -198,7 +198,7 @@ final class Admin {
     }
     private static function status(): void {
         global $wpdb;
-        echo '<section id="status"><h2>Index status</h2><p>Queue length: ' . (int)$wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('queue') . '`') . '. Last queue run (UTC): ' . esc_html(get_site_option('uams_search_last_queue', 'Never')) . '.</p>';
+        echo '<section id="status"><h2>Index status</h2><p>Queue length: ' . (int)$wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('queue') . '`') . '. Last queue run: ' . esc_html(Time::local(get_site_option('uams_search_last_queue', ''))) . '.</p>';
         $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `' . DB::table() . '` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
         self::table(['Site','Post type','Status','Count'], array_map('array_values', $rows));
         echo '<h3>Failed items and PDFs without text</h3><p>Showing the latest 100 items. PDFs without text still match their titles and filenames.</p>';
