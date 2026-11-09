@@ -158,7 +158,7 @@ final class GuardsTest extends TestCase
         $method->invoke(null);
         $html = ob_get_clean();
 
-        self::assertStringContainsString('Posts', $html);
+        self::assertStringContainsString('>News</a>', $html);
         self::assertStringNotContainsString('type=gone', $html);
     }
 

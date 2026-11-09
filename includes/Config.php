@@ -82,6 +82,18 @@ final class Config
     }
 
     /**
+     * The names of the content types in the type filter, keyed by post type. They match the UAMS Statamic site; a type with no entry here keeps its WordPress name, and the `uams_search_type_labels` filter can rename any of them.
+     *
+     * @return array<string, string>
+     */
+    public static function type_labels(): array
+    {
+        $labels = ['provider' => 'People', 'expertise' => 'Clinical Areas of Expertise', 'location' => 'Clinical Locations', 'post' => 'News', 'attachment' => 'PDFs'];
+
+        return (array) apply_filters('uams_search_type_labels', $labels);
+    }
+
+    /**
      * Whether searching all UAMS websites through Google is offered on this site.
      */
     public static function google_enabled(): bool

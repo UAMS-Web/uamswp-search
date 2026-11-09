@@ -275,14 +275,14 @@ final class Integration
             return;
         }
 
-        echo '<nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All types</a></li>';
+        echo '<nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All results</a></li>';
         foreach (Config::get()['types'] as $type => $boost) {
             $object = get_post_type_object($type);
             if (! $object || ($type === 'attachment' && ! Config::get()['pdf'])) {
                 continue;
             }
 
-            echo '<li><a href="'.esc_url(self::url(['type' => $type, 'paged' => false])).'"'.(self::param('type') === $type ? ' aria-current="true"' : '').'>'.esc_html($type === 'attachment' ? 'PDFs' : $object->labels->name).'</a></li>';
+            echo '<li><a href="'.esc_url(self::url(['type' => $type, 'paged' => false])).'"'.(self::param('type') === $type ? ' aria-current="true"' : '').'>'.esc_html((string) (Config::type_labels()[$type] ?? $object->labels->name)).'</a></li>';
         }
 
         echo '</ul></nav>';
