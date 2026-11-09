@@ -4,26 +4,13 @@ namespace UAMS_Search;
 
 final class Admin
 {
+    public const NAME = 'UAMSWP Search';
+
     public static function hooks(): void
     {
-        add_action('network_admin_menu', static function (): void {
-            add_submenu_page('settings.php', 'uams search', 'uams search', 'manage_network_options', 'uams-search', [self::class, 'page']);
-        });
-        add_action('admin_menu', static function (): void {
-            add_options_page('uams search', 'uams search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
-            if (! is_multisite()) {
-                add_options_page('uams search index', 'uams search index', 'manage_options', 'uams-search', [self::class, 'page']);
-            }
-
-            // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
-            global $menu;
-            foreach ($menu as $item) {
-                if (strip_tags($item[0]) === 'UAMS Settings') {
-                    add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
-                    break;
-                }
-            }
-        }, 99);
+        add_action('network_admin_menu', [self::class, 'network_menu']);
+        add_action('admin_init', [self::class, 'redirect_legacy_network_page']);
+        add_action('admin_menu', [self::class, 'site_menus'], 99);
         add_action('admin_post_uams_search_save', [self::class, 'save']);
         add_action('admin_post_uams_search_site', [self::class, 'save_site']);
         add_action('admin_post_uams_search_retry', [self::class, 'retry']);
@@ -58,9 +45,57 @@ final class Admin
         }
     }
 
+    /**
+     * The network admin's own top-level menu. The index screen is its first submenu item, so further screens can sit beneath it.
+     */
+    public static function network_menu(): void
+    {
+        add_menu_page(self::NAME, self::NAME, 'manage_network_options', 'uams-search', [self::class, 'page'], 'dashicons-search', 26);
+        add_submenu_page('uams-search', self::NAME, 'Index', 'manage_network_options', 'uams-search', [self::class, 'page']);
+    }
+
+    public static function site_menus(): void
+    {
+        add_options_page(self::NAME, self::NAME, 'manage_options', 'uams-search-site', [self::class, 'site_page']);
+        if (! is_multisite()) {
+            add_options_page(self::NAME.' Index', self::NAME.' Index', 'manage_options', 'uams-search', [self::class, 'page']);
+        }
+
+        // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
+        global $menu;
+        foreach ($menu as $item) {
+            if (strip_tags($item[0]) === 'UAMS Settings') {
+                add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
+                break;
+            }
+        }
+    }
+
+    /**
+     * The network index screen used to live under Settings. Where a link or bookmark still names that address, return the screen's current one.
+     */
+    public static function legacy_network_url(): ?string
+    {
+        global $pagenow;
+        if (! is_network_admin() || $pagenow !== 'settings.php' || Integration::param('page') !== 'uams-search' || ! current_user_can('manage_network_options')) {
+            return null;
+        }
+
+        return self::home();
+    }
+
+    public static function redirect_legacy_network_page(): void
+    {
+        $url = self::legacy_network_url();
+        if ($url !== null) {
+            wp_safe_redirect($url);
+            exit;
+        }
+    }
+
     private static function home(): string
     {
-        return is_multisite() ? network_admin_url('settings.php?page=uams-search') : admin_url('options-general.php?page=uams-search');
+        return is_multisite() ? network_admin_url('admin.php?page=uams-search') : admin_url('options-general.php?page=uams-search');
     }
 
     public static function rebuild_assets(): void
@@ -111,9 +146,9 @@ final class Admin
         }
 
         if (! DB::ready()) {
-            echo '<div class="notice notice-warning"><p>uams search needs its index tables. <a href="'.esc_url(self::home()).'">Open search settings</a>.</p></div>';
+            echo '<div class="notice notice-warning"><p>UAMSWP Search needs its index tables. <a href="'.esc_url(self::home()).'">Open search settings</a>.</p></div>';
         } elseif (Config::needs_rebuild()) {
-            echo '<div class="notice notice-warning"><p>Some uams search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>';
+            echo '<div class="notice notice-warning"><p>Some UAMSWP Search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>';
         }
 
         if (DB::ready() && Rebuild::active()) {
@@ -290,7 +325,7 @@ final class Admin
     {
         self::capable();
         $c = Config::get();
-        echo '<div class="wrap"><h1>uams search</h1><p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
+        echo '<div class="wrap"><h1>'.self::NAME.'</h1><p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
         if (! DB::ready()) {
             echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_setup">';
             wp_nonce_field('uams_search_setup');
@@ -304,7 +339,7 @@ final class Admin
         self::status();
         echo '<h2>Network settings</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_save">';
         wp_nonce_field('uams_search_save');
-        foreach (['enabled' => 'Use uams search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
+        foreach (['enabled' => 'Use UAMSWP Search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
             echo '<p><label><input type="checkbox" name="settings['.esc_attr($key).']" value="1" '.checked((bool) $c[$key], true, false).'> '.esc_html($label).'</label></p>';
         }
 
