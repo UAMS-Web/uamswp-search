@@ -197,7 +197,7 @@ Extracted text is kept in the index row only, not in post meta. It's re-extracte
 
 - Default: the PDF file itself, with the title, "PDF" and file size in the link text, so screen-reader users know it opens a document.
 - Network setting: link to the page the PDF is attached to instead, when it has one.
-- All PDFs in the media library are indexed, attached or not, unless they're private or someone ticks "Exclude from search" on the file's edit screen.
+- All PDFs in the media library are indexed, attached or not, unless they're private or someone ticks "Exclude From Search" on the file's edit screen.
 
 **Scanned PDFs** have no text layer, so they match by title and file name only. The status page lists them, so content owners can replace them with accessible, text-based PDFs; that's also needed for accessibility.
 
