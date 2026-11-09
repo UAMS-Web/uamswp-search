@@ -161,4 +161,34 @@ final class GuardsTest extends TestCase
         self::assertStringContainsString('Posts', $html);
         self::assertStringNotContainsString('type=gone', $html);
     }
+
+    public function test_rows_added_and_removed_in_the_browser_save_in_their_order(): void
+    {
+        // Rows 1 and 3 were removed after the page loaded; rows 7 and 8 were added; row 9 was left blank.
+        $_POST['settings'] = [
+            'types' => ['post' => [
+                'include' => '1',
+                'fields' => [
+                    0 => ['name' => 'kept_first', 'weight' => '2'],
+                    2 => ['name' => 'kept_second', 'weight' => '3'],
+                    7 => ['name' => 'added_one', 'weight' => '1'],
+                    8 => ['name' => 'added_two', 'weight' => '0.5'],
+                    9 => ['name' => '', 'weight' => '1'],
+                ],
+                'taxonomies' => [],
+            ]],
+            'stopwords' => '',
+            'synonyms' => '',
+        ];
+
+        try {
+            Admin::save();
+        } catch (RuntimeException) {
+        }
+
+        $saved = $GLOBALS['uams_test_options']['uams_search_settings'];
+        self::assertSame(['kept_first' => 2.0, 'kept_second' => 3.0, 'added_one' => 1.0, 'added_two' => 0.5], $saved['fields']['post']);
+        self::assertSame([], $saved['taxonomies']['post']);
+        self::assertArrayNotHasKey('removed_row', $saved['fields']['post']);
+    }
 }
