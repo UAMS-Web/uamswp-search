@@ -1,7 +1,7 @@
 <?php
 namespace UAMS_Search;
 
-/** UAMS install-wide search operations. All dates are UTC. */
+/** UAMS install-wide search operations. Stored dates are UTC; dates shown here use the site timezone and formats. */
 final class CLI {
     /**
      * Rebuild a site's index while existing search remains available.
@@ -47,7 +47,7 @@ final class CLI {
             $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS count FROM `' . DB::table() . '` GROUP BY site_id,post_type,status ORDER BY site_id,post_type,status', ARRAY_A);
             \WP_CLI\Utils\format_items('table', $rows, ['site_id','post_type','status','count']);
             \WP_CLI::log('Queue: ' . $wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('queue') . '`'));
-            \WP_CLI::log('Queue last ran (UTC): ' . get_site_option('uams_search_last_queue', 'Never'));
+            \WP_CLI::log('Queue last ran: ' . Time::local(get_site_option('uams_search_last_queue', '')));
         });
     }
     /**

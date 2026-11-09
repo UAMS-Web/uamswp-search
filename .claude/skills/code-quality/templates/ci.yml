@@ -1,7 +1,7 @@
 name: CI
 
-# cspell:ignore vitest
-# (the input name `vitest` in the commented examples below is the test runner, not a misspelling)
+# cspell:ignore vitest vite
+# (the input names `vitest` and `vite-build` in the commented examples below are the tools, not misspellings)
 
 # Template: .claude/skills/code-quality/templates/ci.yml in UAMS-Web/uams-claude-skills,
 # copied to .github/workflows/ci.yml. Delete this header paragraph after reading it.
@@ -23,6 +23,9 @@ name: CI
 #   three runners whatever else is set. The optional jobs (`encoding-guard`, `vitest`,
 #   `vite-build`, `mutation-smoke`) are off until their input is `true`, and each runs the command
 #   its `-command` input names. The reusable workflow's own header lists every input and its default.
+# - A WordPress plugin switches on `floor-lint`, `download-archive` and `phpcs` and may set `pest-command`
+#   (the commented example under `with:` below). Its WordPress integration matrix is not in the chain: keep it
+#   here as a plain job beside the call, and list it in the `needs:` of `CI`.
 # - What this repository must carry: the called jobs check out this repository, so it supplies
 #   `.github/actions/setup/action.yml` (copied from `.claude/skills/code-quality/templates/setup-action.yml`),
 #   the synced `.claude/skills` scripts, the Composer scripts the jobs call (`test:pint`,
@@ -53,6 +56,12 @@ on:
     branches: [main]
   # Lets the workflow be run on demand against a branch.
   workflow_dispatch:
+  # The mutate job mutates only the changed files on a pull request and on a push, and everything on a scheduled
+  # or manual run, under the `mutate-full-timeout-minutes` input (default 180). To catch drift from a dependency
+  # or tooling change, uncomment a schedule (UAMS-Web/uams-claude-skills#532). A schedule runs on the default
+  # branch, and GitHub disables it after 60 days without repository activity.
+  # schedule:
+  #   - cron: '17 7 * * 1'
 
 # A new push to a pull request cancels that pull request's stale run, so a pull request keeps
 # one group. Every other run (a push to the default branch, a manual run) gets a group of its
@@ -71,13 +80,24 @@ permissions:
 jobs:
   # The shared chain. Its checks report as `checks / <job name> (<operating system>)`.
   checks:
-    uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@v0.1.0
+    uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@v0.2.0
     # with:
     #   linux-only: true
     #   all-platform-jobs: 'pint'
     #   mutate-paths: src
     #   vitest: true
     #   vitest-command: npm run test:js
+    #
+    # A WordPress plugin (UAMS-Web/uams-claude-skills#607):
+    #   linux-only: true
+    #   mutate: false
+    #   mutate-ignore-paths: includes
+    #   floor-lint: true
+    #   floor-lint-php: '8.2'
+    #   download-archive: true
+    #   phpcs: true
+    #   pest-command: composer test:unit
+    #   global-test-symbols: false   # only where the pest-testing skill is not delivered (#612)
 
   # The one check a ruleset requires from this workflow. Keep `needs:` naming the call;
   # scripts/check-templates.mjs in UAMS-Web/uams-claude-skills checks it.
