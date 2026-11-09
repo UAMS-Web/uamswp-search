@@ -55,6 +55,15 @@ final class Integration
             return $posts;
         }
 
+        // All UAMS websites is answered by Google on the page itself, so the plugin does no search for it.
+        if (Config::scope(self::param('scope')) === 'all') {
+            $query->found_posts = 0;
+            $query->max_num_pages = 0;
+            $query->set('uams_search_results', ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null, 'google' => true]);
+
+            return [];
+        }
+
         try {
             $args = ['s' => (string) $query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) $query->get('paged')), 'per_page' => max(1, (int) ($query->get('posts_per_page') ?: 10))];
             $results = Query::run($args);
@@ -163,7 +172,7 @@ final class Integration
             'permission_callback' => static fn ($request): bool => DB::ready() && Config::get()['live'] && (Config::get()['enabled'] || (is_user_logged_in() && $request->get_param('engine') === 'uams')),
             'args' => [
                 's' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],
-                'scope' => ['type' => 'string', 'enum' => ['site', 'install']],
+                'scope' => ['type' => 'string', 'enum' => ['site', 'install', 'all']],
                 'type' => ['type' => 'string', 'sanitize_callback' => 'sanitize_key'],
                 'engine' => ['type' => 'string', 'enum' => ['uams']],
             ],
@@ -195,7 +204,14 @@ final class Integration
         echo '<section class="uams-search-results" aria-label="Search results">';
         echo '<h1>Search Results for: '.esc_html(get_search_query(false)).'</h1>';
         echo self::form('');
-        self::filters();
+        self::filters(! empty($out['google']));
+        if (! empty($out['google'])) {
+            self::google();
+            echo '</section>';
+
+            return;
+        }
+
         echo '<h2>'.esc_html(number_format_i18n($out['total']).' results').'</h2>';
         if ($out['fallback']) {
             echo '<p>Not every word matched. These results match some of your words.</p>';
@@ -227,7 +243,6 @@ final class Integration
             echo '<nav aria-label="Search result pages">'.wp_kses_post($links).'</nav>';
         }
 
-        self::google();
         echo '</section>';
     }
 
@@ -245,14 +260,22 @@ final class Integration
         return add_query_arg(array_merge($args, $changes), home_url('/'));
     }
 
-    private static function filters(): void
+    private static function filters(bool $google = false): void
     {
         echo '<nav aria-label="Search scope"><ul class="uams-search-filters">';
-        foreach (['site' => 'This site', 'install' => 'Whole website'] as $scope => $label) {
-            echo '<li><a href="'.esc_url(self::url(['scope' => $scope, 'paged' => false])).'"'.(Config::scope(self::param('scope')) === $scope ? ' aria-current="true"' : '').'>'.esc_html($label).'</a></li>';
+        foreach (Config::scope_options() as $scope => $label) {
+            // The note is inside the link, so it is part of the link's name.
+            $note = $scope === 'all' ? ' <span class="uams-search-note">UAMS.edu and UAMSHealth.com</span>' : '';
+            echo '<li><a href="'.esc_url(self::url(['scope' => $scope, 'paged' => false])).'"'.(Config::scope(self::param('scope')) === $scope ? ' aria-current="true"' : '').'>'.esc_html($label).$note.'</a></li>';
         }
 
-        echo '</ul></nav><nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All types</a></li>';
+        echo '</ul></nav>';
+        // The plugin's content types do not apply to Google's results.
+        if ($google) {
+            return;
+        }
+
+        echo '<nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All types</a></li>';
         foreach (Config::get()['types'] as $type => $boost) {
             $object = get_post_type_object($type);
             if (! $object || ($type === 'attachment' && ! Config::get()['pdf'])) {
@@ -267,13 +290,7 @@ final class Integration
 
     private static function google(): void
     {
-        // The reference theme always shows this block; newer settings integrations can override this filter.
-        $enabled = apply_filters('uams_search_google_enabled', (bool) get_option('uams_search_google', true));
-        if (! $enabled) {
-            return;
-        }
-
         $cx = apply_filters('uams_search_google_cx', '014806496997774146681:pyl1jhwi-bo');
-        echo '<section aria-label="Search all UAMS sites"><h2>Search All UAMS Sites</h2><p>Search UAMS websites on UAMS.edu and UAMShealth.com.</p><script async src="'.esc_url('https://cse.google.com/cse.js?cx='.rawurlencode($cx)).'"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section>';
+        echo '<section aria-label="All UAMS websites"><h2>All UAMS Websites</h2><script async src="'.esc_url('https://cse.google.com/cse.js?cx='.rawurlencode($cx)).'"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section>';
     }
 }

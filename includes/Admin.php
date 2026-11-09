@@ -299,8 +299,12 @@ final class Admin
         echo '<div class="wrap"><h1>Search Settings</h1><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_site">';
         wp_nonce_field('uams_search_site');
         echo '<fieldset><legend><h2>Default Search Scope</h2></legend>';
-        foreach (['site' => 'This Sub-Site', 'install' => 'Whole Website'] as $value => $label) {
-            echo '<p><label><input type="radio" name="scope" value="'.esc_attr($value).'" '.checked(Config::scope(), $value, false).'> '.esc_html($label).'</label></p>';
+        // The same options and labels as the results page, whether or not Google results are switched on.
+        $options = Config::scope_options(false);
+        $saved = get_option('uams_search_scope', 'site');
+        $current = is_string($saved) && isset($options[$saved]) ? $saved : array_key_first($options);
+        foreach ($options as $value => $label) {
+            echo '<p><label><input type="radio" name="scope" value="'.esc_attr($value).'" '.checked($current, $value, false).'> '.esc_html($label).'</label></p>';
         }
 
         echo '</fieldset><p><label><input type="checkbox" name="google" value="1" '.checked((bool) get_option('uams_search_google', true), true, false).'> Show the Existing All of UAMS Google Search</label></p>';
@@ -315,7 +319,9 @@ final class Admin
         }
 
         check_admin_referer('uams_search_site');
-        update_option('uams_search_scope', Config::scope(is_scalar($_POST['scope'] ?? '') ? sanitize_text_field(wp_unslash($_POST['scope'])) : 'site'));
+        $options = array_keys(Config::scope_options(false));
+        $scope = is_scalar($_POST['scope'] ?? '') ? sanitize_text_field(wp_unslash($_POST['scope'])) : '';
+        update_option('uams_search_scope', in_array($scope, $options, true) ? $scope : $options[0]);
         update_option('uams_search_google', ! empty($_POST['google']));
         wp_safe_redirect(admin_url('options-general.php?page=uams-search-site'));
         exit;
