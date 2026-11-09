@@ -255,7 +255,7 @@ final class Integration
         echo '</ul></nav><nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All types</a></li>';
         foreach (Config::get()['types'] as $type => $boost) {
             $object = get_post_type_object($type);
-            if ($type === 'attachment' && ! Config::get()['pdf']) {
+            if (! $object || ($type === 'attachment' && ! Config::get()['pdf'])) {
                 continue;
             }
 
