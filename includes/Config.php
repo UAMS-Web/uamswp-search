@@ -100,7 +100,7 @@ final class Config
      */
     public static function result_labels(): array
     {
-        $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Clinical Resource', 'treatment' => 'Clinical Resource', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
+        $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
 
         return (array) apply_filters('uams_search_result_labels', $labels);
     }
