@@ -9,6 +9,7 @@
 .uams-search-results :focus-visible,.uams-search-form :focus-visible{outline:3px solid #005fcc;outline-offset:3px}
 .uams-search-filters{display:flex;flex-wrap:wrap;gap:.5rem 1rem;list-style:none;padding:0;margin-block:1rem}
 .uams-search-filters a{display:inline-block;padding:.4rem .2rem;min-height:24px}
+.uams-search-filters .uams-search-note{display:block;font-size:.85em}
 .uams-search-filters [aria-current]{font-weight:800;text-decoration-thickness:3px}
 .uams-search-result{padding-block:1.25rem;border-bottom:1px solid #c9c9c9}
 .uams-search-result h3{margin:0 0 .5rem;font-size:1.35rem;line-height:1.4}
