@@ -4,7 +4,25 @@
   "type": "wordpress-plugin",
   "license": "GPL-3.0-or-later",
   "require": { "php": ">=8.1", "ext-mbstring": "*", "ext-zlib": "*", "ext-json": "*", "ext-iconv": "*" },
-  "require-dev": { "phpunit/phpunit": "^10.5 || ^11.5" },
-  "scripts": { "test": "phpunit -c phpunit.xml", "build": "python3 scripts/build.py" },
+  "require-dev": {
+    "laravel/pint": "^1.32",
+    "php-stubs/wordpress-stubs": "^6.8",
+    "php-stubs/wp-cli-stubs": "^2.12",
+    "phpstan/phpstan": "^2.3",
+    "phpunit/phpunit": "^10.5 || ^11.5",
+    "rector/rector": "^2.8",
+    "szepeviktor/phpstan-wordpress": "^2.0"
+  },
+  "scripts": {
+    "test": "phpunit -c phpunit.xml",
+    "build": "python3 scripts/build.py",
+    "stan": "phpstan analyse --no-progress --memory-limit=2G",
+    "refactor": "rector",
+    "refactor:sweep": "rector --clear-cache --config=rector-sweep.php",
+    "test:refactor": "rector --dry-run",
+    "test:refactor:sweep": "rector --dry-run --clear-cache --config=rector-sweep.php",
+    "pint": "pint",
+    "test:pint": "pint --test"
+  },
   "config": { "allow-plugins": false, "sort-packages": true }
 }
