@@ -281,12 +281,32 @@ final class ScreensTest extends TestCase
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['weights' => ['title' => 1, 'pdf' => 1, 'long_name' => 1]];
         $all = $this->render('page').$this->render('reports_page').$this->render('settings_page');
 
-        foreach (['Index Status', 'Rebuild Index', 'Failed Items and PDFs Without Text', 'Searches With No Results, Last 30 Days', 'Sub-Sites in Whole-Website Search', 'Source Weights', 'Content To Index', 'Include This Content Type', 'Type Boost', 'ACF Fields', 'Extra Stop Words, Separated by Spaces', 'Synonyms, One Rule per Line, Such as heart = cardiac, cardiology', 'PDF Time Limit, Seconds', 'Keep Search Text With No Results for up to 90 Days', 'Use UAMSWP Search for Visitors', 'Include No-Index Sites for Signed-In Previews', 'Title <input', 'PDF <input', 'Long Name <input'] as $text) {
+        foreach (['Index Status', 'Rebuild Index', 'Failed Items and PDFs Without Text', 'Searches With No Results, Last 30 Days', 'Sub-Sites in Whole-Website Search', 'Source Weights', 'Content To Index', 'Include This Content Type', 'Type Boost', 'ACF Fields', 'Extra Stop Words, Separated by Spaces', 'Synonyms, One Rule per Line, Such as heart = cardiac, cardiology', 'PDF Time Limit, Seconds', 'Keep Search Text With No Results for up to 90 Days', 'Use UAMSWP Search for Visitors', 'Include No-Index Sites for Signed-In Previews', '>Title</label>', '>PDF</label>', '>Long Name</label>'] as $text) {
             self::assertStringContainsString($text, $all, $text);
         }
 
-        foreach (['Index status', 'Content to index', 'Source weights', 'Type boost', 'Pdf <input'] as $old) {
+        foreach (['Index status', 'Content to index', 'Source weights', 'Type boost', '>Pdf</label>'] as $old) {
             self::assertStringNotContainsString($old, $all, $old);
         }
+    }
+
+    public function test_number_fields_sit_in_label_and_box_columns_tied_by_id(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['weights' => ['title' => 1, 'pdf' => 2]];
+        $html = $this->render('settings_page');
+
+        preg_match_all('/<tr><th scope="row"><label for="([^"]+)">([^<]+)<\/label><\/th><td><input id="([^"]+)" type="number"[^>]* style="width:6em" name="([^"]+)" value="([^"]*)"><\/td><\/tr>/', $html, $m, PREG_SET_ORDER);
+        $fields = array_column($m, 4);
+        foreach ($m as $row) {
+            self::assertSame($row[1], $row[3], 'The label points at its own box.');
+        }
+
+        self::assertContains('settings[weights][title]', $fields);
+        self::assertContains('settings[weights][pdf]', $fields);
+        self::assertContains('settings[pdf_max_mb]', $fields);
+        self::assertContains('settings[pdf_timeout]', $fields);
+        self::assertSame(count($fields), count(array_unique(array_column($m, 3))), 'Every id is unique.');
+        self::assertSame(substr_count($html, 'type="number" min="0" max="100" step="0.1" style'), substr_count($html, 'style="width:6em"') - 1, 'Only the PDF time limit has another maximum.');
+        self::assertStringNotContainsString('<p><label>Title <input', $html);
     }
 }

@@ -398,18 +398,21 @@ final class Admin
         }
 
         echo '</fieldset><fieldset><legend><h2>Source Weights</h2></legend>';
+        echo '<table class="form-table" role="presentation"><tbody>';
         foreach ($c['weights'] as $key => $weight) {
             self::numeric('settings[weights]['.$key.']', $key === 'pdf' ? 'PDF' : ucwords(str_replace('_', ' ', (string) $key)), $weight);
         }
 
-        echo '</fieldset><h2>Content To Index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
+        echo '</tbody></table></fieldset><h2>Content To Index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
         $types = array_unique(array_merge(array_keys($c['types']), array_keys(get_post_types(['public' => true]))));
         foreach ($types as $type) {
             $object = get_post_type_object($type);
             $name = $object ? $object->labels->name : ucfirst($type);
             echo '<fieldset style="padding:1rem;border:1px solid #aaa;margin-block:1rem"><legend><strong>'.esc_html($name.' ('.$type.')').'</strong></legend>';
             echo '<p><label><input type="checkbox" name="settings[types]['.esc_attr($type).'][include]" value="1" '.checked(isset($c['types'][$type]), true, false).'> Include This Content Type</label></p>';
+            echo '<table class="form-table" role="presentation"><tbody>';
             self::numeric('settings[types]['.$type.'][boost]', 'Type Boost', $c['types'][$type] ?? 1);
+            echo '</tbody></table>';
             foreach (['fields' => 'ACF Fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
                 $rows = $c[$group][$type] ?? [];
                 echo '<h3>'.esc_html($label).'</h3><table><thead><tr><th scope="col">Name</th><th scope="col">Weight</th></tr></thead><tbody>';
@@ -432,8 +435,10 @@ final class Admin
         }
 
         echo '<p><label for="uams-synonyms">Synonyms, One Rule per Line, Such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">'.esc_textarea(implode("\n", $synonyms)).'</textarea></p>';
+        echo '<table class="form-table" role="presentation"><tbody>';
         self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']);
         self::numeric('settings[pdf_timeout]', 'PDF Time Limit, Seconds', $c['pdf_timeout'], 120);
+        echo '</tbody></table>';
         submit_button('Save network settings');
         echo '</form></div>';
     }
@@ -453,7 +458,8 @@ final class Admin
 
     private static function numeric(string $name, string $label, $value, int $max = 100): void
     {
-        echo '<p><label>'.esc_html($label).' <input type="number" min="0" max="'.$max.'" step="0.1" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></label></p>';
+        $id = 'uams-'.trim((string) preg_replace('/[^a-z0-9]+/i', '-', $name), '-');
+        echo '<tr><th scope="row"><label for="'.esc_attr($id).'">'.esc_html($label).'</label></th><td><input id="'.esc_attr($id).'" type="number" min="0" max="'.$max.'" step="0.1" style="width:6em" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></td></tr>';
     }
 
     private static function status(): void
