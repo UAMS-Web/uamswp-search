@@ -85,7 +85,7 @@ $excerpt = uams_search_excerpt(get_the_ID(), get_current_blog_id());
 // The string is already escaped and contains only plugin-generated <mark> tags.
 ```
 
-Other filters: `uams_search_config`, `uams_search_include_post`, `uams_search_template`, `uams_search_google_enabled`, `uams_search_google_cx`, `uams_search_pdftotext`, and `uams_search_php_binary`. ACF block saved values use the same allowlist. Core dynamic blocks are not rendered and `the_content` is never called. ACF field resolver changes should be followed by a rebuild.
+Other filters: `uams_search_config`, `uams_search_include_post`, `uams_search_template`, `uams_search_google_enabled`, `uams_search_type_labels` (rename the type filter links), `uams_search_google_cx`, `uams_search_pdftotext`, and `uams_search_php_binary`. ACF block saved values use the same allowlist. Core dynamic blocks are not rendered and `the_content` is never called. ACF field resolver changes should be followed by a rebuild.
 
 ## Database choices
 
