@@ -94,6 +94,18 @@ final class Config
     }
 
     /**
+     * The label above each result, keyed by post type. A type with no entry gets none. The `uams_search_result_labels` filter can change or add any of them.
+     *
+     * @return array<string, string>
+     */
+    public static function result_labels(): array
+    {
+        $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
+
+        return (array) apply_filters('uams_search_result_labels', $labels);
+    }
+
+    /**
      * Whether searching all UAMS websites through Google is offered on this site.
      */
     public static function google_enabled(): bool

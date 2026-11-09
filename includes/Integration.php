@@ -229,9 +229,10 @@ final class Integration
         }
 
         foreach ($out['results'] as $result) {
-            echo '<article class="uams-search-result"><h3><a href="'.esc_url($result->url).'">'.esc_html($result->title ?: 'Untitled');
+            $label = Config::result_labels()[$result->post_type] ?? '';
+            echo '<article class="uams-search-result">'.($label !== '' ? '<p class="uams-search-label">'.esc_html($label).'</p>' : '').'<h3><a href="'.esc_url($result->url).'">'.esc_html($result->title ?: 'Untitled');
             if ($result->post_type === 'attachment') {
-                echo ' <span>(PDF, '.esc_html(size_format($result->file_size)).')</span>';
+                echo ' <span>('.esc_html(size_format($result->file_size)).')</span>';
             }
 
             echo '</a></h3><p>'.wp_kses($result->excerpt, ['mark' => []]).'</p></article>';
