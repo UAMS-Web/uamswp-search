@@ -14,6 +14,7 @@
 .uams-search-result{padding-block:1.25rem;border-bottom:1px solid #c9c9c9}
 .uams-search-result h3{margin:0 0 .5rem;font-size:1.35rem;line-height:1.4}
 .uams-search-result p{margin:0;line-height:1.6}
+.uams-search-result .uams-search-label{margin-bottom:.25rem;font-size:.85em;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#5a5a5a}
 .uams-search-results mark{background:#fff0a8;color:#151515;font-weight:800;padding:0 .08em}
 .uams-search-options{position:absolute;z-index:1000;top:100%;left:0;right:0;max-height:22rem;overflow:auto;background:#fff;color:#151515;border:1px solid #555;box-shadow:0 .5rem 1rem #0002;list-style:none;margin:0;padding:.25rem}
 .uams-search-options[hidden]{display:none}
