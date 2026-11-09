@@ -131,7 +131,7 @@ final class Integration
 
         $id = wp_unique_id('uams-search-');
         $scope = Config::scope(self::param('scope'));
-        $html = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="'.esc_attr($id).'">Search this website</label><div class="uams-search-input"><input type="search" name="s" id="'.esc_attr($id).'" value="'.esc_attr(get_search_query(false)).'" maxlength="200" autocomplete="off" data-uams-live="'.(Config::get()['live'] ? 'true' : 'false').'"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.esc_attr($scope).'">';
+        $html = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="'.esc_attr($id).'">Search This Website</label><div class="uams-search-input"><input type="search" name="s" id="'.esc_attr($id).'" value="'.esc_attr(get_search_query(false)).'" maxlength="200" autocomplete="off" data-uams-live="'.(Config::get()['live'] ? 'true' : 'false').'"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.esc_attr($scope).'">';
         if (is_user_logged_in() && self::param('engine') === 'uams') {
             $html .= '<input type="hidden" name="engine" value="uams">';
         }
@@ -193,7 +193,7 @@ final class Integration
         }
 
         echo '<section class="uams-search-results" aria-label="Search results">';
-        echo '<h1>Search results for: '.esc_html(get_search_query(false)).'</h1>';
+        echo '<h1>Search Results for: '.esc_html(get_search_query(false)).'</h1>';
         echo self::form('');
         self::filters();
         echo '<h2>'.esc_html(number_format_i18n($out['total']).' results').'</h2>';

@@ -275,4 +275,18 @@ final class ScreensTest extends TestCase
         Admin::rebuild_assets();
         self::assertContains('uams-search-rebuild', $GLOBALS['uams_test_enqueued']);
     }
+
+    public function test_headings_and_field_labels_follow_ap_style(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['weights' => ['title' => 1, 'pdf' => 1, 'long_name' => 1]];
+        $all = $this->render('page').$this->render('reports_page').$this->render('settings_page');
+
+        foreach (['Index Status', 'Rebuild Index', 'Failed Items and PDFs Without Text', 'Searches With No Results, Last 30 Days', 'Sub-Sites in Whole-Website Search', 'Source Weights', 'Content To Index', 'Include This Content Type', 'Type Boost', 'ACF Fields', 'Extra Stop Words, Separated by Spaces', 'Synonyms, One Rule per Line, Such as heart = cardiac, cardiology', 'PDF Time Limit, Seconds', 'Keep Search Text With No Results for up to 90 Days', 'Use UAMSWP Search for Visitors', 'Include No-Index Sites for Signed-In Previews', 'Title <input', 'PDF <input', 'Long Name <input'] as $text) {
+            self::assertStringContainsString($text, $all, $text);
+        }
+
+        foreach (['Index status', 'Content to index', 'Source weights', 'Type boost', 'Pdf <input'] as $old) {
+            self::assertStringNotContainsString($old, $all, $old);
+        }
+    }
 }
