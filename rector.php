@@ -1,0 +1,217 @@
+<?php
+
+declare(strict_types=1);
+
+use Rector\CodeQuality\Rector\ClassMethod\LocallyCalledStaticMethodToNonStaticRector;
+use Rector\Config\RectorConfig;
+use Rector\DeadCode\Rector\ClassMethod\RemoveDuplicatedReturnSelfDocblockRector;
+use Rector\DeadCode\Rector\Property\RemoveUselessVarTagRector;
+use Rector\Php81\Rector\Array_\ArrayToFirstClassCallableRector;
+use Rector\Php81\Rector\Property\ReadOnlyPropertyRector;
+use Rector\Php82\Rector\Class_\ReadOnlyClassRector;
+use Rector\TypeDeclaration\Rector\Class_\ReturnTypeFromStrictTernaryRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\AddParamFromDimFetchKeyUseRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\BoolReturnTypeFromBooleanConstReturnsRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\NumericReturnTypeFromStrictScalarReturnsRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnCastRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnDirectArrayRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromReturnNewRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictNativeCallRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnTypeFromStrictTypedCallRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\ReturnUnionTypeRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\StrictArrayParamDimFetchRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\StringReturnTypeFromStrictScalarReturnsRector;
+use Rector\TypeDeclaration\Rector\ClassMethod\StringReturnTypeFromStrictStringReturnsRector;
+use Rector\TypeDeclaration\Rector\StmtsAwareInterface\SafeDeclareStrictTypesRector;
+use Rector\ValueObject\PhpVersion;
+
+// Shared starting Rector configuration (UAMS-Web/uams-claude-skills#10), filled in
+// for this plugin. The structure below is what the repositories that already run
+// Rector share; keep it when you edit.
+//
+// Two profiles over one rule corpus. This file is the single source of truth
+// for the sets both share; the profile only changes which rules are skipped.
+//
+//   Gating profile (default) -- the rules safe to make mandatory. This is what
+//   `composer test:refactor` reports on and what the local CI `rector` job
+//   enforces.
+//
+//   Sweep profile -- every rule enabled here, including the sweep-only ones
+//   below. Run it deliberately and review the diff:
+//     composer test:refactor:sweep   # preview
+//     composer refactor:sweep        # apply
+//
+// `rector-sweep.php` is a two-line shim that defines the constant below and
+// requires this file, so neither profile can drift from the other.
+$isSweepProfile = defined('UAMS_RECTOR_SWEEP') && UAMS_RECTOR_SWEEP;
+
+// Rules excluded from the gating profile. Each is a rule whose suggestion is a
+// judgment call rather than a mechanical one, so making it mandatory would turn
+// a wrong suggestion into a change that *must* be applied or explicitly
+// skipped. They stay fully active under the sweep profile.
+$sweepOnlyRules = [
+    // `readonly` promotion is a semantic change, not a style one: it interacts
+    // badly with code that mutates after construction, with cloning, and with
+    // mocking in tests. Worth doing deliberately, with the runtime consequences
+    // reviewed -- not on pain of a red gate.
+    ReadOnlyClassRector::class,
+    ReadOnlyPropertyRector::class,
+
+    // Unsound at this config's path scope. Rector only sees the directories in
+    // `withPaths()`, so it cannot see a static call from a template, a test, a
+    // hook registered as a `[Class::class, 'method']` callable, or another
+    // package, and will happily demote a method that is still called statically
+    // from outside those paths.
+    LocallyCalledStaticMethodToNonStaticRector::class,
+
+    // Docblock removal conflicts with the PHPDoc conventions these repositories
+    // use. What they reach is past what Pint owns: Pint's docblock fixers already
+    // strip a superfluous `@var` from a typed property, so what is left for these
+    // two is inline `@var` on local variables (pinning a value that arrives
+    // untyped) and `@return $this` beside a `: static`. Those are deliberate
+    // annotations, not leftovers.
+    RemoveUselessVarTagRector::class,
+    RemoveDuplicatedReturnSelfDocblockRector::class,
+
+    // These type-declaration rules infer parameter types from how the body
+    // indexes or keys an argument. On untyped public/plugin API that still
+    // accepts bad input with a notice, the new type turns the same call into
+    // a TypeError fatal. Apply under the sweep profile and review call sites
+    // before promoting either rule into the gate.
+    StrictArrayParamDimFetchRector::class,
+    AddParamFromDimFetchKeyUseRector::class,
+
+    // `declare(strict_types=1)` makes every built-in call in the file reject a
+    // mismatched scalar with a TypeError. This plugin passes WordPress values
+    // (option reads, `$wpdb` rows, request input) to built-ins, and the `wp
+    // eval-file` integration scripts that exercise those paths need a WordPress
+    // install that is not part of the gate, so the effect cannot be shown here.
+    // Apply under the sweep profile once they run in CI.
+    SafeDeclareStrictTypesRector::class,
+
+    // WordPress repositories: uncomment the rule below and the matching `use`
+    // at the top of this file (not inside this array -- a `use` here is a
+    // parse error).
+    //
+    // `add_action('x', [$this, 'method'])` registers a callback WordPress later
+    // matches *by identity* for `remove_action()` / `has_action()`. A
+    // first-class callable builds a fresh Closure at each evaluation, so the
+    // handle used to register can never equal the one used to remove -- hook
+    // removal silently stops working, with nothing to see at the call site
+    // (uamswp-migration-api docs/DECISIONS.md D-016).
+    ArrayToFirstClassCallableRector::class,
+];
+
+// Rules skipped in BOTH profiles, scoped to one file. Use this list for a
+// safety carve-out, never a judgment call: the pattern is a rule that reasons
+// from the supported PHP version and would delete a runtime guard that exists
+// for the case that reasoning cannot cover.
+//
+// Example from a WordPress plugin whose header file checks the PHP version and
+// shows an admin notice instead of fataling on a site downgraded underneath an
+// already-active plugin. Three rules converge on that branch, so all three are
+// pinned to the one file and still apply everywhere else:
+//
+// use Rector\CodingStyle\Rector\FuncCall\VersionCompareFuncCallToConstantRector;
+// use Rector\DeadCode\Rector\ConstFetch\RemovePhpVersionIdCheckRector;
+// use Rector\DeadCode\Rector\If_\UnwrapFutureCompatibleIfPhpVersionRector;
+//
+// $guardFile = [__DIR__.'/my-plugin.php'];
+// $neverRules = [
+//     UnwrapFutureCompatibleIfPhpVersionRector::class => $guardFile,
+//     RemovePhpVersionIdCheckRector::class => $guardFile,
+//     VersionCompareFuncCallToConstantRector::class => $guardFile,
+// ];
+// The test harness defines stand-ins for WordPress functions (`wp_unslash()`,
+// `esc_html()`, `get_post()`, ...). Narrowing their return types turns each
+// stand-in into a stricter signature than WordPress declares, and PHPStan then
+// reads the stand-in in place of the WordPress stub when it analyzes `includes`.
+$standIns = [__DIR__.'/tests'];
+$neverRules = [
+    StringReturnTypeFromStrictStringReturnsRector::class => $standIns,
+    BoolReturnTypeFromBooleanConstReturnsRector::class => $standIns,
+    ReturnTypeFromReturnNewRector::class => $standIns,
+    ReturnTypeFromStrictNativeCallRector::class => $standIns,
+    ReturnTypeFromReturnDirectArrayRector::class => $standIns,
+    ReturnTypeFromStrictTypedCallRector::class => $standIns,
+    ReturnUnionTypeRector::class => $standIns,
+    ReturnTypeFromStrictTernaryRector::class => $standIns,
+    StringReturnTypeFromStrictScalarReturnsRector::class => $standIns,
+    ReturnTypeFromReturnCastRector::class => $standIns,
+    NumericReturnTypeFromStrictScalarReturnsRector::class => $standIns,
+];
+
+return RectorConfig::configure()
+    // The directories holding first-party PHP. Never a vendor
+    // directory, and in a fork of a vendor plugin only the paths that hold our
+    // modifications.
+    ->withPaths([
+        __DIR__.'/includes',
+        __DIR__.'/tests',
+    ])
+    // WordPress plugins: also analyze the PHP files at the repository root (the
+    // plugin header file). Uncomment for those.
+    ->withRootFiles()
+    ->withSkip([
+        // WordPress repositories whose Integration suite has its own Composer
+        // setup (the tests skill): its vendor/ sits inside tests/, and Rector
+        // would otherwise rewrite PHPUnit 9 and its dependencies. Uncomment.
+        // __DIR__.'/tests/Integration/vendor',
+        ...$neverRules,
+        ...($isSweepProfile ? [] : $sweepOnlyRules),
+    ])
+    ->withPreparedSets(
+        deadCode: true,
+        codeQuality: true,
+        codingStyle: true,
+        typeDeclarations: true,
+        privatization: true,
+        earlyReturn: true,
+    )
+    // The LOWEST PHP version the repository supports, from
+    // composer.json's `php` constraint or the plugin header's `Requires PHP`.
+    // Rector runs on the developer's PHP, which is usually newer; this pin is
+    // what stops it rewriting code into syntax the supported version cannot
+    // parse: a rule that needs a newer PHP than this is skipped. Rector's own
+    // order of precedence for that check is this call, then composer.json's
+    // `php` require, then `config.platform.php`, then the running PHP.
+    // Constants: PhpVersion::PHP_74, PHP_80, PHP_81, PHP_82, PHP_83, PHP_84.
+    ->withPhpVersion(PhpVersion::PHP_81)
+    // Every PHP upgrade set up to the floor, and no further. With no argument
+    // this reads the floor from composer.json's `require.php` (then
+    // `config.platform.php`), NOT from withPhpVersion() above, and fails the
+    // run when composer.json has neither: "We could not find local
+    // composer.json to determine your PHP version" (Rector 2.6.7,
+    // RectorConfigBuilder::withPhpSets()). So composer.json carries
+    // `"require": {"php": ">=<floor>"}`, the same floor as the line above.
+    ->withPhpSets()
+    // Laravel and Statamic repositories: uncomment the call below after
+    // `composer require --dev driftingly/rector-laravel`.
+    //
+    // `withComposerBased(laravel:, phpunit:)` is the single activation step: it
+    // activates the sets whose composer constraints the installed packages
+    // satisfy. From Rector 2.6.5 the set providers load internally, and the
+    // earlier `withSetProviders()` line is deprecated
+    // and no longer applied (a notice on every run). A repository on Rector
+    // 2.6.4 or earlier keeps that line, which is still needed there: without it
+    // `laravel: true` was a silent no-op.
+    //
+    // ->withComposerBased(
+    //     laravel: true,
+    //     phpunit: true,
+    // )
+    //
+    // Promote inline FQCNs to `use` imports, matching the import-FQCN convention
+    // in the php-coding-standards skill. Leave global/short classes alone to
+    // avoid needless churn.
+    //
+    // `removeUnusedImports: false` disables Rector's unused-import removal,
+    // which -- unlike Pint's docblock-aware `no_unused_imports` -- is not
+    // `{@see}`-aware and silently strips imports referenced only inside a
+    // `{@see ClassName}` docblock tag (it defaults to `true`). Rector still
+    // *promotes* FQCNs to `use` (code and docblock); Pint remains the single
+    // owner of unused-import *removal*, so `{@see}`-only imports survive
+    // `composer refactor`.
+    ->withImportNames(importShortClasses: false, removeUnusedImports: false);
+
+// cspell:ignore driftingly fataling
