@@ -1,8 +1,11 @@
 <?php
+
 namespace UAMS_Search;
 
-final class Config {
-    public static function defaults(): array {
+final class Config
+{
+    public static function defaults(): array
+    {
         return [
             'enabled' => false, 'live' => true, 'logging' => true,
             'preview_noindex' => function_exists('wp_get_environment_type') && in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
@@ -25,45 +28,88 @@ final class Config {
             'extract_warn_seconds' => 5, 'phrase_bonus' => 5, 'recency' => 0.15,
         ];
     }
-    public static function get(): array {
+
+    public static function get(): array
+    {
         $saved = get_site_option('uams_search_settings', []);
+
         return apply_filters('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
     }
-    public static function page_size($value = null): int {
-        $value = $value ?? (self::get()['results_per_page'] ?? 20);
-        return is_scalar($value) && is_numeric($value) && is_finite((float)$value) ? max(1, min(100, (int)$value)) : 20;
+
+    public static function page_size(mixed $value = null): int
+    {
+        $value ??= self::get()['results_per_page'] ?? 20;
+
+        return is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
     }
-    public static function public_sites(): array {
-        if (!is_multisite()) { return [get_current_blog_id()]; }
+
+    public static function public_sites(): array
+    {
+        if (! is_multisite()) {
+            return [get_current_blog_id()];
+        }
+
         $preview = self::get()['preview_noindex'] && ((defined('WP_CLI') && WP_CLI) || is_user_logged_in());
-        return self::site_ids((bool)$preview);
+
+        return self::site_ids($preview);
     }
-    public static function index_sites(): array {
-        if (!is_multisite()) { return [get_current_blog_id()]; }
-        return self::site_ids((bool)self::get()['preview_noindex']);
+
+    public static function index_sites(): array
+    {
+        if (! is_multisite()) {
+            return [get_current_blog_id()];
+        }
+
+        return self::site_ids((bool) self::get()['preview_noindex']);
     }
-    public static function site_ids(bool $include_noindex): array {
-        if (!is_multisite()) { return [get_current_blog_id()]; }
+
+    public static function site_ids(bool $include_noindex): array
+    {
+        if (! is_multisite()) {
+            return [get_current_blog_id()];
+        }
+
         $args = ['fields' => 'ids', 'number' => 0, 'archived' => 0, 'spam' => 0, 'deleted' => 0];
-        if (!$include_noindex) { $args['public'] = 1; }
-        return array_map('intval', get_sites($args));
+        if (! $include_noindex) {
+            $args['public'] = 1;
+        }
+
+        return array_map(intval(...), get_sites($args));
     }
-    public static function sites(string $scope, int $site): array {
+
+    public static function sites(string $scope, int $site): array
+    {
         $public = self::public_sites();
-        if ($scope === 'site') { return in_array($site, $public, true) ? [$site] : []; }
+        if ($scope === 'site') {
+            return in_array($site, $public, true) ? [$site] : [];
+        }
+
         $chosen = self::get()['sites'];
-        return $chosen === null ? $public : array_values(array_intersect($public, array_map('intval', $chosen)));
+
+        return $chosen === null ? $public : array_values(array_intersect($public, array_map(intval(...), $chosen)));
     }
-    public static function scope($value = null): string {
+
+    public static function scope($value = null): string
+    {
         return in_array($value, ['site', 'install'], true) ? $value : (get_option('uams_search_scope', 'site') === 'install' ? 'install' : 'site');
     }
-    public static function fingerprint(): string {
+
+    public static function fingerprint(): string
+    {
         $c = self::get();
+
         return hash('sha256', wp_json_encode([$c['fields'], $c['taxonomies'], $c['stopwords'], array_keys($c['types']), $c['pdf'], $c['pdf_parent'], $c['pdf_max_mb'], $c['pdf_timeout'], $c['preview_noindex'], Related::VERSION, $c['related_provider_weight']]));
     }
-    public static function needs_rebuild(): bool {
+
+    public static function needs_rebuild(): bool
+    {
         $fingerprint = self::fingerprint();
-        foreach (self::index_sites() as $site) { if (get_site_option('uams_search_fingerprint_' . $site) !== $fingerprint) { return true; } }
+        foreach (self::index_sites() as $site) {
+            if (get_site_option('uams_search_fingerprint_'.$site) !== $fingerprint) {
+                return true;
+            }
+        }
+
         return false;
     }
 }

@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+# The full reusable chain requires the tools adopted separately in #6 and #4.
+# These jobs use the shared chain's checks without pretending those tools run yet.
+jobs:
+  composer-validate:
+    name: Composer validate (composer.lock freshness)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+          tools: composer:v2
+      - run: composer validate --no-check-publish --no-check-all
+
+  synced-files:
+    name: Synced files (no hand-edited rules or skills)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: node .claude/skills/synced-files/scripts/check-synced-files.mjs
+      - run: node .claude/skills/synced-files/scripts/check-workflow-copies.mjs
+
+  no-emoji:
+    name: No emoji in durable records
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: node .claude/skills/writing-comments/scripts/check-no-emoji.mjs
+
+  aggregate-needs:
+    name: Aggregate needs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: node .claude/skills/code-quality/scripts/check-aggregate-needs.mjs
+
+  ci:
+    name: CI
+    needs: [composer-validate, synced-files, no-emoji, aggregate-needs]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every needed job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Needed job results: $RESULTS"
+          if [ -z "$RESULTS" ]; then echo "::error::No needed job results to read"; exit 1; fi
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A needed job reported $result"
+              exit 1
+            fi
+          done

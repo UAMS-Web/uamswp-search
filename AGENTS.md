@@ -6,7 +6,34 @@ Everything above the generated section below belongs to this repository and is e
 
 ## About this repository
 
-Replace this section with what an agent needs to know before working here: what the repository is, how to install and run it, how to run its tests and checks, the conventions it follows, and anything that is true of this repository alone. The shared skills and rules below cover the organization-wide conventions; do not repeat them here.
+This is a WordPress multisite search plugin. Runtime code is in `includes/`,
+`assets/`, and `templates/`; the bundled PDF parser is in `vendor/pdfparser/`.
+Do not remove that tracked library when installing Composer dependencies.
+
+In Amp orbs, `.agents/setup` installs PHP 8.2, Composer, Poppler, locked PHP and
+npm development dependencies, and Playwright's Chromium and system dependencies.
+Node.js and npm come from the orb base image. Setup is safe to rerun after a
+lockfile changes. `.agents/resume` only checks tool and dependency availability
+and never reinstalls dependencies.
+
+See `README.md` under **Tests and build** for orb setup, snapshot reuse, and
+environment repair instructions. Standalone tests need no secrets or running
+WordPress installation.
+
+- PHP tests: `composer test`.
+- Search component and accessibility tests: `npm run test:browser`. This command
+  overwrites the tracked screenshot `docs/search-preview.png`.
+- Rebuild component tests: `npm run test:rebuild-browser`.
+- Build the plugin ZIP: `composer build` (runs `python3 scripts/build.py` and
+  overwrites the current version's tracked ZIP and checksum in `dist/`).
+
+Do not commit generated screenshots or release files incidentally.
+
+Database integration tests require a separately provisioned, disposable WordPress
+installation with WP-CLI, a database name beginning with `uams_search_test`,
+environment type `local`, and `UAMS_SEARCH_TESTS=1`. Orb setup does not provision
+or run that integration environment. See `README.md` for the guarded commands.
+Component checks do not replace integration or real-theme release checks.
 
 <!-- uams-claude-skills:begin -->
 ## Shared skills and rules
@@ -15,7 +42,7 @@ The files listed here are synced from [UAMS-Web/uams-claude-skills](https://gith
 
 Each rule below is a standing instruction for every task in this repository. Its full text is delivered three times: `.claude/rules/<name>.md`, which Claude Code loads in every session; `.cursor/rules/<name>.mdc`, which Cursor always applies; and the skill `.agents/skills/rule-<name>/`, which Codex selects by its description. Before work a rule governs, read its full text. Skills are in `.claude/skills/` and, as the same files, in `.agents/skills/`, and load when their description matches the task.
 
-Profiles for this repository: core, php, wordpress-plugin, tests, quality.
+Profiles for this repository: core, php, pest, wordpress-plugin, tests, quality.
 
 ### Contributing
 
@@ -45,5 +72,5 @@ Follow [`CONTRIBUTING.md`](CONTRIBUTING.md) for the issue-to-merge path: a branc
 - `verify-claims-before-a-third-party-post`: Verify every claim three independent ways before a post to a third-party tracker. Full text: [`.claude/rules/verify-claims-before-a-third-party-post.md`](.claude/rules/verify-claims-before-a-third-party-post.md).
 - `worktrees`: Work from stable, pre-bootstrapped worktree slots (branch work never happens in the primary checkout). Full text: [`.claude/rules/worktrees.md`](.claude/rules/worktrees.md).
 
-Skills: [`code-quality`](.claude/skills/code-quality/SKILL.md), [`decision-log`](.claude/skills/decision-log/SKILL.md), [`download-archive-check`](.claude/skills/download-archive-check/SKILL.md), [`evidence-behind-rules`](.claude/skills/evidence-behind-rules/SKILL.md), [`github-wiki`](.claude/skills/github-wiki/SKILL.md), [`php-coding-standards`](.claude/skills/php-coding-standards/SKILL.md), [`php-documentation`](.claude/skills/php-documentation/SKILL.md), [`repository-settings`](.claude/skills/repository-settings/SKILL.md), [`security-audit`](.claude/skills/security-audit/SKILL.md), [`synced-files`](.claude/skills/synced-files/SKILL.md), [`tests`](.claude/skills/tests/SKILL.md), [`update-dependencies-ticket`](.claude/skills/update-dependencies-ticket/SKILL.md), [`upstream-patch-lifecycle`](.claude/skills/upstream-patch-lifecycle/SKILL.md), [`writing-comments`](.claude/skills/writing-comments/SKILL.md), [`writing-commits`](.claude/skills/writing-commits/SKILL.md), [`writing-issues`](.claude/skills/writing-issues/SKILL.md), [`writing-pull-requests`](.claude/skills/writing-pull-requests/SKILL.md), [`writing-release-notes`](.claude/skills/writing-release-notes/SKILL.md).
+Skills: [`code-quality`](.claude/skills/code-quality/SKILL.md), [`decision-log`](.claude/skills/decision-log/SKILL.md), [`download-archive-check`](.claude/skills/download-archive-check/SKILL.md), [`evidence-behind-rules`](.claude/skills/evidence-behind-rules/SKILL.md), [`github-wiki`](.claude/skills/github-wiki/SKILL.md), [`managing-linked-stacks`](.claude/skills/managing-linked-stacks/SKILL.md), [`pcov-setup`](.claude/skills/pcov-setup/SKILL.md), [`pest-testing`](.claude/skills/pest-testing/SKILL.md), [`php-coding-standards`](.claude/skills/php-coding-standards/SKILL.md), [`php-documentation`](.claude/skills/php-documentation/SKILL.md), [`phpunit-to-pest`](.claude/skills/phpunit-to-pest/SKILL.md), [`repository-settings`](.claude/skills/repository-settings/SKILL.md), [`security-audit`](.claude/skills/security-audit/SKILL.md), [`synced-files`](.claude/skills/synced-files/SKILL.md), [`tests`](.claude/skills/tests/SKILL.md), [`update-dependencies-ticket`](.claude/skills/update-dependencies-ticket/SKILL.md), [`upstream-patch-lifecycle`](.claude/skills/upstream-patch-lifecycle/SKILL.md), [`writing-comments`](.claude/skills/writing-comments/SKILL.md), [`writing-commits`](.claude/skills/writing-commits/SKILL.md), [`writing-issues`](.claude/skills/writing-issues/SKILL.md), [`writing-pull-requests`](.claude/skills/writing-pull-requests/SKILL.md), [`writing-release-notes`](.claude/skills/writing-release-notes/SKILL.md).
 <!-- uams-claude-skills:end -->

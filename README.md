@@ -6,7 +6,7 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 
 ## Install on staging
 
-1. Upload `dist/uams-search-0.5.0.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
+1. Upload `dist/uams-search-0.5.1.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
 2. Open Network Admin → Settings → uams search. Requirements: PHP 8.1+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
 3. Confirm and save post types, fields, and included sites. Click **Rebuild index** and keep the page open. For staging sites marked no-index, leave **Include no-index sites for signed-in previews** checked. No server command access is needed.
 4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
@@ -106,6 +106,22 @@ The fallback library is smalot/pdfparser 2.13.1, downloaded from its official re
 No-result logging stores only search text, UTC date, site, and count. Search text can still contain sensitive health information. Admin access is restricted; the feature can be switched off. Daily retention removes rows older than 90 days, and the status view covers the last 30 days. Live suggestions and direct API searches do not create log entries. Deactivation preserves data and removes scheduled tasks.
 
 ## Tests and build
+
+### Amp orbs
+
+Amp runs the executable `.agents/setup` when preparing an orb snapshot. It installs
+PHP 8.2 and its test extensions, Composer, Poppler, locked PHP/npm dependencies,
+and Playwright Chromium with its Debian libraries. Node 20+ comes from the orb
+base image. Matching snapshots reuse this environment; stale snapshots rerun
+setup, skipping installed system packages and cached browser downloads.
+
+`.agents/resume` only checks tool/dependency availability and never reinstalls
+anything. Run `.agents/setup` manually to repair missing dependencies. No secrets,
+authentication, or running services are needed for the unit and component suites.
+WordPress/database integration still requires a separate disposable local install
+with the database guards described below; setup does not create or connect to one.
+
+### Commands
 
 ```sh
 composer install
