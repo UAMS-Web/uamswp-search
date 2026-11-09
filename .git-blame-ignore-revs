@@ -1,0 +1,11 @@
+# Commits `git blame` should skip: whole-repository reformats whose every line
+# is a style change with no author of its own. One full 40-character commit hash
+# per line, with a comment above it saying what the commit was.
+#
+# `git blame` reads this file only when told to, once per clone:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Pint reformat: adopt the laravel preset (UAMS-Web/uamswp-search#6). This is the
+# squash commit of #63, which also carries the Rector gating-profile changes and
+# the new tooling, so blame skips those lines too.
+ff673ef31fe90bfef9a455fe9bc5f4560570f6e0
