@@ -6,6 +6,10 @@ final class Admin
 {
     public const NAME = 'UAMSWP Search';
 
+    private const REPORTS = 'uams-search-reports';
+
+    private const SETTINGS = 'uams-search-settings';
+
     public static function hooks(): void
     {
         add_action('network_admin_menu', [self::class, 'network_menu']);
@@ -46,12 +50,14 @@ final class Admin
     }
 
     /**
-     * The network admin's own top-level menu. The index screen is its first submenu item, so further screens can sit beneath it.
+     * The network admin's own top-level menu. The index screen is its first submenu item, followed by reports and settings.
      */
     public static function network_menu(): void
     {
         add_menu_page(self::NAME, self::NAME, 'manage_network_options', 'uams-search', [self::class, 'page'], 'dashicons-search', 26);
-        add_submenu_page('uams-search', self::NAME, 'Index', 'manage_network_options', 'uams-search', [self::class, 'page']);
+        add_submenu_page('uams-search', self::NAME.' Index', 'Index', 'manage_network_options', 'uams-search', [self::class, 'page']);
+        add_submenu_page('uams-search', self::NAME.' Reports', 'Reports', 'manage_network_options', self::REPORTS, [self::class, 'reports_page']);
+        add_submenu_page('uams-search', self::NAME.' Settings', 'Settings', 'manage_network_options', self::SETTINGS, [self::class, 'settings_page']);
     }
 
     public static function site_menus(): void
@@ -59,6 +65,8 @@ final class Admin
         add_options_page(self::NAME, self::NAME, 'manage_options', 'uams-search-site', [self::class, 'site_page']);
         if (! is_multisite()) {
             add_options_page(self::NAME.' Index', self::NAME.' Index', 'manage_options', 'uams-search', [self::class, 'page']);
+            add_options_page(self::NAME.' Reports', self::NAME.' Reports', 'manage_options', self::REPORTS, [self::class, 'reports_page']);
+            add_options_page(self::NAME.' Settings', self::NAME.' Settings', 'manage_options', self::SETTINGS, [self::class, 'settings_page']);
         }
 
         // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
@@ -95,7 +103,12 @@ final class Admin
 
     private static function home(): string
     {
-        return is_multisite() ? network_admin_url('admin.php?page=uams-search') : admin_url('options-general.php?page=uams-search');
+        return self::screen_url('uams-search');
+    }
+
+    private static function screen_url(string $slug): string
+    {
+        return is_multisite() ? network_admin_url('admin.php?page='.$slug) : admin_url('options-general.php?page='.$slug);
     }
 
     public static function rebuild_assets(): void
@@ -146,7 +159,7 @@ final class Admin
         }
 
         if (! DB::ready()) {
-            echo '<div class="notice notice-warning"><p>UAMSWP Search needs its index tables. <a href="'.esc_url(self::home()).'">Open search settings</a>.</p></div>';
+            echo '<div class="notice notice-warning"><p>UAMSWP Search needs its index tables. <a href="'.esc_url(self::home()).'">Create them on the Index screen</a>.</p></div>';
         } elseif (Config::needs_rebuild()) {
             echo '<div class="notice notice-warning"><p>Some UAMSWP Search sites need a rebuild. Rebuild every site before comparing or switching search engines.</p></div>';
         }
@@ -255,7 +268,7 @@ final class Admin
         }
 
         update_site_option('uams_search_settings', $c);
-        wp_safe_redirect(self::home());
+        wp_safe_redirect(self::screen_url(self::SETTINGS));
         exit;
     }
 
@@ -319,44 +332,77 @@ final class Admin
             }
         }
 
-        wp_safe_redirect(self::home().'#status');
+        wp_safe_redirect(self::screen_url(self::REPORTS).'#failed-items');
         exit;
+    }
+
+    /**
+     * Opens a network screen: the capability check, its own heading, and the table setup form in place of the screen when the index tables do not exist yet.
+     *
+     * @return bool Whether the screen can show its content.
+     */
+    private static function open(string $heading, string $intro = ''): bool
+    {
+        self::capable();
+        echo '<div class="wrap"><h1>'.esc_html($heading).'</h1>'.$intro;
+        if (DB::ready()) {
+            return true;
+        }
+
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_setup">';
+        wp_nonce_field('uams_search_setup');
+        submit_button('Create index tables');
+        echo '</form></div>';
+
+        return false;
     }
 
     public static function page(): void
     {
-        self::capable();
-        $c = Config::get();
-        echo '<div class="wrap"><h1>'.self::NAME.'</h1><p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>';
-        if (! DB::ready()) {
-            echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_setup">';
-            wp_nonce_field('uams_search_setup');
-            submit_button('Create index tables');
-            echo '</form></div>';
-
+        if (! self::open(self::NAME.' Index', '<p>Build and compare the index before enabling it. While disabled, signed-in users can preview with <code>?s=heart&amp;engine=uams</code>.</p>')) {
             return;
         }
 
         self::rebuild_controls();
         self::status();
-        echo '<h2>Network settings</h2><form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_save">';
+        echo '</div>';
+    }
+
+    public static function reports_page(): void
+    {
+        if (! self::open(self::NAME.' Reports')) {
+            return;
+        }
+
+        self::reports();
+        echo '</div>';
+    }
+
+    public static function settings_page(): void
+    {
+        if (! self::open(self::NAME.' Settings')) {
+            return;
+        }
+
+        $c = Config::get();
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_save">';
         wp_nonce_field('uams_search_save');
         foreach (['enabled' => 'Use UAMSWP Search for visitors', 'live' => 'Show live search suggestions', 'logging' => 'Keep search text with no results for up to 90 days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to their parent page when available'] as $key => $label) {
             echo '<p><label><input type="checkbox" name="settings['.esc_attr($key).']" value="1" '.checked((bool) $c[$key], true, false).'> '.esc_html($label).'</label></p>';
         }
 
-        echo '<fieldset><legend><h3>Sub-sites in whole-website search</h3></legend>';
+        echo '<fieldset><legend><h2>Sub-sites in whole-website search</h2></legend>';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? get_blog_details($site)->blogname.' (#'.$site.')' : get_bloginfo('name');
             echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked($c['sites'] === null || in_array($site, $c['sites'], true), true, false).'> '.esc_html($label).'</label></p>';
         }
 
-        echo '</fieldset><fieldset><legend><h3>Source weights</h3></legend>';
+        echo '</fieldset><fieldset><legend><h2>Source weights</h2></legend>';
         foreach ($c['weights'] as $key => $weight) {
             self::numeric('settings[weights]['.$key.']', ucfirst($key), $weight);
         }
 
-        echo '</fieldset><h3>Content to index</h3><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
+        echo '</fieldset><h2>Content to index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
         $types = array_unique(array_merge(array_keys($c['types']), array_keys(get_post_types(['public' => true]))));
         foreach ($types as $type) {
             $object = get_post_type_object($type);
@@ -366,7 +412,7 @@ final class Admin
             self::numeric('settings[types]['.$type.'][boost]', 'Type boost', $c['types'][$type] ?? 1);
             foreach (['fields' => 'ACF fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
                 $rows = $c[$group][$type] ?? [];
-                echo '<h4>'.esc_html($label).'</h4><table><thead><tr><th scope="col">Name</th><th scope="col">Weight</th></tr></thead><tbody>';
+                echo '<h3>'.esc_html($label).'</h3><table><thead><tr><th scope="col">Name</th><th scope="col">Weight</th></tr></thead><tbody>';
                 $rows = array_merge(array_map(static fn ($k, $v): array => ['name' => $k, 'weight' => $v], array_keys($rows), array_values($rows)), array_fill(0, 3, ['name' => '', 'weight' => 1]));
                 foreach ($rows as $i => $row) {
                     $prefix = 'settings[types]['.$type.']['.$group.']['.$i.']';
@@ -416,7 +462,13 @@ final class Admin
         echo '<section id="status"><h2>Index status</h2><p>Queue length: '.(int) $wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`').'. Last queue run: '.esc_html(Time::local(get_site_option('uams_search_last_queue', ''))).'.</p>';
         $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
         self::table(['Site Name', 'Site ID', 'Post type', 'Status', 'Count'], SiteNames::prefix(array_map(array_values(...), $rows)));
-        echo '<h3>Failed items and PDFs without text</h3><p>Showing the latest 100 items. PDFs without text still match their titles and filenames.</p>';
+        echo '</section>';
+    }
+
+    private static function reports(): void
+    {
+        global $wpdb;
+        echo '<section id="failed-items"><h2>Failed items and PDFs without text</h2><p>Showing the latest 100 items. PDFs without text still match their titles and filenames.</p>';
         $rows = $wpdb->get_results('SELECT site_id,object_id,status,error FROM `'.DB::table()."` WHERE status IN ('error','scanned') ORDER BY indexed_at DESC LIMIT 100", ARRAY_A);
         echo '<table class="widefat striped"><thead><tr><th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Message</th><th scope="col">Action</th></tr></thead><tbody>';
         foreach ($rows as $row) {
@@ -427,7 +479,7 @@ final class Admin
             } echo '<td><a href="'.esc_url($url).'">Retry item '.(int) $row['object_id'].' on site '.(int) $row['site_id'].'</a></td></tr>';
         }
 
-        echo '</tbody></table><h3>Searches with no results, last 30 days</h3><p>Search text can include health terms. No IP address or user ID is stored. Entries are deleted after 90 days.</p>';
+        echo '</tbody></table></section><section id="no-results"><h2>Searches with no results, last 30 days</h2><p>Search text can include health terms. No IP address or user ID is stored. Entries are deleted after 90 days.</p>';
         $rows = $wpdb->get_results('SELECT site_id,search_text,SUM(count) AS total FROM `'.DB::table('misses').'` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', ARRAY_A);
         self::table(['Site Name', 'Site ID', 'Search', 'Count'], SiteNames::prefix(array_map(array_values(...), $rows)));
         echo '</section>';

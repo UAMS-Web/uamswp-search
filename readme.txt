@@ -14,7 +14,7 @@ Network-wide or per-site search, explicit ACF fields and taxonomies, weighted re
 This version is for staging validation. It is disabled for visitors by default. Signed-in users can preview with ?s=heart&engine=uams. Keep SearchWP until the comparison tests pass.
 
 == Installation ==
-Network-activate the plugin. Review Network Admin > Settings > UAMS Search.
+Network-activate the plugin. Review Network Admin > UAMSWP Search > Settings.
 Run wp uams-search doctor, then wp uams-search index --all.
 Compare the preview with the existing search. Enable visitor search only after validation.
 

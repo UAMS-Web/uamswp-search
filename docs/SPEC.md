@@ -203,9 +203,9 @@ Extracted text is kept in the index row only, not in post meta. It's re-extracte
 
 ## Admin and operations
 
-Network admins set what gets indexed and how it's weighted; each sub-site picks only its default scope. A status page shows the index's health, and WP-CLI does the heavy work.
+Network admins set what gets indexed and how it's weighted; each sub-site picks only its default scope. The index and reports screens show the index's health, and WP-CLI does the heavy work.
 
-**Network settings** (Network Admin > Settings > UAMS Search)
+**Network settings** (Network Admin > UAMSWP Search > Settings)
 
 - Sub-sites included in whole-install search
 - Post types to index, with a boost for each
@@ -218,9 +218,12 @@ Network admins set what gets indexed and how it's weighted; each sub-site picks 
 - Default scope: this sub-site or the whole install
 - The existing Google search display option
 
-**Status page**
+**Index screen** (Network Admin > UAMSWP Search > Index)
 
 - Indexed count per sub-site and post type, queue length, and when the queue last ran
+
+**Reports screen** (Network Admin > UAMSWP Search > Reports)
+
 - Failed items with their error message and a "retry" link
 - Scanned PDFs with no text (phase 2)
 - Searches with no results, with counts, for the last 30 days (phase 2)

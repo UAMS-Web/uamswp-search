@@ -85,16 +85,18 @@ final class AdminMenuTest extends TestCase
         $GLOBALS['uams_test_multisite'] = false;
     }
 
-    public function test_network_admin_gets_a_top_level_menu_with_the_index_as_its_first_submenu(): void
+    public function test_network_admin_gets_a_top_level_menu_with_index_reports_and_settings(): void
     {
         Admin::network_menu();
 
         $menu = $GLOBALS['uams_test_menu'];
-        self::assertCount(2, $menu);
+        self::assertCount(4, $menu);
         // add_menu_page( page title, menu title, capability, slug, callback, icon, position )
         self::assertSame(['add_menu_page', 'UAMSWP Search', 'UAMSWP Search', 'manage_network_options', 'uams-search', [Admin::class, 'page'], 'dashicons-search', 26], $menu[0]);
         // The first submenu item shares the parent's slug, which makes it the index screen.
-        self::assertSame(['add_submenu_page', 'uams-search', 'UAMSWP Search', 'Index', 'manage_network_options', 'uams-search', [Admin::class, 'page']], $menu[1]);
+        self::assertSame(['add_submenu_page', 'uams-search', 'UAMSWP Search Index', 'Index', 'manage_network_options', 'uams-search', [Admin::class, 'page']], $menu[1]);
+        self::assertSame(['add_submenu_page', 'uams-search', 'UAMSWP Search Reports', 'Reports', 'manage_network_options', 'uams-search-reports', [Admin::class, 'reports_page']], $menu[2]);
+        self::assertSame(['add_submenu_page', 'uams-search', 'UAMSWP Search Settings', 'Settings', 'manage_network_options', 'uams-search-settings', [Admin::class, 'settings_page']], $menu[3]);
     }
 
     public function test_network_menu_no_longer_registers_under_settings(): void
@@ -114,13 +116,15 @@ final class AdminMenuTest extends TestCase
         self::assertSame([['add_options_page', 'UAMSWP Search', 'UAMSWP Search', 'manage_options', 'uams-search-site', [Admin::class, 'site_page']]], $GLOBALS['uams_test_menu']);
     }
 
-    public function test_single_site_install_also_gets_the_index_entry(): void
+    public function test_single_site_install_also_gets_the_index_reports_and_settings_entries(): void
     {
         $GLOBALS['uams_test_multisite'] = false;
         $GLOBALS['menu'] = [];
         Admin::site_menus();
 
         self::assertSame(['add_options_page', 'UAMSWP Search Index', 'UAMSWP Search Index', 'manage_options', 'uams-search', [Admin::class, 'page']], $GLOBALS['uams_test_menu'][1]);
+        self::assertSame(['add_options_page', 'UAMSWP Search Reports', 'UAMSWP Search Reports', 'manage_options', 'uams-search-reports', [Admin::class, 'reports_page']], $GLOBALS['uams_test_menu'][2]);
+        self::assertSame(['add_options_page', 'UAMSWP Search Settings', 'UAMSWP Search Settings', 'manage_options', 'uams-search-settings', [Admin::class, 'settings_page']], $GLOBALS['uams_test_menu'][3]);
     }
 
     public function test_old_network_address_points_to_the_new_one(): void

@@ -38,6 +38,8 @@ if (! function_exists('update_site_option')) {
 if (! function_exists('wp_safe_redirect')) {
     function wp_safe_redirect($url): never
     {
+        $GLOBALS['uams_test_redirect'] = $url;
+
         throw new RuntimeException('redirect');
     }
 }
@@ -129,6 +131,7 @@ final class GuardsTest extends TestCase
         }
 
         self::assertSame(['post' => 2.0], $GLOBALS['uams_test_options']['uams_search_settings']['types']);
+        self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', $GLOBALS['uams_test_redirect'], 'The save returns to the settings screen.');
     }
 
     public function test_saving_without_a_post_type_is_refused_and_stores_nothing(): void
