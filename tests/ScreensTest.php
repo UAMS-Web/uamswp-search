@@ -309,4 +309,35 @@ final class ScreensTest extends TestCase
         self::assertSame(substr_count($html, 'type="number" min="0" max="100" step="0.1" style'), substr_count($html, 'style="width:6em"') - 1, 'Only the PDF time limit has another maximum.');
         self::assertStringNotContainsString('<p><label>Title <input', $html);
     }
+
+    public function test_field_tables_print_saved_rows_and_one_blank_row_with_wide_name_boxes(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['post' => 1.0], 'taxonomies' => [], 'fields' => ['post' => ['physician_short_clinical_bio_for_the_profile_page' => 2.0, 'b' => 1.0]]];
+        $html = $this->render('settings_page');
+
+        preg_match('/data-prefix="settings\[types\]\[post\]\[fields\]"[^>]*data-size="(\d+)"/', $html, $fields);
+        preg_match('/data-prefix="settings\[types\]\[post\]\[taxonomies\]"[^>]*data-size="(\d+)"/', $html, $taxonomies);
+        self::assertGreaterThanOrEqual(strlen('physician_short_clinical_bio_for_the_profile_page') + 2, (int) $fields[1], 'Wide enough for the longest saved name.');
+        self::assertSame('28', $taxonomies[1], 'At least as wide as physician_short_clinical_bio.');
+        self::assertSame(6, substr_count($html, 'name="settings[types][post][fields]['), 'Two saved rows and one blank row, each with a name and a weight.');
+        self::assertStringNotContainsString('name="settings[types][post][fields][3]', $html);
+        self::assertStringContainsString('name="settings[types][post][taxonomies][0][name]"', $html);
+        self::assertStringNotContainsString('name="settings[types][post][taxonomies][1]', $html, 'A table with no saved rows starts with one blank row.');
+        self::assertStringContainsString('aria-label="Add Row to Posts ACF Fields" hidden>Add Row</button>', $html);
+        self::assertStringContainsString('aria-label="Remove Posts ACF Fields row 1" hidden>Remove</button>', $html);
+    }
+
+    public function test_only_the_settings_screen_loads_the_row_script(): void
+    {
+        foreach (['uams-search', 'uams-search-reports'] as $page) {
+            $_GET = ['page' => $page];
+            Admin::settings_assets();
+        }
+
+        self::assertSame([], $GLOBALS['uams_test_enqueued']);
+
+        $_GET = ['page' => 'uams-search-settings'];
+        Admin::settings_assets();
+        self::assertSame(['uams-search-settings'], $GLOBALS['uams_test_enqueued']);
+    }
 }

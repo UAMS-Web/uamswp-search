@@ -21,6 +21,7 @@ final class Admin
         add_action('admin_post_uams_search_setup', [self::class, 'setup']);
         add_action('wp_ajax_uams_search_rebuild', [self::class, 'rebuild_ajax']);
         add_action('admin_enqueue_scripts', [self::class, 'rebuild_assets']);
+        add_action('admin_enqueue_scripts', [self::class, 'settings_assets']);
         add_action('admin_notices', [self::class, 'notice']);
         add_action('network_admin_notices', [self::class, 'notice']);
         add_filter('attachment_fields_to_edit', static function ($fields, $post) {
@@ -120,6 +121,18 @@ final class Admin
         wp_enqueue_script('uams-search-rebuild', plugins_url('assets/admin-rebuild.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
         wp_enqueue_style('uams-search-rebuild', plugins_url('assets/admin-rebuild.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION);
         wp_localize_script('uams-search-rebuild', 'UAMSRebuild', ['url' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('uams_search_rebuild'), 'job' => Rebuild::state()]);
+    }
+
+    /**
+     * The Add Row and Remove controls for the field and taxonomy tables belong to the Settings screen only.
+     */
+    public static function settings_assets(): void
+    {
+        if (Integration::param('page') !== self::SETTINGS || ! current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) {
+            return;
+        }
+
+        wp_enqueue_script('uams-search-settings', plugins_url('assets/admin-settings.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
     }
 
     public static function rebuild_ajax(): void
@@ -414,15 +427,18 @@ final class Admin
             self::numeric('settings[types]['.$type.'][boost]', 'Type Boost', $c['types'][$type] ?? 1);
             echo '</tbody></table>';
             foreach (['fields' => 'ACF Fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
-                $rows = $c[$group][$type] ?? [];
-                echo '<h3>'.esc_html($label).'</h3><table><thead><tr><th scope="col">Name</th><th scope="col">Weight</th></tr></thead><tbody>';
-                $rows = array_merge(array_map(static fn ($k, $v): array => ['name' => $k, 'weight' => $v], array_keys($rows), array_values($rows)), array_fill(0, 3, ['name' => '', 'weight' => 1]));
+                $rows = array_map(static fn ($k, $v): array => ['name' => (string) $k, 'weight' => $v], array_keys($c[$group][$type] ?? []), array_values($c[$group][$type] ?? []));
+                // One blank row is always offered, so a new field needs no JavaScript; the Add Row button adds more.
+                $rows[] = ['name' => '', 'weight' => 1];
+                $size = max(28, ...array_map(static fn (array $row): int => mb_strlen($row['name']) + 2, $rows));
+                $prefix = 'settings[types]['.$type.']['.$group.']';
+                $what = $name.' '.$label;
+                echo '<h3>'.esc_html($label).'</h3><table class="uams-search-rows" data-prefix="'.esc_attr($prefix).'" data-label="'.esc_attr($what).'" data-size="'.$size.'"><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>';
                 foreach ($rows as $i => $row) {
-                    $prefix = 'settings[types]['.$type.']['.$group.']['.$i.']';
-                    echo '<tr><td><input aria-label="'.esc_attr($name.' '.$label.' name '.($i + 1)).'" name="'.esc_attr($prefix.'[name]').'" value="'.esc_attr($row['name']).'"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="'.esc_attr($name.' '.$label.' weight '.($i + 1)).'" name="'.esc_attr($prefix.'[weight]').'" value="'.esc_attr($row['weight']).'"></td></tr>';
+                    self::field_row($prefix, $what, $i, $row, $size);
                 }
 
-                echo '</tbody></table>';
+                echo '</tbody></table><p><button type="button" class="button uams-add-row" aria-label="'.esc_attr('Add Row to '.$what).'" hidden>Add Row</button></p>';
             }
 
             echo '</fieldset>';
@@ -454,6 +470,17 @@ final class Admin
         echo '<progress id="uams-rebuild-progress" aria-label="Index rebuild progress" value="0" max="100"></progress>';
         echo '<p id="uams-rebuild-status" role="status" aria-live="polite" aria-atomic="true">Ready to rebuild.</p><p id="uams-rebuild-counts"></p><p id="uams-rebuild-error" role="alert" hidden></p>';
         echo '<noscript><p>JavaScript is required for the browser rebuild. Enable it, then reload this page.</p></noscript></section>';
+    }
+
+    /**
+     * One Name and Weight row of a field or taxonomy table. The Remove button stays hidden until the script that makes it work has loaded.
+     *
+     * @param  array{name: string, weight: mixed}  $row
+     */
+    private static function field_row(string $prefix, string $what, int $i, array $row, int $size): void
+    {
+        $key = $prefix.'['.$i.']';
+        echo '<tr><td><input size="'.$size.'" aria-label="'.esc_attr($what.' name '.($i + 1)).'" name="'.esc_attr($key.'[name]').'" value="'.esc_attr($row['name']).'"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="'.esc_attr($what.' weight '.($i + 1)).'" name="'.esc_attr($key.'[weight]').'" value="'.esc_attr($row['weight']).'"></td><td><button type="button" class="button uams-remove-row" aria-label="'.esc_attr('Remove '.$what.' row '.($i + 1)).'" hidden>Remove</button></td></tr>';
     }
 
     private static function numeric(string $name, string $label, $value, int $max = 100): void
