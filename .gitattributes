@@ -3,6 +3,10 @@
 *.zip binary
 *.png binary
 
+# The GitHub download holds only what the plugin runs: every top-level entry is
+# left out, then each runtime path is put back. A new top-level folder stays out
+# of the download until it is named here, and the download-archive check fails
+# the pull request that adds one.
 /* export-ignore
 /.* export-ignore
 /uams-search.php -export-ignore
@@ -12,9 +16,10 @@
 /includes -export-ignore
 /assets -export-ignore
 /templates -export-ignore
-/vendor -export-ignore
-/vendor/* export-ignore
-/vendor/pdfparser -export-ignore
+# The bundled PDF parser that includes/autoload.php loads.
+/lib -export-ignore
+# Only the PDF worker that includes/Pdf.php runs as a child process; the build and
+# fixture scripts beside it stay out.
 /scripts -export-ignore
 /scripts/* export-ignore
 /scripts/pdf-worker.php -export-ignore
