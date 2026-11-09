@@ -198,19 +198,19 @@ final class Admin {
     }
     private static function status(): void {
         global $wpdb;
-        echo '<section id="status"><h2>Index status</h2><p>Queue length: ' . (int)$wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('queue') . '`') . '. Last queue run (UTC): ' . esc_html(get_site_option('uams_search_last_queue', 'Never')) . '.</p>';
+        echo '<section id="status"><h2>Index status</h2><p>Queue length: ' . (int)$wpdb->get_var('SELECT COUNT(*) FROM `' . DB::table('queue') . '`') . '. Last queue run: ' . esc_html(Time::local(get_site_option('uams_search_last_queue', ''))) . '.</p>';
         $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `' . DB::table() . '` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
-        self::table(['Site','Post type','Status','Count'], array_map('array_values', $rows));
+        self::table(['Site Name','Site ID','Post type','Status','Count'], SiteNames::prefix(array_map('array_values', $rows)));
         echo '<h3>Failed items and PDFs without text</h3><p>Showing the latest 100 items. PDFs without text still match their titles and filenames.</p>';
         $rows = $wpdb->get_results('SELECT site_id,object_id,status,error FROM `' . DB::table() . "` WHERE status IN ('error','scanned') ORDER BY indexed_at DESC LIMIT 100", ARRAY_A);
-        echo '<table class="widefat striped"><thead><tr><th scope="col">Site</th><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Message</th><th scope="col">Action</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr><th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Message</th><th scope="col">Action</th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $url = wp_nonce_url(add_query_arg(['action' => 'uams_search_retry', 'site' => $row['site_id'], 'object' => $row['object_id']], admin_url('admin-post.php')), 'uams_search_retry');
-            echo '<tr>'; foreach ($row as $value) { echo '<td>' . esc_html($value) . '</td>'; } echo '<td><a href="' . esc_url($url) . '">Retry item ' . (int)$row['object_id'] . ' on site ' . (int)$row['site_id'] . '</a></td></tr>';
+            echo '<tr>'; foreach (SiteNames::prefix([array_values($row)])[0] as $value) { echo '<td>' . esc_html($value) . '</td>'; } echo '<td><a href="' . esc_url($url) . '">Retry item ' . (int)$row['object_id'] . ' on site ' . (int)$row['site_id'] . '</a></td></tr>';
         }
         echo '</tbody></table><h3>Searches with no results, last 30 days</h3><p>Search text can include health terms. No IP address or user ID is stored. Entries are deleted after 90 days.</p>';
         $rows = $wpdb->get_results('SELECT site_id,search_text,SUM(count) AS total FROM `' . DB::table('misses') . '` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', ARRAY_A);
-        self::table(['Site','Search','Count'], array_map('array_values', $rows)); echo '</section>';
+        self::table(['Site Name','Site ID','Search','Count'], SiteNames::prefix(array_map('array_values', $rows))); echo '</section>';
     }
     private static function table(array $heads, array $rows): void {
         echo '<table class="widefat striped"><thead><tr>'; foreach ($heads as $head) { echo '<th scope="col">' . esc_html($head) . '</th>'; } echo '</tr></thead><tbody>';

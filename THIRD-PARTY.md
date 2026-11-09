@@ -1,10 +1,10 @@
 # Third-party source
 
-`vendor/pdfparser` contains smalot/pdfparser **v2.13.1**, commit `a71c6dd38e60a995fdb4d36e4433b8b3557c65dc`.
+`lib/pdfparser` contains smalot/pdfparser **v2.13.1**, commit `a71c6dd38e60a995fdb4d36e4433b8b3557c65dc`.
 
 - Upstream: https://github.com/smalot/pdfparser
 - Official archive: https://api.github.com/repos/smalot/pdfparser/zipball/a71c6dd38e60a995fdb4d36e4433b8b3557c65dc
-- License: LGPL-3.0, included as `vendor/pdfparser/LICENSE.txt`.
+- License: LGPL-3.0, included as `lib/pdfparser/LICENSE.txt`.
 - Change: `Smalot\PdfParser` was renamed to `UAMS_Search_Vendor\PdfParser`, including dynamic class-name strings, to avoid collisions with other plugins.
 - Native mbstring, iconv and zlib are required. No Symfony polyfill is bundled.
 - Used only in a child PHP process with time, memory, and output limits.

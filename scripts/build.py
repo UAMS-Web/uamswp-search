@@ -11,7 +11,7 @@ target.mkdir(exist_ok=True)
 version = re.search(r'\* Version: ([0-9.]+)', (root / 'uams-search.php').read_text()).group(1)
 archive = target / f'uams-search-{version}.zip'
 paths = [root / n for n in ['uams-search.php', 'readme.txt', 'LICENSE', 'THIRD-PARTY.md']]
-for folder in ['includes', 'assets', 'templates', 'vendor/pdfparser']:
+for folder in ['includes', 'assets', 'templates', 'lib/pdfparser']:
     paths.extend(p for p in (root / folder).rglob('*') if p.is_file() and p.name != '.DS_Store')
 paths.append(root / 'scripts/pdf-worker.php')
 with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as out:
