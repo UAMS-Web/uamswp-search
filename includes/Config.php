@@ -89,9 +89,77 @@ final class Config
         return $chosen === null ? $public : array_values(array_intersect($public, array_map(intval(...), $chosen)));
     }
 
+    /**
+     * The names of the content types in the type filter, keyed by post type. They match the UAMS Statamic site; a type with no entry here keeps its WordPress name, and the `uams_search_type_labels` filter can rename any of them.
+     *
+     * @return array<string, string>
+     */
+    public static function type_labels(): array
+    {
+        $labels = ['provider' => 'People', 'expertise' => 'Clinical Areas of Expertise', 'location' => 'Clinical Locations', 'post' => 'News', 'attachment' => 'PDFs'];
+
+        return (array) apply_filters('uams_search_type_labels', $labels);
+    }
+
+    /**
+     * The label above each result, keyed by post type. A type with no entry gets none. The `uams_search_result_labels` filter can change or add any of them.
+     *
+     * @return array<string, string>
+     */
+    public static function result_labels(): array
+    {
+        $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
+
+        return (array) apply_filters('uams_search_result_labels', $labels);
+    }
+
+    /**
+     * Whether searching all UAMS websites through Google is offered on this site.
+     */
+    public static function google_enabled(): bool
+    {
+        // The reference theme always shows this block; newer settings integrations can override this filter.
+        return (bool) apply_filters('uams_search_google_enabled', (bool) get_option('uams_search_google', true));
+    }
+
+    /**
+     * The scopes this site offers, in order, each with its label. `site` is this site alone, `install` every site the network settings include, `all` every UAMS website through Google.
+     *
+     * The root site of a subdirectory network sees its own scope as `install`, labelled `This site`, because its children are part of the site a visitor thinks they are on.
+     *
+     * @param  bool  $google  Whether to leave out `all` where Google results are switched off for this site.
+     * @return array<string, string>
+     */
+    public static function scope_options(bool $google = true): array
+    {
+        if (is_multisite() && ! is_subdomain_install()) {
+            $options = is_main_site() ? ['install' => 'This site'] : ['site' => 'This site', 'install' => 'All of '.get_blog_option(get_main_site_id(), 'blogname')];
+        } else {
+            $options = ['site' => 'This site'];
+        }
+
+        if (! $google || self::google_enabled()) {
+            $options['all'] = 'All UAMS websites';
+        }
+
+        return $options;
+    }
+
+    /**
+     * The scope to search with: the requested one when this site offers it, otherwise the site's default, otherwise the first option.
+     *
+     * @param  mixed  $value
+     */
     public static function scope($value = null): string
     {
-        return in_array($value, ['site', 'install'], true) ? $value : (get_option('uams_search_scope', 'site') === 'install' ? 'install' : 'site');
+        $options = array_keys(self::scope_options());
+        if (is_string($value) && in_array($value, $options, true)) {
+            return $value;
+        }
+
+        $default = get_option('uams_search_scope', 'site');
+
+        return is_string($default) && in_array($default, $options, true) ? $default : $options[0];
     }
 
     public static function fingerprint(): string

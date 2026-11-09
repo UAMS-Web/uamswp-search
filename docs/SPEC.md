@@ -63,7 +63,7 @@ Each text column has its own `FULLTEXT` index, so each can be weighted separatel
 - **Whole install:** all sub-sites the network settings include.
 - **This sub-site:** only the current site.
 - Each sub-site picks its default scope. Visitors can switch with a plain link or radio group above the results; there's no hidden toggle.
-- "All of UAMS" across installs stays with Google Custom Search, controlled by the existing UAMS Settings > Search option.
+- Options depend on the network layout. Subdirectory network: This site and All of <root site name> (the root site offers only the whole install). Subdomain network or single site: This site. All UAMS websites (UAMS.edu and UAMSHealth.com) is added to each when the existing UAMS Settings > Search Google option is on; it shows Google Custom Search results in place of the plugin results.
 
 **Code layout**
 
@@ -164,7 +164,7 @@ The plugin answers the main WordPress search query, and results come back in the
 
 - `posts_pre_query` on the main search query returns objects with `id`, `site`, `relevance` and `excerpt`, then sets `found_posts` and `max_num_pages` so `genesis_posts_nav()` paginates as it does now.
 - If the plugin is off or its table is missing, WordPress search runs as normal. The theme's built-in fallback and Google option keep working.
-- Filters: `?type=<post type>` narrows results (unknown values are ignored), and `?scope=site|install` picks the scope.
+- Filters: `?type=<post type>` narrows results (unknown values are ignored), and `?scope=site|install|all` picks the scope (a value the layout does not offer falls back to the site default).
 - For other code: `UAMS_Search\Query::run( $args )` returns the same results.
 
 **Excerpts and highlighting**
@@ -197,15 +197,15 @@ Extracted text is kept in the index row only, not in post meta. It's re-extracte
 
 - Default: the PDF file itself, with the title, "PDF" and file size in the link text, so screen-reader users know it opens a document.
 - Network setting: link to the page the PDF is attached to instead, when it has one.
-- All PDFs in the media library are indexed, attached or not, unless they're private or someone ticks "Exclude from search" on the file's edit screen.
+- All PDFs in the media library are indexed, attached or not, unless they're private or someone ticks "Exclude From Search" on the file's edit screen.
 
 **Scanned PDFs** have no text layer, so they match by title and file name only. The status page lists them, so content owners can replace them with accessible, text-based PDFs; that's also needed for accessibility.
 
 ## Admin and operations
 
-Network admins set what gets indexed and how it's weighted; each sub-site picks only its default scope. A status page shows the index's health, and WP-CLI does the heavy work.
+Network admins set what gets indexed and how it's weighted; each sub-site picks only its default scope. The index and reports screens show the index's health, and WP-CLI does the heavy work.
 
-**Network settings** (Network Admin > Settings > UAMS Search)
+**Network settings** (Network Admin > UAMSWP Search > Settings)
 
 - Sub-sites included in whole-install search
 - Post types to index, with a boost for each
@@ -218,9 +218,12 @@ Network admins set what gets indexed and how it's weighted; each sub-site picks 
 - Default scope: this sub-site or the whole install
 - The existing Google search display option
 
-**Status page**
+**Index screen** (Network Admin > UAMSWP Search > Index)
 
 - Indexed count per sub-site and post type, queue length, and when the queue last ran
+
+**Reports screen** (Network Admin > UAMSWP Search > Reports)
+
 - Failed items with their error message and a "retry" link
 - Scanned PDFs with no text (phase 2)
 - Searches with no results, with counts, for the last 30 days (phase 2)
