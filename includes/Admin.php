@@ -216,7 +216,9 @@ final class Admin
             }
         }
 
-        wp_die('Choose at least one post type.');
+        if ($types === []) {
+            wp_die('Choose at least one post type.');
+        }
 
         $c['types'] = $types;
         $c['fields'] = $fields;
