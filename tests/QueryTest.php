@@ -111,11 +111,6 @@ function is_user_logged_in()
     return $GLOBALS['uams_test_logged_in'] ?? false;
 }
 
-function get_post($id)
-{
-    return new WP_Post;
-}
-
 final class QueryTest extends TestCase
 {
     protected function setUp(): void
