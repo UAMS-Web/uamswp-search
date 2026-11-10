@@ -39,3 +39,19 @@ function wp_json_encode($value, $flags = 0)
 {
     return json_encode($value, $flags);
 }
+
+if (! class_exists('WP_Post')) {
+    #[AllowDynamicProperties] class WP_Post
+    {
+        public int $ID = 42;
+
+        public string $post_type = 'page';
+    }
+}
+
+if (! function_exists('get_post')) {
+    function get_post($id)
+    {
+        return $GLOBALS['uams_test_posts'][$id] ?? new WP_Post;
+    }
+}
