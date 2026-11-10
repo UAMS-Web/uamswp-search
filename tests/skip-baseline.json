@@ -1,0 +1,5 @@
+{
+  "bands": {
+    "suite": { "expected": 1, "why": "PdfTest skips one case when Poppler is not installed." }
+  }
+}
