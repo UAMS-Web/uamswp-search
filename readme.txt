@@ -2,7 +2,7 @@
 Contributors: uams-web
 Requires at least: 6.4
 Requires PHP: 8.2
-Stable tag: 0.3.0
+Stable tag: 0.5.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,6 +26,19 @@ Optional no-result logging stores search text, date, site, and count, without IP
 The scope links depend on the network layout. A subdirectory network offers This site and All of <root site name> (the root site offers only the whole install), a subdomain network or single site offers This site, and every layout adds All UAMS websites (UAMS.edu and UAMSHealth.com) when Google Custom Search is on. Choosing All UAMS websites shows the Google results in place of the plugin results, matching the reference theme's existing behavior. The local engine itself sends no queries to an external search service.
 
 == Changelog ==
+
+= 0.5.1 =
+* Add Results per page in network settings, defaulting to 20 with a range of 1 to 100. Explicit query page sizes still override the default. No index rebuild is needed.
+
+= 0.5.0 =
+* Display location search results as directory cards with parent/address/photo inheritance, phones, notices, and location/directions actions.
+* Preserve provider cards and mixed-result order, with safe live fields and mobile support.
+* No additional index rebuild is needed when updating from 0.3.0 or 0.4.0.
+
+= 0.4.0 =
+* Display provider search results as portrait cards with degrees, clinical titles, and profile links.
+* Preserve mixed-result order and pagination, with mobile and keyboard support.
+* Read current provider details on their own sub-site; no new index rebuild is needed from 0.3.0.
 
 = 0.3.0 =
 * Find linked locations, expertise, conditions, and treatments by provider name.

@@ -21,7 +21,7 @@ final class Query
             return $empty;
         }
 
-        $limit = max(1, min(100, (int) ($args['per_page'] ?? 10)));
+        $limit = Config::page_size($args['per_page'] ?? null);
         $page = max(1, min(10000, (int) ($args['page'] ?? 1)));
         $c = Config::get();
         $t = DB::table();

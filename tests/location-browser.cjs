@@ -1,0 +1,19 @@
+const fs=require('node:fs');const assert=require('node:assert/strict');const {chromium}=require('playwright');
+(async()=>{const html=fs.readFileSync(process.argv[2],'utf8');const browser=await chromium.launch({headless:true});try{
+ const context=await browser.newContext();await context.route('https://uams-search.test/**',r=>r.fulfill({contentType:'text/html',body:html}));await context.route('https://www.google.com/maps/**',r=>r.fulfill({contentType:'text/html',body:'<title>Directions test</title>'}));
+ const page=await context.newPage();await page.goto('https://uams-search.test/');
+ assert.equal(await page.locator('.uams-search-location-cards').first().evaluate(el=>getComputedStyle(el).display),'flex','Location groups must use the loaded flex card layout');
+ assert.deepEqual(await page.locator('article .name').allTextContents(),['Child Clinic','Own Clinic','C. Lowry Barnes, M.D.','Closed & "Quoted" Clinic']);
+ assert.equal(await page.locator('.uams-search-location-cards').count(),2);assert.equal(await page.locator('.uams-search-provider-cards').count(),1);
+ assert.match(await page.locator('.uams-search-location').first().textContent(),/Part of Main Campus/);
+ assert.match(await page.locator('.uams-search-location').first().textContent(),/100 Main Street/);
+ assert.equal(await page.getByRole('link',{name:'501-111-2222',exact:true}).getAttribute('href'),'tel:5011112222');
+ assert.equal(await page.getByRole('link',{name:'501-555-0000 ext. 23',exact:true}).getAttribute('href'),'tel:5015550000;ext=23');
+ assert.equal(await page.getByText('New Patients',{exact:true}).count(),1);assert.equal(await page.getByText('Returning Patients',{exact:true}).count(),1);
+ assert.equal(await page.getByText('General Information',{exact:true}).count(),1);assert.equal(await page.getByText('This location is permanently closed.').count(),1);
+ assert.equal(await page.locator('.uams-search-location-placeholder').count(),1);assert.equal(await page.getByText('Old location excerpt').count(),0);
+ for(const width of [1440,768,320]){await page.setViewportSize({width,height:1000});await page.addScriptTag({path:require.resolve('axe-core/axe.min.js')});const violations=await page.evaluate(async()=>(await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}})).violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})));assert.deepEqual(violations,[],`Accessibility at ${width}px`);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,`Overflow at ${width}px`);const photo=await page.locator('.uams-search-location picture').first().boundingBox();assert.ok(Math.abs(photo.height/photo.width-9/16)<.01,'Location photos retain the landscape crop');for(const link of await page.locator('.uams-search-location a.btn').all()){const box=await link.boundingBox();assert.ok(box.height>=44,'Location actions retain 44px targets');}}
+ const directions=page.getByRole('link',{name:'Get Directions to Child Clinic (opens in a new tab)',exact:true});assert.match(await directions.getAttribute('href'),/34\.74%2C-92\.32/);assert.match(await directions.getAttribute('rel'),/noopener/);const newPage=context.waitForEvent('page');await directions.click();const popup=await newPage;await popup.waitForLoadState();assert.match(popup.url(),/^https:\/\/www\.google.com\/maps\//);await popup.close();
+ const view=page.getByRole('link',{name:'View location page for Child Clinic',exact:true});await view.focus();await Promise.all([page.waitForURL('**/location/201/'),view.press('Enter')]);
+ console.log('PASS: landscape location cards, parent/address/phone labels, closure and missing data, mixed provider order, map popup, keyboard location links, 44px actions, axe and reflow at 1440/768/320px.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});

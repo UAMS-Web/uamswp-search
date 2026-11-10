@@ -202,6 +202,7 @@ final class Admin
         check_admin_referer('uams_search_save');
         $input = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $c = Config::get();
+        $c['results_per_page'] = Config::page_size($input['results_per_page'] ?? 20);
         foreach (['enabled', 'live', 'logging', 'pdf', 'pdf_parent'] as $key) {
             $c[$key] = ! empty($input[$key]);
         }
@@ -410,6 +411,7 @@ final class Admin
             echo '<p><label><input type="checkbox" name="settings['.esc_attr($key).']" value="1" '.checked((bool) $c[$key], true, false).'> '.esc_html($label).'</label></p>';
         }
 
+        echo '<p><label>Results per Page <input type="number" name="settings[results_per_page]" min="1" max="100" step="1" value="'.Config::page_size().'"></label><br>Default: 20. Choose 1 to 100. Changes apply without rebuilding the index.</p>';
         echo '<fieldset><legend><h2>Sub-Sites in Whole-Website Search</h2></legend>';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? get_blog_details($site)->blogname.' (#'.$site.')' : get_bloginfo('name');

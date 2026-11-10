@@ -66,7 +66,7 @@ function esc_attr($s)
     return esc_html($s);
 }
 
-function esc_url($s)
+function esc_url($s, $protocols = null)
 {
     return esc_html($s);
 }
@@ -125,10 +125,12 @@ class PreviewQuery
 {
     public function get($key)
     {
-        return ['results' => [
+        $results = $GLOBALS['uams_preview_results'] ?? [
             (object) ['title' => 'Heart care', 'url' => 'https://uams-search.test/heart-care/', 'post_type' => 'page', 'excerpt' => Excerpt::make(['Find heart care and cardiology services at UAMS.'], 'heart')],
             (object) ['title' => 'Heart clinic guide', 'url' => 'https://uams-search.test/guide.pdf', 'post_type' => 'attachment', 'file_size' => 24000, 'excerpt' => Excerpt::make(['Read our heart clinic guide before your visit.'], 'heart')],
-        ], 'total' => 2, 'pages' => 1, 'fallback' => true, 'suggestion' => 'heart care'];
+        ];
+
+        return ['results' => $results, 'total' => count($results), 'pages' => 1, 'fallback' => true, 'suggestion' => 'heart care'];
     }
 }
 

@@ -26,7 +26,7 @@ final class Integration
 
     public static function args(): array
     {
-        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) get_query_var('paged', 1)), 'per_page' => max(1, (int) get_option('posts_per_page', 10))];
+        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) get_query_var('paged', 1)), 'per_page' => Config::page_size()];
     }
 
     public static function hooks(): void
@@ -65,7 +65,7 @@ final class Integration
         }
 
         try {
-            $args = ['s' => (string) $query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) $query->get('paged')), 'per_page' => max(1, (int) ($query->get('posts_per_page') ?: 10))];
+            $args = ['s' => (string) $query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) $query->get('paged')), 'per_page' => Config::page_size($query->query['posts_per_page'] ?? null)];
             $results = Query::run($args);
             $out = [];
             foreach ($results['results'] as $result) {
@@ -93,6 +93,7 @@ final class Integration
                 }
             }
 
+            $query->set('posts_per_page', $args['per_page']);
             $query->found_posts = $results['total'];
             $query->max_num_pages = $results['pages'];
             // WordPress' ordinary post cache is keyed by local ID only. Cross-site IDs must never enter it.
@@ -228,7 +229,38 @@ final class Integration
             }
         }
 
+        $card_group = null;
         foreach ($out['results'] as $result) {
+            $type = $result->post_type;
+            if ($type === 'provider' || $type === 'location') {
+                $card = $type === 'provider' ? ProviderCard::data($result) : LocationCard::data($result);
+                if (! $card) {
+                    continue;
+                }
+
+                if ($card_group !== $type) {
+                    if ($card_group !== null) {
+                        echo '</div>';
+                    }
+
+                    echo $type === 'provider' ? '<div class="uams-search-provider-cards card-list card-list-doctors">' : '<div class="uams-search-location-cards card-list">';
+                    $card_group = $type;
+                }
+
+                if ($type === 'provider') {
+                    ProviderCard::render($card);
+                } else {
+                    LocationCard::render($card);
+                }
+
+                continue;
+            }
+
+            if ($card_group !== null) {
+                echo '</div>';
+                $card_group = null;
+            }
+
             $label = Config::result_labels()[$result->post_type] ?? '';
             echo '<article class="uams-search-result">'.($label !== '' ? '<p class="uams-search-label">'.esc_html($label).'</p>' : '').'<h3><a href="'.esc_url($result->url).'">'.esc_html($result->title ?: 'Untitled');
             if ($result->post_type === 'attachment') {
@@ -236,6 +268,10 @@ final class Integration
             }
 
             echo '</a></h3><p>'.wp_kses($result->excerpt, ['mark' => []]).'</p></article>';
+        }
+
+        if ($card_group !== null) {
+            echo '</div>';
         }
 
         // paginate_links expects a literal placeholder in base.
