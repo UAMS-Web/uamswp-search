@@ -6,7 +6,7 @@ use UAMS_Search\Extractor;
 if (! class_exists('WP_Error')) {
     class WP_Error
     {
-        public function __construct(private string $message = '') {}
+        public function __construct(string $code = '', private string $message = '', mixed $data = '') {}
 
         public function get_error_message(): string
         {
@@ -399,7 +399,7 @@ final class ExtractorTest extends TestCase
         }
 
         $GLOBALS['uams_test_meta'][42]['gallery'] = $value;
-        $log = $this->captureLog(fn () => Extractor::extract($this->post()));
+        $log = $this->captureLog(fn (): array => Extractor::extract($this->post()));
 
         self::assertStringContainsString('type=stdClass', $log);
         self::assertStringNotContainsString('deeply nested', $log);
@@ -408,7 +408,7 @@ final class ExtractorTest extends TestCase
     public function test_extract_throws_when_a_term_lookup_fails(): void
     {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['taxonomies' => ['page' => ['category' => 1]]];
-        $GLOBALS['uams_test_terms'] = ['category' => new WP_Error('Invalid taxonomy.')];
+        $GLOBALS['uams_test_terms'] = ['category' => new WP_Error('invalid_taxonomy', 'Invalid taxonomy.')];
 
         $this->expectExceptionObject(new RuntimeException('Invalid taxonomy.'));
         Extractor::extract($this->post());
@@ -455,7 +455,7 @@ final class ExtractorTest extends TestCase
     {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['gallery' => 1]]];
         $GLOBALS['uams_test_meta'][42]['gallery'] = new ArrayObject;
-        $log = $this->captureLog(fn () => Extractor::extract($this->post()));
+        $log = $this->captureLog(fn (): array => Extractor::extract($this->post()));
 
         self::assertStringContainsString('UAMS Search: skipped unsupported field value site=1 post=42 field=gallery type=ArrayObject', $log);
     }
@@ -464,7 +464,7 @@ final class ExtractorTest extends TestCase
     {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['gallery' => 1]]];
         $GLOBALS['uams_test_meta'][42]['gallery'] = ['a', ['b', new stdClass]];
-        $log = $this->captureLog(fn () => Extractor::extract($this->post()));
+        $log = $this->captureLog(fn (): array => Extractor::extract($this->post()));
 
         self::assertStringContainsString('type=stdClass', $log);
     }
@@ -473,7 +473,7 @@ final class ExtractorTest extends TestCase
     {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['gallery' => 1]]];
         $GLOBALS['uams_test_meta'][42]['gallery'] = ['a', 7, 1.5, null, true];
-        $log = $this->captureLog(fn () => Extractor::extract($this->post()));
+        $log = $this->captureLog(fn (): array => Extractor::extract($this->post()));
 
         self::assertSame('', $log);
     }
@@ -487,7 +487,7 @@ final class ExtractorTest extends TestCase
         }
 
         $GLOBALS['uams_test_meta'][42]['gallery'] = $value;
-        $log = $this->captureLog(fn () => Extractor::extract($this->post()));
+        $log = $this->captureLog(fn (): array => Extractor::extract($this->post()));
 
         self::assertStringContainsString('UAMS Search: skipped deeply nested field site=1 post=42 field=gallery', $log);
     }
