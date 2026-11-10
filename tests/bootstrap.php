@@ -52,7 +52,7 @@ if (! class_exists('WP_Post')) {
 if (! function_exists('get_post')) {
     function get_post($id)
     {
-        return $GLOBALS['uams_test_posts'][$id] ?? new WP_Post;
+        return array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : new WP_Post;
     }
 }
 
