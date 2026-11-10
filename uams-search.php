@@ -4,6 +4,7 @@ use UAMS_Search\Plugin;
 
 /**
  * Plugin Name: uams search
+ * Plugin URI: https://github.com/UAMS-Web/uamswp-search
  * Description: Install-wide database search, PDFs, spelling suggestions, and accessible live search.
  * Version: 0.5.1
  * Author: UAMS Web
