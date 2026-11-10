@@ -194,16 +194,16 @@ try {
     }
 
     if ($remote && ! is_wp_error($remote)) {
-        $objects = $wpdb->get_col($wpdb->prepare('SELECT DISTINCT object_id FROM `'.DB::table('word_docs').'` WHERE site_id=%d',$remote));
+        $objects = $wpdb->get_col($wpdb->prepare('SELECT DISTINCT object_id FROM `'.DB::table('word_docs').'` WHERE site_id=%d', $remote));
         foreach ($objects as $id) {
-            Suggestions::remove($remote,(int) $id);
+            Suggestions::remove($remote, (int) $id);
         }
 
-        wpmu_delete_blog($remote,true);
+        wpmu_delete_blog($remote, true);
         foreach (['index', 'stage', 'queue'] as $suffix) {
-            $wpdb->delete(DB::table($suffix),['site_id' => $remote]);
+            $wpdb->delete(DB::table($suffix), ['site_id' => $remote]);
         }
     }
 
-    update_site_option('uams_search_settings',$old);
+    update_site_option('uams_search_settings', $old);
 }

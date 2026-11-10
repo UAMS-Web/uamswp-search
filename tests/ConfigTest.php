@@ -19,7 +19,7 @@ function get_sites($args)
             }
         }
 
-return true;
+        return true;
     }));
 }
 
