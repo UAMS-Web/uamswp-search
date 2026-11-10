@@ -55,3 +55,12 @@ if (! function_exists('get_post')) {
         return $GLOBALS['uams_test_posts'][$id] ?? new WP_Post;
     }
 }
+
+if (! function_exists('update_site_option')) {
+    function update_site_option($name, $value)
+    {
+        $GLOBALS['uams_test_options'][$name] = $value;
+
+        return true;
+    }
+}
