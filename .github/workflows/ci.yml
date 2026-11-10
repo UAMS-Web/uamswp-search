@@ -51,6 +51,27 @@ jobs:
           node-version: '22'
       - run: node .claude/skills/writing-comments/scripts/check-no-emoji.mjs
 
+  lint-floor:
+    name: Lint floor (PHP 8.2 parses every shipped file)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - name: Parse every shipped PHP file on the floor PHP
+        run: |
+          php -v | head -1
+          count=0
+          while IFS= read -r -d '' file; do
+            php -l "$file" > /dev/null || exit 1
+            count=$((count + 1))
+          done < <(find . -name '*.php' -not -path './vendor/*' -not -path './tests/*' -not -path './node_modules/*' -not -path './.claude/*' -not -path './.agents/*' -not -path './.cursor/*' -print0)
+          echo "Linted $count files"
+          if [ "$count" -eq 0 ]; then echo "::error::No PHP files found to lint"; exit 1; fi
+
   aggregate-needs:
     name: Aggregate needs
     runs-on: ubuntu-latest
@@ -64,7 +85,7 @@ jobs:
 
   ci:
     name: CI
-    needs: [composer-validate, synced-files, no-emoji, aggregate-needs]
+    needs: [composer-validate, lint-floor, synced-files, no-emoji, aggregate-needs]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
