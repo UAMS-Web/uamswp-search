@@ -9,7 +9,7 @@ use UAMS_Search\Plugin;
  * Author: UAMS Web
  * License: GPL-3.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
- * Requires PHP: 8.1
+ * Requires PHP: 8.2
  * Requires at least: 6.4
  * Network: true
  * Text Domain: uams-search

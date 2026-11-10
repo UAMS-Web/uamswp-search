@@ -94,7 +94,8 @@ final class ProviderCard
             echo '<span class="uams-search-provider-placeholder" aria-hidden="true">No Image<br>Available</span>';
         }
 
-        echo '</picture><div class="card-body"><h3 class="card-title h6"><span class="name">'.esc_html($card['name']).'</span>';
+        $label = Config::result_labels()['provider'] ?? '';
+        echo '</picture><div class="card-body">'.($label !== '' ? '<p class="uams-search-label">'.esc_html($label).'</p>' : '').'<h3 class="card-title h6"><span class="name">'.esc_html($card['name']).'</span>';
         if ($card['subtitle'] !== '') {
             echo '<span class="subtitle">'.esc_html($card['subtitle']).'</span>';
         }

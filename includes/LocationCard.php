@@ -283,7 +283,8 @@ final class LocationCard
             echo '<span class="uams-search-location-placeholder" aria-hidden="true">No Image Available</span>';
         }
 
-        echo '</picture><div class="card-body"><h3 class="card-title h5"><span class="name"><a href="'.esc_url($card['url']).'">'.esc_html($card['name']).'</a></span>';
+        $label = Config::result_labels()['location'] ?? '';
+        echo '</picture><div class="card-body">'.($label !== '' ? '<p class="uams-search-label">'.esc_html($label).'</p>' : '').'<h3 class="card-title h5"><span class="name"><a href="'.esc_url($card['url']).'">'.esc_html($card['name']).'</a></span>';
         if ($card['parent']) {
             echo '<span class="subtitle">'.esc_html($card['parent']['prefix']).'<a href="'.esc_url($card['parent']['url']).'">'.esc_html($card['parent']['name']).'</a></span>';
         }
