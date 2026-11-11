@@ -245,6 +245,14 @@ final class PhoneticTest extends TestCase
             'Lasagna' => ['Lasagna', 'LSN', 'LSKN'],
             'Montagna' => ['Montagna', 'MNTN', 'MNTKN'],
             'Gnocchi' => ['Gnocchi', 'NX', 'NX'],
+            'CCIA is X' => ['Faccia', 'FX', 'FX'],
+            'DG before a consonant sound is TK' => ['Edgar', 'ATKR', 'ATKR'],
+            'GN after an initial vowel is KN or N' => ['Agnes', 'AKNS', 'ANS'],
+            'GLI is KL or L' => ['Tagliaferro', 'TKLFR', 'TLFR'],
+            'JOSE inside a word is J or H' => ['Bajose', 'PJS', 'PHS'],
+            'SCH before OO is SK' => ['School', 'SKL', 'SKL'],
+            'a final S after AI or OI is silent in the primary key' => ['Francois', 'FRNK', 'FRNKS'],
+            'WR inside a word is R' => ['Awry', 'AR', 'AR'],
         ];
     }
 
