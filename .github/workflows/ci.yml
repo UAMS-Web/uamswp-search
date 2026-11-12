@@ -102,6 +102,7 @@ jobs:
           mkdir -p "$WP_TESTS_ABSPATH"
           tar -xzf "$RUNNER_TEMP/wordpress.tar.gz" --strip-components=1 -C "$WP_TESTS_ABSPATH"
           test -f "$WP_TESTS_ABSPATH/wp-settings.php"
+          mkdir -p "$WP_TESTS_ABSPATH/wp-content/uploads"
 
       - uses: ./.github/actions/setup
         with:

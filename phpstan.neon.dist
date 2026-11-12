@@ -75,6 +75,7 @@ parameters:
     excludePaths:
         analyse:
             - tests/Integration
+            - tests/Support
 
     # Indexed for symbols but not analyzed. `php-stubs/wordpress-stubs` covers
     # core's runtime surface and stops there: `WP_UnitTestCase`, the factories
