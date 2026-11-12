@@ -60,7 +60,7 @@ final class PdfTest extends TestCase
             $row = Pdf::extract(new WP_Post, null);
             self::assertSame('ready', $row['status']);
         } catch (RuntimeException $runtimeException) {
-            // Where the default PHP binary is not at PHP_BINDIR/php, the documented error names the filter.
+            // PHP_BINARY stands in for a pdftotext that exits non-zero. Where the default PHP binary is not at PHP_BINDIR/php, the documented error names the filter.
             self::assertStringContainsString('set uams_search_php_binary', $runtimeException->getMessage());
         } finally {
             $GLOBALS['uams_test_filters'] = [];
