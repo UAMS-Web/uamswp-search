@@ -85,7 +85,7 @@ final class Indexer
             throw new \InvalidArgumentException('Unknown or excluded site');
         }
 
-        if ($type && ! isset(Config::get()['types'][$type])) {
+        if ($type && ! isset(Config::section('types')[$type])) {
             throw new \InvalidArgumentException('Post type is not configured');
         }
 
