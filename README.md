@@ -129,8 +129,13 @@ composer test
 python3 scripts/make-fixtures.py
 composer build
 
-# Disposable WordPress database only; read the guard at the top of this file.
-UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/integration.php
+# WordPress integration suite (PHPUnit 9.6 over wp-phpunit). The test database is dropped and rebuilt on every run,
+# so give it its own database (default name uams_search_test, innodb_ft_min_token_size=3) and a core copy in WP_TESTS_ABSPATH.
+# Set WP_MULTISITE=1 for the multisite run. CI runs both, on MariaDB 10.6 and MySQL 8.0.
+composer setup:integration
+WP_TESTS_ABSPATH=/path/to/wordpress composer test:integration
+
+# Disposable WordPress database only; read the guard at the top of each script.
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/multisite.php
 
 npm install
@@ -138,7 +143,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-The database name must start with `uams_search_test` and WordPress's environment type must be `local`. The integration script refuses other databases. Browser tests use the actual rendered plugin component with fake data and responses. They do not replace the final axe and screen-reader checks on the real theme. PHP tests use lightweight WordPress seams for API tests and real child processes/PDF fixtures for extraction tests. Developer dependencies are not bundled in the upload ZIP.
+The database name must start with `uams_search_test` and WordPress's environment type must be `local`. The remaining `wp eval-file` scripts refuse other databases. Browser tests use the actual rendered plugin component with fake data and responses. They do not replace the final axe and screen-reader checks on the real theme. PHP tests use lightweight WordPress seams for API tests and real child processes/PDF fixtures for extraction tests. Developer dependencies are not bundled in the upload ZIP.
 
 ## Release gates
 

@@ -2,6 +2,7 @@
     "preset": "laravel",
     "exclude": [
         "lib",
+        "tests/Integration/vendor",
         ".claude",
         ".agents",
         ".cursor"

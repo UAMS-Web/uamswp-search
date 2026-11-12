@@ -15,6 +15,8 @@
   },
   "scripts": {
     "test": "pest",
+    "setup:integration": "@composer install --working-dir=tests/Integration",
+    "test:integration": "@php tests/Integration/vendor/bin/phpunit --configuration tests/Integration/phpunit.xml",
     "build": "node scripts/build-zip.mjs",
     "stan": "phpstan analyse --no-progress --memory-limit=2G",
     "refactor": "rector",
