@@ -17,7 +17,7 @@ final class Time
             return $utc.' UTC';
         }
 
-        $format = get_option('date_format', 'F j, Y').' '.get_option('time_format', 'g:i a').' T';
+        $format = Config::option_string('date_format', 'F j, Y').' '.Config::option_string('time_format', 'g:i a').' T';
 
         return wp_date($format, $moment->getTimestamp(), wp_timezone());
     }

@@ -310,7 +310,7 @@ final class Admin
             echo '<p><label><input type="radio" name="scope" value="'.esc_attr($value).'" '.checked($current, $value, false).'> '.esc_html($label).'</label></p>';
         }
 
-        echo '</fieldset><p><label><input type="checkbox" name="google" value="1" '.checked((bool) get_option('uams_search_google', true), true, false).'> Show the Existing All of UAMS Google Search</label></p>';
+        echo '</fieldset><p><label><input type="checkbox" name="google" value="1" '.checked(Config::option_flag('uams_search_google', true), true, false).'> Show the Existing All of UAMS Google Search</label></p>';
         submit_button('Save search settings');
         echo '</form></div>';
     }
@@ -471,7 +471,7 @@ final class Admin
 
     public static function rebuild_controls(): void
     {
-        $include = Config::get()['preview_noindex'] || (! Config::site_ids(false) && Config::site_ids(true));
+        $include = Config::flag('preview_noindex') || (! Config::site_ids(false) && Config::site_ids(true));
         echo '<section id="uams-search-rebuild" aria-labelledby="uams-rebuild-heading"><h2 id="uams-rebuild-heading">Rebuild Index</h2>';
         echo '<p>Build the full index without command-line access. Keep this page open while it runs. If you leave, come back and choose Resume rebuild.</p>';
         echo '<p>Existing results stay available. Each site switches to its new index when its content is ready. Saved edits wait in the queue until the rebuild finishes or is cancelled.</p>';

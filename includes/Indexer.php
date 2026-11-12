@@ -54,7 +54,7 @@ final class Indexer
             return self::failure($site, $id, isset($post) && $post ? $post->post_type : 'page', $throwable->getMessage(), $target);
         } finally {
             $elapsed = microtime(true) - $start;
-            if ($elapsed > (float) Config::get()['extract_warn_seconds']) {
+            if ($elapsed > Config::number('extract_warn_seconds')) {
                 error_log(sprintf('UAMS Search: slow extraction site=%d post=%d seconds=%.3f', $site, $id, $elapsed));
             }
 
@@ -85,7 +85,7 @@ final class Indexer
             throw new \InvalidArgumentException('Unknown or excluded site');
         }
 
-        if ($type && ! isset(Config::get()['types'][$type])) {
+        if ($type && ! isset(Config::section('types')[$type])) {
             throw new \InvalidArgumentException('Post type is not configured');
         }
 
@@ -109,7 +109,7 @@ final class Indexer
             $where = $wpdb->prepare('site_id=%d', $site).($type ? $wpdb->prepare(' AND post_type=%s', $type) : '');
             DB::exec("DELETE FROM `$stage` WHERE ".$wpdb->prepare('site_id=%d', $site));
             $last = 0;
-            $types = $type ? [$type] : array_keys(Config::get()['types']);
+            $types = $type ? [$type] : array_keys(Config::section('types'));
             $marks = implode(',', array_fill(0, count($types), '%s'));
             do {
                 $ids = $wpdb->get_col($wpdb->prepare("SELECT ID FROM `$wpdb->posts` WHERE ID>%d AND post_type IN ($marks) ORDER BY ID LIMIT 100", array_merge([$last], $types)));

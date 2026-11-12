@@ -23,7 +23,7 @@ final class Integration
             return false;
         }
 
-        return (bool) Config::get()['enabled'] || (is_user_logged_in() && self::param('engine') === 'uams');
+        return Config::flag('enabled') || (is_user_logged_in() && self::param('engine') === 'uams');
     }
 
     public static function args(): array
@@ -143,12 +143,12 @@ final class Integration
 
         $id = wp_unique_id('uams-search-');
         $scope = Config::scope(self::param('scope'));
-        $html = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="'.esc_attr($id).'">Search This Website</label><div class="uams-search-input"><input type="search" name="s" id="'.esc_attr($id).'" value="'.esc_attr(get_search_query(false)).'" maxlength="200" autocomplete="off" data-uams-live="'.(Config::get()['live'] ? 'true' : 'false').'"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.esc_attr($scope).'">';
+        $html = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="'.esc_attr($id).'">Search This Website</label><div class="uams-search-input"><input type="search" name="s" id="'.esc_attr($id).'" value="'.esc_attr(get_search_query(false)).'" maxlength="200" autocomplete="off" data-uams-live="'.(Config::flag('live') ? 'true' : 'false').'"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.esc_attr($scope).'">';
         if (is_user_logged_in() && self::param('engine') === 'uams') {
             $html .= '<input type="hidden" name="engine" value="uams">';
         }
 
-        if (isset(Config::get()['types'][self::param('type')])) {
+        if (isset(Config::section('types')[self::param('type')])) {
             $html .= '<input type="hidden" name="type" value="'.esc_attr(self::param('type')).'">';
         }
 
@@ -162,7 +162,7 @@ final class Integration
         }
 
         wp_enqueue_style('uams-search', plugins_url('assets/search.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION);
-        if (Config::get()['live']) {
+        if (Config::flag('live')) {
             wp_enqueue_script('uams-search', plugins_url('assets/live-search.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
             wp_localize_script('uams-search', 'UAMSSearch', ['endpoint' => rest_url('uams-search/v1/suggest'), 'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '', 'preview' => is_user_logged_in() && self::param('engine') === 'uams']);
         }
@@ -172,7 +172,7 @@ final class Integration
     {
         register_rest_route('uams-search/v1', '/suggest', [
             'methods' => 'GET',
-            'permission_callback' => static fn (WP_REST_Request $request): bool => DB::ready() && Config::get()['live'] && (Config::get()['enabled'] || (is_user_logged_in() && $request->get_param('engine') === 'uams')),
+            'permission_callback' => static fn (WP_REST_Request $request): bool => DB::ready() && Config::flag('live') && (Config::flag('enabled') || (is_user_logged_in() && $request->get_param('engine') === 'uams')),
             'args' => [
                 's' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],
                 'scope' => ['type' => 'string', 'enum' => ['site', 'install', 'all']],
@@ -315,9 +315,9 @@ final class Integration
         }
 
         echo '<nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All results</a></li>';
-        foreach (Config::get()['types'] as $type => $boost) {
+        foreach (Config::section('types') as $type => $boost) {
             $object = get_post_type_object($type);
-            if (! $object || ($type === 'attachment' && ! Config::get()['pdf'])) {
+            if (! $object || ($type === 'attachment' && ! Config::flag('pdf'))) {
                 continue;
             }
 

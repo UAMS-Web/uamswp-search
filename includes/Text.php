@@ -28,7 +28,7 @@ final class Text
 
     public static function stops(): array
     {
-        return array_fill_keys(array_merge(explode(' ', self::STOP), self::words(implode(' ', Config::get()['stopwords']))), true);
+        return array_fill_keys(array_merge(explode(' ', self::STOP), self::words(implode(' ', Config::section('stopwords')))), true);
     }
 
     public static function token(string $word): string
