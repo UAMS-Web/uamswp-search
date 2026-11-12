@@ -36,7 +36,7 @@ final class Excerpt
             $slice = array_slice($words, $start, 30);
             $html = implode(' ', array_map(
                 // Escape each text segment before adding our own mark elements.
-                static fn ($w): string|array|null => preg_replace_callback('/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/u', static fn ($m): string => self::matches($m[0], $tokens, $stops) ? '<mark>'.htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</mark>' : htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $w),
+                static fn (string $w): ?string => preg_replace_callback('/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/u', static fn (array $m): string => self::matches($m[0], $tokens, $stops) ? '<mark>'.htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</mark>' : htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $w),
                 $slice
             ));
             $html = ($start > 0 ? '… ' : '').$html.($start + 30 < $n ? ' …' : '');

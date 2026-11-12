@@ -5,12 +5,12 @@ namespace UAMS_Search;
 /** Shared value boundaries for live directory cards. The caller sets the site context. */
 final class CardFields
 {
-    public static function text($value): string
+    public static function text(mixed $value): string
     {
         return is_string($value) || is_int($value) || is_float($value) ? Text::plain((string) $value) : '';
     }
 
-    public static function field(string $name, $object)
+    public static function field(string $name, mixed $object): mixed
     {
         if (function_exists('get_field')) {
             return get_field($name, $object, false);
@@ -19,17 +19,17 @@ final class CardFields
         return $object instanceof \WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
     }
 
-    public static function id($value): int
+    public static function id(mixed $value): int
     {
         return (is_int($value) || (is_string($value) && ctype_digit($value))) && (int) $value > 0 ? (int) $value : 0;
     }
 
-    public static function flag($value): bool
+    public static function flag(mixed $value): bool
     {
         return in_array($value, [true, 1, '1'], true);
     }
 
-    public static function term($value, string $taxonomy): ?\WP_Term
+    public static function term(mixed $value, string $taxonomy): ?\WP_Term
     {
         $id = self::id($value);
         if (! $id) {

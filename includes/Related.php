@@ -14,7 +14,7 @@ final class Related
         'treatment' => 'treatment_procedure_physicians',
     ];
 
-    public static function ids($value): array
+    public static function ids(mixed $value): array
     {
         $ids = [];
         foreach (is_array($value) ? $value : [$value] as $id) {

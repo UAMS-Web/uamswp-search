@@ -42,7 +42,7 @@ final class Text
     {
         $stops = self::stops();
 
-        return array_values(array_map([self::class, 'token'], array_filter(self::words($text), static fn ($w): bool => ! isset($stops[$w]))));
+        return array_values(array_map([self::class, 'token'], array_filter(self::words($text), static fn (string $w): bool => ! isset($stops[$w]))));
     }
 
     public static function index(string $text): string
@@ -100,7 +100,7 @@ final class Text
         return implode(' ', array_map(static fn (array $g): string => ($all ? '+' : '').(count($g) > 1 ? '('.implode(' ', $g).')' : $g[0]), $groups));
     }
 
-    public static function flatten($value, int $depth = 0): string
+    public static function flatten(mixed $value, int $depth = 0): string
     {
         if ($depth > 12) {
             return '';

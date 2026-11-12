@@ -39,17 +39,17 @@ final class Integration
         add_filter('get_search_form', [self::class, 'form'], 99);
         add_action('wp_enqueue_scripts', [self::class, 'assets']);
         add_action('rest_api_init', [self::class, 'rest']);
-        add_shortcode('uams_search_form', static fn () => get_search_form(false));
+        add_shortcode('uams_search_form', static fn (): string => (string) get_search_form(false));
     }
 
-    public static function allow_other_engine($allowed, $query)
+    public static function allow_other_engine(mixed $allowed, mixed $query): mixed
     {
         // Only yield a query we already answered. Other engines keep normal searches,
         // secondary queries, and the error/missing-index fallback they handled before.
         return $query instanceof \WP_Query && is_array($query->get('uams_search_results')) ? false : $allowed;
     }
 
-    public static function posts($posts, \WP_Query $query)
+    public static function posts(mixed $posts, \WP_Query $query): mixed
     {
         if ($posts !== null || ! $query->is_main_query() || ! $query->is_search() || ! in_array($query->get('fields'), ['', 'all'], true) || is_admin() || ! self::active()) {
             return $posts;
@@ -124,7 +124,7 @@ final class Integration
         return Filters::string('uams_search_template', __DIR__.'/../templates/search.php', $template);
     }
 
-    public static function excerpt($excerpt, $post)
+    public static function excerpt(mixed $excerpt, mixed $post): mixed
     {
         if (! $post || ! is_search() || ! self::active()) {
             return $excerpt;
@@ -170,17 +170,17 @@ final class Integration
     {
         register_rest_route('uams-search/v1', '/suggest', [
             'methods' => 'GET',
-            'permission_callback' => static fn ($request): bool => DB::ready() && Config::get()['live'] && (Config::get()['enabled'] || (is_user_logged_in() && $request->get_param('engine') === 'uams')),
+            'permission_callback' => static fn (WP_REST_Request $request): bool => DB::ready() && Config::get()['live'] && (Config::get()['enabled'] || (is_user_logged_in() && $request->get_param('engine') === 'uams')),
             'args' => [
                 's' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],
                 'scope' => ['type' => 'string', 'enum' => ['site', 'install', 'all']],
                 'type' => ['type' => 'string', 'sanitize_callback' => 'sanitize_key'],
                 'engine' => ['type' => 'string', 'enum' => ['uams']],
             ],
-            'callback' => static function ($request): \WP_REST_Response|\WP_Error {
+            'callback' => static function (WP_REST_Request $request): \WP_REST_Response|\WP_Error {
                 try {
                     $out = Query::run(['s' => $request['s'], 'site' => get_current_blog_id(), 'scope' => Config::scope($request->get_param('scope')), 'type' => $request->get_param('type') ?: '', 'per_page' => 6, 'suggest' => false]);
-                    $items = array_map(static fn ($r): array => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title.($r->post_type === 'attachment' ? ' (PDF, '.size_format($r->file_size).')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
+                    $items = array_map(static fn (object $r): array => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title.($r->post_type === 'attachment' ? ' (PDF, '.size_format($r->file_size).')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
                     $response = new \WP_REST_Response(['items' => $items, 'total' => $out['total']], 200);
                     $response->header('Cache-Control', 'no-store');
 

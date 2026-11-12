@@ -24,7 +24,7 @@ final class Admin
         add_action('admin_enqueue_scripts', [self::class, 'settings_assets']);
         add_action('admin_notices', [self::class, 'notice']);
         add_action('network_admin_notices', [self::class, 'notice']);
-        add_filter('attachment_fields_to_edit', static function ($fields, $post) {
+        add_filter('attachment_fields_to_edit', static function (mixed $fields, WP_Post $post): mixed {
             if ($post->post_mime_type !== 'application/pdf') {
                 return $fields;
             }
@@ -34,7 +34,7 @@ final class Admin
 
             return $fields;
         }, 10, 2);
-        add_filter('attachment_fields_to_save', static function ($post, $attachment) {
+        add_filter('attachment_fields_to_save', static function (mixed $post, mixed $attachment): mixed {
             if (! empty($attachment['uams_search_present']) && current_user_can('edit_post', $post['ID'])) {
                 update_post_meta($post['ID'], '_uams_search_exclude', empty($attachment['uams_search_exclude']) ? 0 : 1);
             }
@@ -286,7 +286,7 @@ final class Admin
         exit;
     }
 
-    private static function number($value): float
+    private static function number(mixed $value): float
     {
         return is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(0, min(100, (float) $value)) : 0;
     }
@@ -435,7 +435,7 @@ final class Admin
             self::numeric('settings[types]['.$type.'][boost]', 'Type Boost', $c['types'][$type] ?? 1);
             echo '</tbody></table>';
             foreach (['fields' => 'ACF Fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
-                $rows = array_map(static fn ($k, $v): array => ['name' => (string) $k, 'weight' => $v], array_keys($c[$group][$type] ?? []), array_values($c[$group][$type] ?? []));
+                $rows = array_map(static fn (mixed $k, mixed $v): array => ['name' => (string) $k, 'weight' => $v], array_keys($c[$group][$type] ?? []), array_values($c[$group][$type] ?? []));
                 // One blank row is always offered, so a new field needs no JavaScript; the Add Row button adds more.
                 $rows[] = ['name' => '', 'weight' => 1];
                 $size = max(28, ...array_map(static fn (array $row): int => mb_strlen($row['name']) + 2, $rows));
@@ -491,7 +491,7 @@ final class Admin
         echo '<tr><td><input size="'.$size.'" aria-label="'.esc_attr($what.' name '.($i + 1)).'" name="'.esc_attr($key.'[name]').'" value="'.esc_attr($row['name']).'"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="'.esc_attr($what.' weight '.($i + 1)).'" name="'.esc_attr($key.'[weight]').'" value="'.esc_attr($row['weight']).'"></td><td><button type="button" class="button uams-remove-row" aria-label="'.esc_attr('Remove '.$what.' row '.($i + 1)).'" hidden>Remove</button></td></tr>';
     }
 
-    private static function numeric(string $name, string $label, $value, int $max = 100): void
+    private static function numeric(string $name, string $label, mixed $value, int $max = 100): void
     {
         $id = 'uams-'.trim((string) preg_replace('/[^a-z0-9]+/i', '-', $name), '-');
         echo '<tr><th scope="row"><label for="'.esc_attr($id).'">'.esc_html($label).'</label></th><td><input id="'.esc_attr($id).'" type="number" min="0" max="'.$max.'" step="0.1" style="width:6em" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></td></tr>';
