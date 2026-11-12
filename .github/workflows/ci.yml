@@ -72,7 +72,8 @@ jobs:
     env:
       WP_VERSION: '7.0.8'
       WP_MULTISITE: ${{ matrix.network }}
-      WP_TESTS_ABSPATH: ${{ github.workspace }}/../wordpress
+      # No `..` in the path: wp_mkdir_p() cannot create the dated uploads folder under one.
+      WP_TESTS_ABSPATH: ${{ runner.temp }}/wordpress
       WP_TESTS_DB_NAME: uams_search_test
       WP_TESTS_DB_USER: root
       WP_TESTS_DB_PASSWORD: root

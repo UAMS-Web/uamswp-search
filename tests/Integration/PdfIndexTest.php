@@ -30,8 +30,7 @@ final class PdfIndexTest extends IntegrationTestCase
     {
         $upload = wp_upload_bits('uamsfixture-'.$fixture, null, (string) file_get_contents(dirname(__DIR__, 2).'/fixtures/'.$fixture));
         if ($upload['error']) {
-            $dir = wp_upload_dir();
-            throw new \RuntimeException($upload['error'].' DEBUG '.json_encode([$dir, is_dir($dir['basedir']), is_writable($dir['basedir']), posix_geteuid(), substr(sprintf('%o', fileperms($dir['basedir'])), -4), file_exists($dir['basedir'].'/2026')]));
+            throw new \RuntimeException($upload['error']);
         }
 
         $id = wp_insert_attachment(array_replace(['post_mime_type' => 'application/pdf', 'post_status' => 'inherit'], $args), $upload['file']);
