@@ -33,7 +33,7 @@ final class Config
     {
         $saved = get_site_option('uams_search_settings', []);
 
-        return apply_filters('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
+        return Filters::array('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
     }
 
     public static function page_size(mixed $value = null): int
@@ -147,10 +147,8 @@ final class Config
 
     /**
      * The scope to search with: the requested one when this site offers it, otherwise the site's default, otherwise the first option.
-     *
-     * @param  mixed  $value
      */
-    public static function scope($value = null): string
+    public static function scope(mixed $value = null): string
     {
         $options = array_keys(self::scope_options());
         if (is_string($value) && in_array($value, $options, true)) {

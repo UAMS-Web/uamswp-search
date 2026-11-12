@@ -25,7 +25,7 @@ final class Phonetic
         $alternate = '';
         $i = 0;
         $slavo = str_contains($s, 'W') || str_contains($s, 'K') || str_contains($s, 'CZ') || str_contains($s, 'WITZ');
-        $at = static fn (int $p, array $values): bool => $p >= 0 && (bool) array_filter($values, static fn ($v): bool => substr($s, $p, strlen($v)) === $v);
+        $at = static fn (int $p, array $values): bool => $p >= 0 && (bool) array_filter($values, static fn (string $v): bool => substr($s, $p, strlen($v)) === $v);
         $vowel = static fn (int $p): bool => $p >= 0 && str_contains('AEIOUY', $s[$p] ?? ' ');
         $add = static function (string $p, ?string $a = null) use (&$primary, &$alternate): void {
             $primary .= $p;

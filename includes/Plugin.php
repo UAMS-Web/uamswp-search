@@ -53,31 +53,49 @@ final class Plugin
                 Misses::purge();
             }
         });
-        add_action('save_post', static fn ($id) => Queue::related((int) $id), 100);
-        add_action('acf/save_post', static function ($id): void {
+        add_action('save_post', static function (mixed $id): void {
+            Queue::related((int) $id);
+        }, 100);
+        add_action('acf/save_post', static function (mixed $id): void {
             if (is_numeric($id)) {
                 Queue::push((int) $id);
             }
         }, 30);
-        add_action('before_delete_post', static fn ($id) => Queue::related((int) $id));
-        add_action('deleted_post', static fn ($id) => Queue::push((int) $id, 'delete'));
-        add_action('delete_attachment', static fn ($id) => Queue::push((int) $id, 'delete'));
-        add_action('add_attachment', static fn ($id) => Queue::push((int) $id));
-        add_action('edit_attachment', static fn ($id) => Queue::push((int) $id));
+        add_action('before_delete_post', static function (mixed $id): void {
+            Queue::related((int) $id);
+        });
+        add_action('deleted_post', static function (mixed $id): void {
+            Queue::push((int) $id, 'delete');
+        });
+        add_action('delete_attachment', static function (mixed $id): void {
+            Queue::push((int) $id, 'delete');
+        });
+        add_action('add_attachment', static function (mixed $id): void {
+            Queue::push((int) $id);
+        });
+        add_action('edit_attachment', static function (mixed $id): void {
+            Queue::push((int) $id);
+        });
         foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) {
-            add_action($hook, static function ($meta_id, $id, $key): void {
+            add_action($hook, static function (mixed $meta_id, mixed $id, mixed $key): void {
                 if (! in_array($key, ['_edit_lock', '_edit_last'], true)) {
                     Queue::push((int) $id);
                 }
             }, 10, 3);
         }
 
-        add_action('set_object_terms', static fn ($id) => Queue::push((int) $id));
-        add_action('added_term_relationship', static fn ($id) => Queue::push((int) $id));
-        add_action('deleted_term_relationships', static fn ($id) => Queue::push((int) $id));
+        add_action('set_object_terms', static function (mixed $id): void {
+            Queue::push((int) $id);
+        });
+        add_action('added_term_relationship', static function (mixed $id): void {
+            Queue::push((int) $id);
+        });
+        add_action('deleted_term_relationships', static function (mixed $id): void {
+            Queue::push((int) $id);
+        });
         add_action('edited_term', [Queue::class, 'term'], 10, 3);
-        add_action('delete_term', static function ($id, $tt, $tax, $term, $objects): void {
-            foreach ($objects as $object) {
+        add_action('delete_term', static function (mixed $id, mixed $tt, mixed $tax, mixed $term, mixed $objects): void {
+            foreach ((array) $objects as $object) {
                 Queue::push((int) $object);
             }
         }, 10, 5);

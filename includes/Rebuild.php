@@ -285,7 +285,7 @@ final class Rebuild
                     break;
                 }
 
-                self::dictionary_transaction(static fn () => Suggestions::remove($id, (int) $stale));
+                self::dictionary_transaction(static fn (): mixed => Suggestions::remove($id, (int) $stale));
                 break;
             case 'dictionary':
                 $row = $wpdb->get_row($wpdb->prepare("SELECT site_id,object_id,title,content,fields,terms,pdf FROM `$live` WHERE site_id=%d AND object_id>%d AND status IN ('ready','scanned') ORDER BY object_id LIMIT 1", $id, $job['dictionary_cursor']), ARRAY_A);
@@ -299,11 +299,11 @@ final class Rebuild
                 }
 
                 if (self::interrupted($job, (int) $row['object_id'])) {
-                    self::dictionary_transaction(static fn () => Suggestions::remove($id, (int) $row['object_id']));
+                    self::dictionary_transaction(static fn (): mixed => Suggestions::remove($id, (int) $row['object_id']));
                     $job['dictionary_skipped']++;
                     error_log('UAMS Search: skipped interrupted spelling dictionary site='.$id.' post='.$row['object_id']);
                 } else {
-                    self::dictionary_transaction(static fn () => Suggestions::record($row));
+                    self::dictionary_transaction(static fn (): mixed => Suggestions::record($row));
                 }
 
                 $job['dictionary_done']++;

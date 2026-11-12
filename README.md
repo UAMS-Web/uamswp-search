@@ -136,7 +136,7 @@ composer setup:integration
 WP_TESTS_ABSPATH=/path/to/wordpress composer test:integration
 
 # Disposable WordPress database only; read the guard at the top of each script.
-UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/multisite.php
+UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/related.php
 
 npm install
 npx playwright install chromium

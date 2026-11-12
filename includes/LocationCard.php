@@ -5,7 +5,7 @@ namespace UAMS_Search;
 /** Current location details in the directory's landscape card layout. */
 final class LocationCard
 {
-    private static function lines($value): array
+    private static function lines(mixed $value): array
     {
         if (! is_string($value) && ! is_int($value)) {
             return [];
@@ -16,7 +16,7 @@ final class LocationCard
         return array_values(array_filter(array_map([CardFields::class, 'text'], $lines), static fn (string $line): bool => $line !== ''));
     }
 
-    private static function date($value): ?\DateTimeImmutable
+    private static function date(mixed $value): ?\DateTimeImmutable
     {
         if (! is_string($value) || $value === '' || strlen($value) > 40 || str_contains($value, "\0")) {
             return null;
@@ -73,13 +73,13 @@ final class LocationCard
             return null;
         }
 
-        usort($starts, static fn ($a, $b): int => $a <=> $b);
+        usort($starts, static fn (mixed $a, mixed $b): int => $a <=> $b);
         $start = $starts[0];
 
         return ['text' => $start <= $today ? "This location's hours have been temporarily modified." : "This location's hours will be temporarily modified beginning on ".$start->format('F j, Y').'.', 'label' => 'Learn more about the modified hours'];
     }
 
-    private static function phone($value): ?array
+    private static function phone(mixed $value): ?array
     {
         if (! is_string($value) && ! is_int($value)) {
             return null;
@@ -202,7 +202,7 @@ final class LocationCard
         return $lines;
     }
 
-    private static function directions($map): string
+    private static function directions(mixed $map): string
     {
         if (! is_array($map) || ! isset($map['lat'],$map['lng']) || ! is_numeric($map['lat']) || ! is_numeric($map['lng'])) {
             return '';

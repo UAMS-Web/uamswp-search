@@ -50,7 +50,7 @@ final class Extractor
         $config = Config::get();
         $fields = [];
         $terms = [];
-        $field_list = apply_filters('uams_search_fields', $config['fields'][$post->post_type] ?? [], $post->post_type);
+        $field_list = Filters::array('uams_search_fields', $config['fields'][$post->post_type] ?? [], $post->post_type);
         foreach ($field_list as $name => $weight) {
             $value = function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
@@ -107,7 +107,7 @@ final class Extractor
         }
 
         $row['search_stem'] = implode(' uamsboundaryzz ', $all);
-        $row['short_tokens'] = implode(' ', array_filter(explode(' ', $row['search_stem']), static fn ($w): bool => str_starts_with($w, 'uamsshort')));
+        $row['short_tokens'] = implode(' ', array_filter(explode(' ', $row['search_stem']), static fn (string $w): bool => str_starts_with($w, 'uamsshort')));
 
         return $row;
     }
@@ -142,7 +142,7 @@ final class Extractor
         }
     }
 
-    private static function log_skips($value, int $id, string $field, int $depth = 0): void
+    private static function log_skips(mixed $value, int $id, string $field, int $depth = 0): void
     {
         if ($depth > 12) {
             error_log('UAMS Search: skipped deeply nested field site='.get_current_blog_id().' post='.$id.' field='.$field);
