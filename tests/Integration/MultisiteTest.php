@@ -88,7 +88,13 @@ final class MultisiteTest extends IntegrationTestCase
         $args = ['s' => $this->term, 'site' => $this->site, 'scope' => 'install', 'suggest' => false];
         $out = Query::run($args);
         $this->assertTrue($out['total'] === 2 && count(array_unique(array_column($out['results'], 'site'))) === 2, 'Install-wide search distinguishes overlapping post IDs');
-        $this->assertSame(1, Query::run(array_replace($args, ['scope' => 'site']))['total'], 'Site scope returns only the current site');
+        // The main site of a subdirectory install offers no site scope, so ask from the other site.
+        switch_to_blog($this->remote);
+        try {
+            $this->assertTrue(Query::run(array_replace($args, ['scope' => 'site', 'site' => $this->remote]))['total'] === 1, 'Site scope returns only the current site');
+        } finally {
+            restore_current_blog();
+        }
 
         $this->settings(['sites' => [$this->site, $this->remote], 'enabled' => true]);
         $previous_main = $GLOBALS['wp_the_query'];
