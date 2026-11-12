@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use WP_REST_Request;
+
 final class Integration
 {
     public static array $excerpts = [];

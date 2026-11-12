@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use WP_Post;
+
 final class Admin
 {
     public const NAME = 'UAMSWP Search';
@@ -30,7 +32,7 @@ final class Admin
             }
 
             $checked = checked((bool) get_post_meta($post->ID, '_uams_search_exclude', true), true, false);
-            $fields['uams_search_exclude'] = ['label' => 'Search Visibility', 'input' => 'html', 'html' => '<input type="hidden" name="attachments['.(int) $post->ID.'][uams_search_present]" value="1"><label><input type="checkbox" name="attachments['.(int) $post->ID.'][uams_search_exclude]" value="1" '.$checked.'> Exclude From Search</label>'];
+            $fields['uams_search_exclude'] = ['label' => 'Search Visibility', 'input' => 'html', 'html' => '<input type="hidden" name="attachments['.$post->ID.'][uams_search_present]" value="1"><label><input type="checkbox" name="attachments['.$post->ID.'][uams_search_exclude]" value="1" '.$checked.'> Exclude From Search</label>'];
 
             return $fields;
         }, 10, 2);
