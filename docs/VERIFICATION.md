@@ -42,7 +42,6 @@ composer setup:integration
 WP_TESTS_ABSPATH=/path/to/wordpress composer test:integration
 WP_MULTISITE=1 WP_TESTS_ABSPATH=/path/to/wordpress composer test:integration
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/multisite.php
-UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/rebuild.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/related.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/provider-cards.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/location-cards.php
