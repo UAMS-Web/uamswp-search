@@ -15,7 +15,7 @@
   },
   "scripts": {
     "test": "pest",
-    "build": "python3 scripts/build.py",
+    "build": "node scripts/build-zip.mjs",
     "stan": "phpstan analyse --no-progress --memory-limit=2G",
     "refactor": "rector",
     "refactor:sweep": "rector --clear-cache --config=rector-sweep.php",

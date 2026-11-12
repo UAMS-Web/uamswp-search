@@ -24,8 +24,8 @@ WordPress installation.
 - Search component and accessibility tests: `npm run test:browser`. This command
   overwrites the tracked screenshot `docs/search-preview.png`.
 - Rebuild component tests: `npm run test:rebuild-browser`.
-- Build the plugin ZIP: `composer build` (runs `python3 scripts/build.py` and
-  overwrites the current version's tracked ZIP and checksum in `dist/`).
+- Build the plugin ZIP: `composer build` (runs `node scripts/build-zip.mjs`, which archives `HEAD`
+  with the `.gitattributes` keep-list into the ignored `build/`, with a `.sha256` file beside it).
 
 Do not commit generated screenshots or release files incidentally.
 

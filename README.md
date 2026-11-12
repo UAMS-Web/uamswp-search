@@ -6,7 +6,7 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 
 ## Install on staging
 
-1. Upload `dist/uams-search-0.5.1.zip` and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
+1. Download `uams-search-0.5.1.zip` from the [release page](https://github.com/UAMS-Web/uamswp-search/releases/tag/v0.5.1) and network-activate it. To update an existing install, upload the ZIP and choose to replace the current version. On single-site WordPress, activate normally. SearchWP can stay active.
 2. Open Network Admin → UAMSWP Search → Index. Requirements: PHP 8.2+, mbstring, iconv, zlib, WordPress 6.4+, InnoDB, and `innodb_ft_min_token_size=3`. MariaDB 10.6.27 is the target. PDF extraction also needs `proc_open` and either Poppler's `pdftotext` or PHP CLI.
 3. Under Network Admin → UAMSWP Search → Settings, confirm and save post types, fields, and included sites. Then return to Index and click **Rebuild index** and keep the page open. For staging sites marked no-index, leave **Include no-index sites for signed-in previews** checked. No server command access is needed.
 4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
@@ -127,7 +127,7 @@ with the database guards described below; setup does not create or connect to on
 composer install
 composer test
 python3 scripts/make-fixtures.py
-python3 scripts/build.py
+composer build
 
 # Disposable WordPress database only; read the guard at the top of this file.
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/integration.php

@@ -23,3 +23,5 @@
 /scripts -export-ignore
 /scripts/* export-ignore
 /scripts/pdf-worker.php -export-ignore
+
+docs/DECISIONS.md merge=union
