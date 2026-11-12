@@ -147,10 +147,8 @@ final class Config
 
     /**
      * The scope to search with: the requested one when this site offers it, otherwise the site's default, otherwise the first option.
-     *
-     * @param  mixed  $value
      */
-    public static function scope($value = null): string
+    public static function scope(mixed $value = null): string
     {
         $options = array_keys(self::scope_options());
         if (is_string($value) && in_array($value, $options, true)) {

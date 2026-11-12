@@ -109,7 +109,7 @@ final class Query
         return $out;
     }
 
-    private static function number($value): string
+    private static function number(mixed $value): string
     {
         return (string) max(0, min(100, is_numeric($value) && is_finite((float) $value) ? (float) $value : 0));
     }
