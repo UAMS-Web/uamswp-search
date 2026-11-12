@@ -8,6 +8,7 @@ from pathlib import Path
 import hashlib
 import shutil
 import sys
+import tempfile
 import zipfile
 
 VERSION = '2.13.1'
@@ -22,7 +23,7 @@ with zipfile.ZipFile(archive) as package:
     if not source or len(archive_commit) < 7 or not COMMIT.startswith(archive_commit):
         raise ValueError('Archive does not match the pinned upstream commit')
     if (target / 'src').exists():
-        backup = Path('/private/tmp/uams-search-pdfparser-before-update')
+        backup = Path(tempfile.gettempdir()) / 'uams-search-pdfparser-before-update'
         shutil.copytree(target, backup, dirs_exist_ok=True)
         shutil.rmtree(target / 'src')
     target.mkdir(parents=True, exist_ok=True)
