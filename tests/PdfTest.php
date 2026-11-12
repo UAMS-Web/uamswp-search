@@ -34,16 +34,15 @@ final class PdfTest extends TestCase
 
     public function test_a_pdftotext_filter_returning_an_array_uses_the_default_binary(): void
     {
-        if (! Pdf::binary('pdftotext')) {
-            self::markTestSkipped('Poppler is not installed');
-        }
-
         $GLOBALS['uams_test_options'] = [];
         $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): array => ['not', 'a', 'path']]];
         try {
             $row = Pdf::extract(new WP_Post, null);
             self::assertSame('ready', $row['status']);
             self::assertStringContainsString('Cardiology PDF sentinel', $row['pdf']);
+        } catch (RuntimeException $runtimeException) {
+            // Without Poppler or a PHP binary at PHP_BINDIR/php, the documented error names the fallback filter.
+            self::assertStringContainsString('set uams_search_php_binary', $runtimeException->getMessage());
         } finally {
             $GLOBALS['uams_test_filters'] = [];
         }
