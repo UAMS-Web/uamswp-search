@@ -51,7 +51,9 @@ if (! is_readable($wordpress.'wp-settings.php')) {
 }
 
 // A core download has no uploads directory, and core's test case lists it before every test.
-is_dir($wordpress.'wp-content/uploads') || mkdir($wordpress.'wp-content/uploads', 0o755, true);
+if (! is_dir($wordpress.'wp-content/uploads')) {
+    mkdir($wordpress.'wp-content/uploads', 0o755, true);
+}
 
 /*
  * Refuse to run against the working install's database.

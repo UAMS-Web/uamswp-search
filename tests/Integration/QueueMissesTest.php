@@ -78,6 +78,11 @@ final class QueueMissesTest extends IntegrationTestCase
         update_site_option('uams_search_settings', $config);
         $second = $this->make_page(['post_title' => 'Uamsfixturecardiac '.$this->token]);
         Indexer::one($this->site, $second);
+        // A term that matches every indexed row has no ranking on MariaDB, so the table holds other documents too.
+        foreach (['alpha', 'bravo', 'charlie'] as $filler) {
+            Indexer::one($this->site, $this->make_page(['post_title' => 'Uamsfixturefiller '.$filler]));
+        }
+
         $failing = $this->make_page(['post_title' => 'Uamsfixturebroken']);
         $wpdb->query("DELETE FROM `$q`");
         $bad = static function ($include, $post) use ($failing) {
