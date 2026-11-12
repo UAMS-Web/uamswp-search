@@ -7,7 +7,8 @@ name: CI
 # the call and fails unless it reports `success`; do not rename `CI` or the `checks` job without changing `needs:`.
 # The called jobs check out this repository, so it carries `.github/actions/setup/action.yml`, the synced
 # `.claude/skills` scripts, the Composer scripts `test:pint`, `test:refactor`, `stan` and `test`, and
-# `tests/skip-baseline.json`. The download-archive check stays its own workflow, `download-archive.yml`.
+# `tests/skip-baseline.json`. The download-archive check stays its own workflow, `download-archive.yml`. The WordPress
+# integration suite is the `integration` job beside the call, and `CI` `needs:` it too.
 
 on:
   pull_request:
@@ -55,11 +56,68 @@ jobs:
         echo "Linted $count files"
         if [ "$count" -eq 0 ]; then echo "::error::No PHP files found to lint"; exit 1; fi
 
+  # The WordPress integration suite (#107): PHPUnit 9.6 from tests/Integration's own Composer setup, over wp-phpunit, against a
+  # real database and a WordPress core download, on single site and multisite. The shared chain does not run it. The plugin
+  # needs innodb_ft_min_token_size=3, a startup option a service container cannot pass, so the database starts in a step.
+  # MariaDB 10.6 is the production host (README); MySQL 8.0 is the second engine.
+  integration:
+    name: Integration (${{ matrix.database }}, ${{ matrix.network == '1' && 'multisite' || 'single site' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        database: ['mariadb:10.6', 'mysql:8.0']
+        network: ['0', '1']
+    env:
+      WP_VERSION: '7.0.8'
+      WP_MULTISITE: ${{ matrix.network }}
+      WP_TESTS_ABSPATH: ${{ github.workspace }}/../wordpress
+      WP_TESTS_DB_NAME: uams_search_test
+      WP_TESTS_DB_USER: root
+      WP_TESTS_DB_PASSWORD: root
+      WP_TESTS_DB_HOST: 127.0.0.1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start the database
+        run: |
+          docker run -d --name db -p 3306:3306 \
+            -e MYSQL_ROOT_PASSWORD=root -e MARIADB_ROOT_PASSWORD=root -e MYSQL_DATABASE=uams_search_test -e MARIADB_DATABASE=uams_search_test \
+            "${{ matrix.database }}" --innodb-ft-min-token-size=3
+          for i in $(seq 1 60); do
+            if docker exec db sh -c 'exec "$(command -v mariadb || command -v mysql)" -uroot -proot -e "SELECT 1"' > /dev/null 2>&1; then
+              echo "Database ready after $i checks"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs db
+          echo "::error::The database did not start"
+          exit 1
+
+      - name: Download WordPress ${{ env.WP_VERSION }}
+        run: |
+          curl -fsSL "https://wordpress.org/wordpress-${WP_VERSION}.tar.gz" -o "$RUNNER_TEMP/wordpress.tar.gz"
+          mkdir -p "$WP_TESTS_ABSPATH"
+          tar -xzf "$RUNNER_TEMP/wordpress.tar.gz" --strip-components=1 -C "$WP_TESTS_ABSPATH"
+          test -f "$WP_TESTS_ABSPATH/wp-settings.php"
+
+      - uses: ./.github/actions/setup
+        with:
+          coverage: pcov
+
+      - name: Install the Integration suite
+        run: composer setup:integration
+
+      - name: Run the Integration suite
+        run: composer test:integration -- --coverage-text --colors=never
+
   # The one check a ruleset requires from this workflow. Keep `needs:` naming the call;
   # scripts/check-templates.mjs in UAMS-Web/uams-claude-skills checks it.
   ci:
     name: CI
-    needs: [checks]
+    needs: [checks, integration]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

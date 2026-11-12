@@ -70,9 +70,11 @@ parameters:
     # this, PHPStan analyzes PHPUnit 9 and its dependencies as if they were the
     # repository's code. Uncomment when tests/Integration has its own
     # composer.json.
-    # excludePaths:
-    #     analyse:
-    #         - tests/Integration/vendor
+    # The shared CI chain does not run `composer setup:integration`, and PHPStan stops on a scanned directory that
+    # is missing, so the whole Integration directory is left out of analysis rather than only its vendor/.
+    excludePaths:
+        analyse:
+            - tests/Integration
 
     # Indexed for symbols but not analyzed. `php-stubs/wordpress-stubs` covers
     # core's runtime surface and stops there: `WP_UnitTestCase`, the factories

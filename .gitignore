@@ -2,6 +2,7 @@
 /.amp/portals/*
 /.claude/worktrees/
 /vendor/
+/tests/Integration/vendor/
 /node_modules/
 /.phpunit.cache/
 /test-results/
