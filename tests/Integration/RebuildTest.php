@@ -112,6 +112,11 @@ final class RebuildTest extends IntegrationTestCase
     {
         global $wpdb;
         $token = $this->token;
+        // See #114: a MariaDB search over a very small index can fail, so the index holds other pages too.
+        foreach (['alpha', 'bravo', 'charlie'] as $filler) {
+            Indexer::one($this->site, $this->page($token.'filler'.$filler));
+        }
+
         $page = $this->page($token.'old');
         Indexer::one($this->site, $page);
         $stale = $this->page($token.'stale');
