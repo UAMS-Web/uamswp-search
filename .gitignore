@@ -10,3 +10,5 @@
 /tests/.provider-preview.html
 /tests/.location-preview.html
 /.phpstan/
+/build/
+/dist/

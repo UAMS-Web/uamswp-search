@@ -1,0 +1,35 @@
+name: Release
+
+# Publishing a GitHub release builds the upload ZIP from the download keep-list in
+# `.gitattributes` and attaches it, with its SHA-256 checksum, to the release. Nothing is
+# committed: no `dist` directory exists.
+#
+# Template: .github/workflows/release.yml in UAMS-Web/wordpress-plugin-template, with the
+# slug set to uams-search, the archive check pointed at the synced script (this repository
+# also ships scripts/pdf-worker.php) and the checksum added.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  attach-zip:
+    name: Attach the upload ZIP
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Check the download archive
+        run: node .claude/skills/download-archive-check/check-download-archive.mjs --allow scripts/pdf-worker.php
+      - name: Build the ZIP from the tag
+        run: node scripts/build-zip.mjs "$GITHUB_REF_NAME" --version "${GITHUB_REF_NAME#v}"
+      - name: Attach the ZIP and checksum to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/*.zip build/*.zip.sha256 --clobber

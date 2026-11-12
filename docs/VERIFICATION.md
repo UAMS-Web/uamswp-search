@@ -45,7 +45,7 @@ UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSear
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/provider-cards.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/location-cards.php
 UAMS_SEARCH_TESTS=1 wp --path=/path/to/test-wordpress eval-file /path/to/UAMSearch/tests/page-size.php
-python3 scripts/build.py
+composer build
 ```
 
 Database scripts refuse databases not named `uams_search_test*`, or WordPress environments other than `local`. The network script also requires multisite. The integration tests deliberately fail one fixture post to check retries; its specific error-log entries are expected.
