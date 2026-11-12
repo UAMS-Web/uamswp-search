@@ -295,6 +295,15 @@ final class ExtractorTest extends TestCase
         self::assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $row['indexed_at']);
     }
 
+    public function test_extract_ignores_a_field_list_filter_that_returns_a_string(): void
+    {
+        $GLOBALS['uams_test_filters']['uams_search_fields'] = [static fn (): string => 'not a list'];
+
+        $row = Extractor::extract($this->post(['post_content' => '<p>Hip care</p>']));
+
+        self::assertSame('Hip care', $row['content']);
+    }
+
     public function test_extract_stores_an_unset_gmt_date_as_null(): void
     {
         $row = Extractor::extract($this->post(['post_date_gmt' => '0000-00-00 00:00:00', 'post_modified_gmt' => '0000-00-00 00:00:00']));

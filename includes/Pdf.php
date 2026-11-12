@@ -25,11 +25,11 @@ final class Pdf
             return ['pdf' => $old['pdf'], 'file_signature' => $sig, 'file_size' => $size, 'status' => $old['status'], 'error' => $old['error'], 'fields' => Text::plain(pathinfo($real, PATHINFO_FILENAME))];
         }
 
-        $binary = apply_filters('uams_search_pdftotext', self::binary('pdftotext'));
+        $binary = Filters::string('uams_search_pdftotext', self::binary('pdftotext') ?? '');
         $seconds = min(120, max(1, (int) $config['pdf_timeout']));
         $started = microtime(true);
         try {
-            if (! $binary) {
+            if ($binary === '') {
                 throw new \RuntimeException('Poppler unavailable');
             }
 
@@ -40,7 +40,7 @@ final class Pdf
                 throw new \RuntimeException('PDF extraction timed out', 0, $throwable);
             }
 
-            $php = apply_filters('uams_search_php_binary', PHP_BINDIR.'/php');
+            $php = Filters::string('uams_search_php_binary', PHP_BINDIR.'/php');
             if (! is_executable($php)) {
                 throw new \RuntimeException('PDF fallback needs an executable PHP CLI; set uams_search_php_binary. '.$throwable->getMessage(), $throwable->getCode(), $throwable);
             }

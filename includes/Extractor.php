@@ -50,7 +50,7 @@ final class Extractor
         $config = Config::get();
         $fields = [];
         $terms = [];
-        $field_list = apply_filters('uams_search_fields', $config['fields'][$post->post_type] ?? [], $post->post_type);
+        $field_list = Filters::array('uams_search_fields', $config['fields'][$post->post_type] ?? [], $post->post_type);
         foreach ($field_list as $name => $weight) {
             $value = function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);

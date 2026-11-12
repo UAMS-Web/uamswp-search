@@ -32,6 +32,40 @@ final class PdfTest extends TestCase
         }
     }
 
+    public function test_a_pdftotext_filter_returning_an_array_uses_the_default_binary(): void
+    {
+        $GLOBALS['uams_test_options'] = [];
+        $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): array => ['not', 'a', 'path']]];
+        try {
+            $row = Pdf::extract(new WP_Post, null);
+            self::assertSame('ready', $row['status']);
+            self::assertStringContainsString('Cardiology PDF sentinel', $row['pdf']);
+        } catch (RuntimeException $runtimeException) {
+            // Without Poppler or a PHP binary at PHP_BINDIR/php, the documented error names the fallback filter.
+            self::assertStringContainsString('set uams_search_php_binary', $runtimeException->getMessage());
+        } finally {
+            $GLOBALS['uams_test_filters'] = [];
+        }
+    }
+
+    public function test_a_php_binary_filter_returning_null_does_not_raise_a_type_error(): void
+    {
+        $GLOBALS['uams_test_options'] = [];
+        $GLOBALS['uams_test_filters'] = [
+            'uams_search_pdftotext' => [static fn (): string => PHP_BINARY],
+            'uams_search_php_binary' => [static fn (): null => null],
+        ];
+        try {
+            $row = Pdf::extract(new WP_Post, null);
+            self::assertSame('ready', $row['status']);
+        } catch (RuntimeException $runtimeException) {
+            // PHP_BINARY stands in for a pdftotext that exits non-zero. Where the default PHP binary is not at PHP_BINDIR/php, the documented error names the filter.
+            self::assertStringContainsString('set uams_search_php_binary', $runtimeException->getMessage());
+        } finally {
+            $GLOBALS['uams_test_filters'] = [];
+        }
+    }
+
     public function test_poppler_extracts_real_pdf(): void
     {
         $bin = Pdf::binary('pdftotext');

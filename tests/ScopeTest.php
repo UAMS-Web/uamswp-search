@@ -257,6 +257,20 @@ final class ScopeTest extends TestCase
         self::assertSame('all', Config::scope('all'));
     }
 
+    public function test_the_google_search_engine_id_filter_may_not_break_the_block(): void
+    {
+        $GLOBALS['uams_test_filters']['uams_search_google_cx'] = [static fn (): array => ['not', 'a', 'string']];
+        ob_start();
+        try {
+            (new ReflectionMethod(Integration::class, 'google'))->invoke(null);
+        } finally {
+            $html = (string) ob_get_clean();
+            unset($GLOBALS['uams_test_filters']['uams_search_google_cx']);
+        }
+
+        self::assertStringContainsString('cx=014806496997774146681%3Apyl1jhwi-bo', $html);
+    }
+
     private function filters(bool $google = false): string
     {
         ob_start();
