@@ -53,7 +53,7 @@ final class PdfTest extends TestCase
     {
         $GLOBALS['uams_test_options'] = [];
         $GLOBALS['uams_test_filters'] = [
-            'uams_search_pdftotext' => [static fn (): string => '/nonexistent/pdftotext'],
+            'uams_search_pdftotext' => [static fn (): string => PHP_BINARY],
             'uams_search_php_binary' => [static fn (): null => null],
         ];
         try {
