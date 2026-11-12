@@ -121,7 +121,7 @@ final class Integration
             return __DIR__.'/../templates/search-genesis.php';
         }
 
-        return apply_filters('uams_search_template', __DIR__.'/../templates/search.php', $template);
+        return Filters::string('uams_search_template', __DIR__.'/../templates/search.php', $template);
     }
 
     public static function excerpt($excerpt, $post)
@@ -327,7 +327,7 @@ final class Integration
 
     private static function google(): void
     {
-        $cx = apply_filters('uams_search_google_cx', '014806496997774146681:pyl1jhwi-bo');
+        $cx = Filters::string('uams_search_google_cx', '014806496997774146681:pyl1jhwi-bo');
         echo '<section aria-label="All UAMS websites"><h2>All UAMS Websites</h2><script async src="'.esc_url('https://cse.google.com/cse.js?cx='.rawurlencode($cx)).'"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section>';
     }
 }

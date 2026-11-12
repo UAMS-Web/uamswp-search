@@ -33,7 +33,7 @@ final class Config
     {
         $saved = get_site_option('uams_search_settings', []);
 
-        return apply_filters('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
+        return Filters::array('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
     }
 
     public static function page_size(mixed $value = null): int
