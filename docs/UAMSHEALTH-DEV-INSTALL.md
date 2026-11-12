@@ -12,10 +12,10 @@ Installed and network-activated UAMS Search on https://uamshealth-dev.test/ on 2
 - Development search-engine visibility settings stay unchanged. Only local CLI indexing/signed-in previews can include the noindex sub-sites.
 - DISABLE_WP_CRON is true on this install. No server schedule was added; queued edits need manual processing while testing.
 
-Manual queue command:
+Manual queue command, where `<site-root>` is the WordPress root of the `uamshealth-dev` install:
 
 ```sh
-wp --path=/Users/bpmore/Herd/uamshealth-dev uams-search process-queue
+wp --path=<site-root> uams-search process-queue
 ```
 
 Installed code matches the runtime files in the project's upload ZIP. No theme files, existing search plugins, or the reference uamshealth install were changed. The database is MySQL 9.4.0; target MariaDB 10.6.27 and relevance against the existing engine still require separate verification.

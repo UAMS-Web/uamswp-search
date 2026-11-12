@@ -1,6 +1,6 @@
 # Verification record
 
-Build date: 2026-10-30. Version: 0.5.1. Reference: local `uamshealth`, read only. Downloads and checks were retried after the session allowed access requests.
+Build date: 2026-10-30. Version: 0.5.1. Operating system: macOS for every run recorded here. Windows is not yet measured. Reference: local `uamshealth`, read only. Downloads and checks were retried after the session allowed access requests.
 
 ## Verified by execution
 
