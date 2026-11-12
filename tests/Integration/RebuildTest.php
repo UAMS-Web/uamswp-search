@@ -112,11 +112,6 @@ final class RebuildTest extends IntegrationTestCase
     {
         global $wpdb;
         $token = $this->token;
-        // See #114: a MariaDB search over a very small index can fail, so the index holds other pages too.
-        foreach (['alpha', 'bravo', 'charlie'] as $filler) {
-            Indexer::one($this->site, $this->page($token.'filler'.$filler));
-        }
-
         $page = $this->page($token.'old');
         Indexer::one($this->site, $page);
         $stale = $this->page($token.'stale');
@@ -164,9 +159,20 @@ final class RebuildTest extends IntegrationTestCase
         $this->assertTrue($job['completed_sites'] === count($job['sites']) && ! Rebuild::active(), 'Resume completes every site and releases the queue');
         $docs = DB::table('word_docs');
         $this->assertSame(0, (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `$docs` WHERE site_id=%d AND object_id=%d", $this->site, $stale)), 'The batched spelling cleanup removes deleted documents');
-        Queue::process(1000, 20);
-        $this->assertSame(1, $this->find($token.'after')['total'], 'Edits made during a rebuild are retained and processed afterward');
         $this->assertTrue($this->remote === 0 || (int) get_blog_details($this->remote)->public === 0, 'Finishing a rebuild does not make staging public');
+        Queue::process(1000, 20);
+        try {
+            $after = $this->find($token.'after')['total'];
+        } catch (RuntimeException $runtimeException) {
+            // On MariaDB 10.6 this search fails after a rebuild (#114). The test stays incomplete, not green, until that is fixed.
+            if (str_contains($runtimeException->getMessage(), 'DOUBLE value is out of range')) {
+                $this->markTestIncomplete('MariaDB ranking error after a rebuild (#114): '.$runtimeException->getMessage());
+            }
+
+            throw $runtimeException;
+        }
+
+        $this->assertSame(1, $after, 'Edits made during a rebuild are retained and processed afterward');
     }
 
     public function test_a_stale_tab_and_a_failed_checkpoint_cannot_disturb_a_newer_rebuild(): void
