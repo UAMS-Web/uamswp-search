@@ -72,14 +72,17 @@ jobs:
     env:
       WP_VERSION: '7.0.8'
       WP_MULTISITE: ${{ matrix.network }}
-      # No `..` in the path: wp_mkdir_p() cannot create the dated uploads folder under one.
-      WP_TESTS_ABSPATH: ${{ runner.temp }}/wordpress
       WP_TESTS_DB_NAME: uams_search_test
       WP_TESTS_DB_USER: root
       WP_TESTS_DB_PASSWORD: root
       WP_TESTS_DB_HOST: 127.0.0.1
     steps:
       - uses: actions/checkout@v7
+
+      # No `..` in the path: wp_mkdir_p() cannot create the dated uploads folder under one. The runner context is not
+      # available in a job-level `env`, so the path is exported from a step.
+      - name: Locate WordPress
+        run: echo "WP_TESTS_ABSPATH=$RUNNER_TEMP/wordpress" >> "$GITHUB_ENV"
 
       - name: Start the database
         run: |
