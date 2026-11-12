@@ -10,7 +10,7 @@ final class Misses
     public static function record(string $search): void
     {
         global $wpdb;
-        if (! Config::get()['logging'] || ! DB::ready() || ! Text::tokens($search)) {
+        if (! Config::flag('logging') || ! DB::ready() || ! Text::tokens($search)) {
             return;
         }
 

@@ -33,7 +33,72 @@ final class Config
     {
         $saved = get_site_option('uams_search_settings', []);
 
-        return Filters::array('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : []));
+        return self::normalize(Filters::array('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : [])));
+    }
+
+    /** A WordPress option as a string, or `$default` when the stored value is not one. */
+    public static function option_string(string $name, string $default): string
+    {
+        $value = get_option($name, $default);
+
+        return is_string($value) && $value !== '' ? $value : $default;
+    }
+
+    /** A WordPress option as a boolean, or `$default` when the stored value is not scalar. */
+    public static function option_flag(string $name, bool $default): bool
+    {
+        $value = get_option($name, $default);
+
+        return is_scalar($value) ? (bool) $value : $default;
+    }
+
+    /** One boolean setting. */
+    public static function flag(string $key): bool
+    {
+        return (bool) (self::get()[$key] ?? false);
+    }
+
+    /** One numeric setting. */
+    public static function number(string $key): float
+    {
+        return (float) (self::get()[$key] ?? 0);
+    }
+
+    /**
+     * One list or map setting, such as `types` or `stopwords`.
+     *
+     * @return array<mixed>
+     */
+    public static function section(string $key): array
+    {
+        $value = self::get()[$key] ?? [];
+
+        return is_array($value) ? $value : [];
+    }
+
+    /**
+     * Gives every known setting the type of its default, so a saved option or a filter that returns the wrong type
+     * cannot reach a caller. `sites` stays null (every public site) or a list.
+     *
+     * @param  array<mixed>  $config
+     * @return array<mixed>
+     */
+    private static function normalize(array $config): array
+    {
+        foreach (self::defaults() as $key => $default) {
+            $value = $config[$key] ?? $default;
+            if ($default === null) {
+                $config[$key] = is_array($value) ? $value : null;
+            } elseif (is_bool($default)) {
+                $config[$key] = is_scalar($value) ? (bool) $value : $default;
+            } elseif (is_int($default) || is_float($default)) {
+                $config[$key] = is_numeric($value) ? $value + 0 : $default;
+            } else {
+                $config[$key] = is_array($value) ? $value : $default;
+            }
+        }
+
+        return $config;
     }
 
     public static function page_size(mixed $value = null): int
@@ -98,7 +163,7 @@ final class Config
     {
         $labels = ['provider' => 'People', 'expertise' => 'Clinical Areas of Expertise', 'location' => 'Clinical Locations', 'post' => 'News', 'attachment' => 'PDFs'];
 
-        return (array) apply_filters('uams_search_type_labels', $labels);
+        return Filters::array('uams_search_type_labels', $labels);
     }
 
     /**
@@ -110,7 +175,7 @@ final class Config
     {
         $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
 
-        return (array) apply_filters('uams_search_result_labels', $labels);
+        return Filters::array('uams_search_result_labels', $labels);
     }
 
     /**
@@ -119,7 +184,7 @@ final class Config
     public static function google_enabled(): bool
     {
         // The reference theme always shows this block; newer settings integrations can override this filter.
-        return (bool) apply_filters('uams_search_google_enabled', (bool) get_option('uams_search_google', true));
+        return (bool) apply_filters('uams_search_google_enabled', self::option_flag('uams_search_google', true));
     }
 
     /**
@@ -155,7 +220,7 @@ final class Config
             return $value;
         }
 
-        $default = get_option('uams_search_scope', 'site');
+        $default = self::option_string('uams_search_scope', 'site');
 
         return is_string($default) && in_array($default, $options, true) ? $default : $options[0];
     }

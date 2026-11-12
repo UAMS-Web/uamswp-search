@@ -78,4 +78,41 @@ final class ConfigTest extends TestCase
         self::assertSame([1], Config::public_sites());
         self::assertSame([1, 4], Config::index_sites());
     }
+
+    public function test_a_saved_setting_of_the_wrong_type_reads_as_its_default(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => ['x'], 'types' => 'page', 'pdf_max_mb' => 'big', 'stopwords' => null, 'sites' => 'all', 'live' => 0, 'extra' => 'kept'];
+        $defaults = Config::defaults();
+
+        $config = Config::get();
+
+        self::assertTrue($config['enabled'] === false || $config['enabled'] === true);
+        self::assertSame($defaults['types'], $config['types']);
+        self::assertSame($defaults['pdf_max_mb'], $config['pdf_max_mb']);
+        self::assertSame([], $config['stopwords']);
+        self::assertNull($config['sites']);
+        self::assertFalse($config['live']);
+        self::assertSame('kept', $config['extra']);
+    }
+
+    public function test_the_typed_accessors_return_their_declared_types(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => '1', 'related_provider_weight' => '0.5', 'types' => ['page' => 2], 'stopwords' => ['a']];
+
+        self::assertTrue(Config::flag('enabled'));
+        self::assertFalse(Config::flag('unknown'));
+        self::assertSame(0.5, Config::number('related_provider_weight'));
+        self::assertSame(['page' => 2], Config::section('types'));
+        self::assertSame([], Config::section('unknown'));
+    }
+
+    public function test_an_option_of_the_wrong_type_reads_as_its_default(): void
+    {
+        $GLOBALS['uams_test_options'] = ['date_format' => ['x'], 'uams_search_google' => ['x'], 'time_format' => 'H:i'];
+
+        self::assertSame('F j, Y', Config::option_string('date_format', 'F j, Y'));
+        self::assertSame('H:i', Config::option_string('time_format', 'g:i a'));
+        self::assertTrue(Config::option_flag('uams_search_google', true));
+        self::assertFalse(Config::option_flag('missing', false));
+    }
 }

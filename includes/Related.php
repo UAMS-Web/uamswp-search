@@ -36,7 +36,7 @@ final class Related
         // Raw ACF values also support Find-a-Doc installations using ACF custom tables.
         $value = function_exists('get_field') ? get_field($field, $post->ID, false) : get_post_meta($post->ID, $field, true);
         $fields = [];
-        $weight = (float) Config::get()['related_provider_weight'];
+        $weight = Config::number('related_provider_weight');
         foreach (self::ids($value) as $id) {
             $provider = get_post($id);
             if ($provider && $provider->post_type !== 'provider') {
