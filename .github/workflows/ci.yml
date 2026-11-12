@@ -116,7 +116,8 @@ jobs:
         run: composer setup:integration
 
       - name: Run the Integration suite
-        run: composer test:integration -- --coverage-text --colors=never
+        # PCOV reads only the directory it is told to, and a bare run reported 0.00% for every file.
+        run: php -d pcov.enabled=1 -d pcov.directory="$GITHUB_WORKSPACE" tests/Integration/vendor/bin/phpunit --configuration tests/Integration/phpunit.xml --coverage-text --colors=never
 
   # The one check a ruleset requires from this workflow. Keep `needs:` naming the call;
   # scripts/check-templates.mjs in UAMS-Web/uams-claude-skills checks it.
