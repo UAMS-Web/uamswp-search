@@ -68,7 +68,7 @@ final class ConfigTest extends TestCase
         self::assertSame([1, 4], Config::index_sites());
     }
 
-    public function test_explicit_preview_setting_works_on_unlabelled_staging_servers(): void
+    public function test_explicit_preview_setting_works_on_unlabeled_staging_servers(): void
     {
         $GLOBALS['uams_test_environment'] = 'production';
         $GLOBALS['uams_test_logged_in'] = true;

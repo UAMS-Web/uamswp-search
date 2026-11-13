@@ -180,7 +180,7 @@ final class Admin
         }
 
         if (DB::ready() && Rebuild::active()) {
-            echo '<div class="notice notice-info"><p>A browser rebuild is in progress or paused. Saved edits remain queued until it finishes or is cancelled. <a href="'.esc_url(self::home().'#uams-search-rebuild').'">Resume or cancel the rebuild</a>.</p></div>';
+            echo '<div class="notice notice-info"><p>A browser rebuild is in progress or paused. Saved edits remain queued until it finishes or is canceled. <a href="'.esc_url(self::home().'#uams-search-rebuild').'">Resume or cancel the rebuild</a>.</p></div>';
         }
     }
 
@@ -474,7 +474,7 @@ final class Admin
         $include = Config::flag('preview_noindex') || (! Config::site_ids(false) && Config::site_ids(true));
         echo '<section id="uams-search-rebuild" aria-labelledby="uams-rebuild-heading"><h2 id="uams-rebuild-heading">Rebuild Index</h2>';
         echo '<p>Build the full index without command-line access. Keep this page open while it runs. If you leave, come back and choose Resume rebuild.</p>';
-        echo '<p>Existing results stay available. Each site switches to its new index when its content is ready. Saved edits wait in the queue until the rebuild finishes or is cancelled.</p>';
+        echo '<p>Existing results stay available. Each site switches to its new index when its content is ready. Saved edits wait in the queue until the rebuild finishes or is canceled.</p>';
         echo '<p><label><input id="uams-rebuild-noindex" type="checkbox" '.checked($include, true, false).'> Include No-Index Sites for Signed-In Previews</label><br><span class="description">This does not change search-engine visibility. No-index sites stay excluded from signed-out search results.</span></p>';
         echo '<p><button type="button" id="uams-rebuild-start" class="button button-primary">Rebuild index</button> <button type="button" id="uams-rebuild-resume" class="button button-primary" hidden>Resume rebuild</button> <button type="button" id="uams-rebuild-pause" class="button" hidden>Pause rebuild</button> <button type="button" id="uams-rebuild-cancel" class="button" hidden>Cancel rebuild</button></p>';
         echo '<progress id="uams-rebuild-progress" aria-label="Index rebuild progress" value="0" max="100"></progress>';

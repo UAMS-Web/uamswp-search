@@ -219,7 +219,7 @@ final class Config
     /**
      * The scopes this site offers, in order, each with its label. `site` is this site alone, `install` every site the network settings include, `all` every UAMS website through Google.
      *
-     * The root site of a subdirectory network sees its own scope as `install`, labelled `This site`, because its children are part of the site a visitor thinks they are on.
+     * The root site of a subdirectory network sees its own scope as `install`, labeled `This site`, because its children are part of the site a visitor thinks they are on.
      *
      * @param  bool  $google  Whether to leave out `all` where Google results are switched off for this site.
      * @return array<string, string>
