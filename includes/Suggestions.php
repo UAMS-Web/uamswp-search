@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+
 /** The dictionary behind "Did you mean" corrections. */
 final class Suggestions
 {
@@ -11,10 +13,12 @@ final class Suggestions
      * @param  int  $site  Site ID.
      * @param  int  $id  Post ID.
      *
-     * @throws \RuntimeException When the database refuses the delete.
+     * @throws RuntimeException When the database refuses the delete.
      */
-    public static function remove(int $site, int $id): void
-    {
+    public static function remove(
+        int $site,
+        int $id
+    ): void {
         global $wpdb;
         // Name the dictionary tables
         $words = DB::table('words');
@@ -23,7 +27,7 @@ final class Suggestions
         DB::exec($wpdb->prepare("UPDATE `$words` w INNER JOIN `$docs` d ON d.word=w.word SET w.frequency=GREATEST(1,w.frequency)-1 WHERE d.site_id=%d AND d.object_id=%d", $site, $id));
         // Delete the object's word list
         if ($wpdb->delete($docs, ['site_id' => $site, 'object_id' => $id]) === false) {
-            throw new \RuntimeException($wpdb->last_error);
+            throw new RuntimeException($wpdb->last_error);
         }
     }
 
@@ -42,7 +46,7 @@ final class Suggestions
         self::remove((int) $row['site_id'], (int) $row['object_id']);
         // Collect the object's distinct words
         $stop = Text::stops();
-        $words = array_slice(array_unique(Text::words(implode(' ', array_intersect_key($row, array_flip(['title', 'content', 'fields', 'terms', 'pdf']))))), 0, 10000);
+        $words = \array_slice(array_unique(Text::words(implode(' ', array_intersect_key($row, array_flip(['title', 'content', 'fields', 'terms', 'pdf']))))), 0, 10000);
         // Add the words 100 at a time
         foreach (array_chunk($words, 100) as $chunk) {
             $doc_values = [];
@@ -75,8 +79,10 @@ final class Suggestions
      * @param  int  $site  Site ID.
      * @param  string|null  $type  Post type to rebuild, or null for all.
      */
-    public static function rebuild_site(int $site, ?string $type): void
-    {
+    public static function rebuild_site(
+        int $site,
+        ?string $type
+    ): void {
         global $wpdb;
         // Remove dictionary entries for objects removed by a full/partial rebuild as well.
         $docs = DB::table('word_docs');
@@ -112,8 +118,10 @@ final class Suggestions
      *                     has more than ten words, nothing close is found, or the corrected
      *                     search does not match every word.
      */
-    public static function suggest(string $search, array $args): ?string
-    {
+    public static function suggest(
+        string $search,
+        array $args
+    ): ?string {
         global $wpdb;
         // Quoted phrases are intentional. Do not rewrite them as unquoted text.
         if (str_contains($search, '"')) {
@@ -123,7 +131,7 @@ final class Suggestions
         // Split the search into words, and give up on a long search
         $words = Text::words($search);
         $changed = false;
-        if (count($words) > 10) {
+        if (\count($words) > 10) {
             return null;
         }
 

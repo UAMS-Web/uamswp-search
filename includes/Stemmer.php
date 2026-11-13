@@ -30,7 +30,7 @@ final class Stemmer
     {
         // Mark each letter
         $shape = '';
-        for ($i = 0, $n = strlen($s); $i < $n; $i++) {
+        for ($i = 0, $n = \strlen($s); $i < $n; $i++) {
             $v = str_contains('aeiou', $s[$i]) || ($s[$i] === 'y' && $i > 0 && $shape[$i - 1] === 'c');
             $shape .= $v ? 'v' : 'c';
         }
@@ -69,7 +69,7 @@ final class Stemmer
      */
     private static function double(string $s): bool
     {
-        return strlen($s) > 1 && substr($s, -1) === substr($s, -2, 1) && str_ends_with(self::shape($s), 'c');
+        return \strlen($s) > 1 && substr($s, -1) === substr($s, -2, 1) && str_ends_with(self::shape($s), 'c');
     }
 
     /**
@@ -82,7 +82,7 @@ final class Stemmer
     public static function stem(string $w): string
     {
         // Leave short words and words with other characters alone
-        if (strlen($w) <= 2 || ! preg_match('/^[a-z]+$/D', $w)) {
+        if (\strlen($w) <= 2 || ! preg_match('/^[a-z]+$/D', $w)) {
             return $w;
         }
 
@@ -103,8 +103,8 @@ final class Stemmer
         } else {
             $base = null;
             foreach (['ed', 'ing'] as $end) {
-                if (str_ends_with($w, $end) && self::vowel(substr($w, 0, -strlen($end)))) {
-                    $base = substr($w, 0, -strlen($end));
+                if (str_ends_with($w, $end) && self::vowel(substr($w, 0, -\strlen($end)))) {
+                    $base = substr($w, 0, -\strlen($end));
                     break;
                 }
             }
@@ -133,7 +133,7 @@ final class Stemmer
         ] as $rules) {
             foreach ($rules as $suffix => $replacement) {
                 if (str_ends_with($w, $suffix)) {
-                    $base = substr($w, 0, -strlen($suffix));
+                    $base = substr($w, 0, -\strlen($suffix));
                     if (self::measure($base) > 0) {
                         $w = $base.$replacement;
                     }
@@ -149,7 +149,7 @@ final class Stemmer
                 continue;
             }
 
-            $base = substr($w, 0, -strlen($suffix));
+            $base = substr($w, 0, -\strlen($suffix));
             if (self::measure($base) > 1 && ($suffix !== 'ion' || preg_match('/[st]$/', $base))) {
                 $w = $base;
             }

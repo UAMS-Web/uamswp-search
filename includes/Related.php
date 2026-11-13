@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use WP_Post;
+
 /** Provider names shown by the four Find-a-Doc page templates. No recursive relationships. */
 final class Related
 {
@@ -34,8 +36,8 @@ final class Related
     {
         $ids = [];
         // Keep each value that is a positive whole number
-        foreach (is_array($value) ? $value : [$value] as $id) {
-            if ((is_int($id) || (is_string($id) && ctype_digit($id))) && (int) $id > 0) {
+        foreach (\is_array($value) ? $value : [$value] as $id) {
+            if ((\is_int($id) || (\is_string($id) && ctype_digit($id))) && (int) $id > 0) {
                 $ids[] = (int) $id;
             }
         }
@@ -47,13 +49,13 @@ final class Related
     /**
      * The related-provider rows to index for a page.
      *
-     * @param  \WP_Post  $post  A location, expertise, condition or treatment page.
+     * @param  WP_Post  $post  A location, expertise, condition or treatment page.
      * @return array<int, array<string, mixed>> One row per provider, with the
      *                                          provider's ID, name, weight and a `fields` source. A hidden or
      *                                          unpublished provider keeps its ID and an empty name, so publishing
      *                                          it refreshes this page.
      */
-    public static function fields(\WP_Post $post): array
+    public static function fields(WP_Post $post): array
     {
         // Find the field that lists providers for this page type
         $field = self::FIELDS[$post->post_type] ?? null;
@@ -63,7 +65,7 @@ final class Related
 
         // Raw ACF values also support Find-a-Doc installations using ACF custom tables.
         // Read the provider IDs
-        $value = function_exists('get_field') ? get_field($field, $post->ID, false) : get_post_meta($post->ID, $field, true);
+        $value = \function_exists('get_field') ? get_field($field, $post->ID, false) : get_post_meta($post->ID, $field, true);
         $fields = [];
         $weight = Config::number('related_provider_weight');
         // Build one row per provider
@@ -97,8 +99,10 @@ final class Related
      * @param  int  $site  Site ID.
      * @param  int  $id  Provider post ID.
      */
-    public static function queue_dependents(int $site, int $id): void
-    {
+    public static function queue_dependents(
+        int $site,
+        int $id
+    ): void {
         global $wpdb;
         // Name the index and queue tables
         $index = DB::table();
@@ -107,7 +111,7 @@ final class Related
         $marker = '%'.$wpdb->esc_like('"provider_id":'.$id.',').'%';
         // List the page types that carry provider names
         $types = array_keys(self::FIELDS);
-        $marks = implode(',', array_fill(0, count($types), '%s'));
+        $marks = implode(',', array_fill(0, \count($types), '%s'));
         // Queue the indexed pages that hold the marker
         DB::exec($wpdb->prepare(
             "INSERT INTO `$queue` (site_id,object_id,action,queued_at,available_at)
@@ -126,8 +130,10 @@ final class Related
      * @param  string  $meta  Post meta table name.
      * @return string A condition on the index table alias `i`.
      */
-    public static function public_sql(string $posts, string $meta): string
-    {
+    public static function public_sql(
+        string $posts,
+        string $meta
+    ): string {
         return "NOT EXISTS (SELECT 1 FROM JSON_TABLE(IF(JSON_VALID(i.weighted_data),i.weighted_data,'[]'),'$[*]'
             COLUMNS(provider_id BIGINT PATH '$.provider_id',provider_title LONGTEXT PATH '$.provider_title')) related
             WHERE related.provider_title IS NOT NULL AND NOT EXISTS (

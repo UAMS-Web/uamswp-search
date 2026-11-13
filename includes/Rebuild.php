@@ -2,6 +2,9 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+use Throwable;
+
 /** Resumable browser-driven rebuild. Every write is serialized with the CLI/queue writer lock. */
 final class Rebuild
 {
@@ -13,7 +16,7 @@ final class Rebuild
      *
      * @return array<string, mixed>|null The job (id, revision, status, phase, cursors and counts), or null when none is saved.
      *
-     * @throws \RuntimeException When the database reports an error.
+     * @throws RuntimeException When the database reports an error.
      */
     public static function state(): ?array
     {
@@ -27,13 +30,13 @@ final class Rebuild
 
         // Fail on a database error
         if ($wpdb->last_error) {
-            throw new \RuntimeException($wpdb->last_error);
+            throw new RuntimeException($wpdb->last_error);
         }
 
         // Return the job, or null when none is saved
         $value = maybe_unserialize($value);
 
-        return is_array($value) ? $value : null;
+        return \is_array($value) ? $value : null;
     }
 
     /**
@@ -45,7 +48,7 @@ final class Rebuild
     {
         $job = self::state();
 
-        return $job && in_array($job['status'], ['running', 'paused'], true);
+        return $job && \in_array($job['status'], ['running', 'paused'], true);
     }
 
     /**
@@ -53,7 +56,7 @@ final class Rebuild
      *
      * @param  array<string, mixed>  $job  The job, updated in place.
      *
-     * @throws \RuntimeException When the option cannot be saved.
+     * @throws RuntimeException When the option cannot be saved.
      */
     private static function save(array &$job): void
     {
@@ -62,7 +65,7 @@ final class Rebuild
         $job['updated_at'] = gmdate('Y-m-d H:i:s');
         // Save the job
         if (! update_site_option(self::OPTION, $job)) {
-            throw new \RuntimeException('Could not save rebuild progress. Reload this page to resume.');
+            throw new RuntimeException('Could not save rebuild progress. Reload this page to resume.');
         }
     }
 
@@ -72,7 +75,7 @@ final class Rebuild
      * @param  bool  $include_noindex  Whether to include sites that discourage search engines.
      * @return array{job: array<string, mixed>|null, busy: bool} The job, and whether another writer holds the lock.
      *
-     * @throws \RuntimeException When no content type is chosen, no site is eligible, or the database reports an error.
+     * @throws RuntimeException When no content type is chosen, no site is eligible, or the database reports an error.
      */
     public static function start(bool $include_noindex): array
     {
@@ -94,25 +97,25 @@ final class Rebuild
             $settings['preview_noindex'] = $include_noindex;
             $types = array_keys(Config::section('types'));
             if ($types === []) {
-                throw new \RuntimeException('Choose at least one content type in the settings first.');
+                throw new RuntimeException('Choose at least one content type in the settings first.');
             }
 
             // Check at least one site is eligible
             update_site_option('uams_search_settings', $settings);
             $ids = Config::index_sites();
             if ($ids === []) {
-                throw new \RuntimeException('No eligible sites. Include no-index sites for signed-in previews if this is a staging install.');
+                throw new RuntimeException('No eligible sites. Include no-index sites for signed-in previews if this is a staging install.');
             }
 
             // Count each site's content
             $sites = [];
             $total = 0;
-            $marks = implode(',', array_fill(0, count($types), '%s'));
+            $marks = implode(',', array_fill(0, \count($types), '%s'));
             foreach ($ids as $id) {
                 $posts = $wpdb->get_blog_prefix($id).'posts';
                 $count = $wpdb->get_row($wpdb->prepare("SELECT COUNT(*) AS total,COALESCE(MAX(ID),0) AS maximum FROM `$posts` WHERE post_type IN ($marks)", $types), ARRAY_A);
                 if ($wpdb->last_error || ! $count) {
-                    throw new \RuntimeException($wpdb->last_error ?: 'Could not count site content');
+                    throw new RuntimeException($wpdb->last_error ?: 'Could not count site content');
                 }
 
                 $name = is_multisite() ? get_blog_details($id)->blogname : get_bloginfo('name');
@@ -143,7 +146,7 @@ final class Rebuild
      * @param  string|null  $id  The job ID to check against, or null to return the saved job.
      * @return array{job: array<string, mixed>|null, busy: bool} The job, with `busy` true.
      *
-     * @throws \RuntimeException When the ID is not the current job.
+     * @throws RuntimeException When the ID is not the current job.
      */
     private static function busy(?string $id = null): array
     {
@@ -159,11 +162,15 @@ final class Rebuild
      * @param  int  $seconds  Most seconds to run, limited to 1 to 10.
      * @return array{job: array<string, mixed>|null, busy: bool} The job after the batch, and whether another writer holds the lock.
      *
-     * @throws \RuntimeException When the job is not current and nothing can be paused.
-     * @throws \Throwable When a failure happens before the job exists or after it has stopped.
+     * @throws RuntimeException When the job is not current and nothing can be paused.
+     * @throws Throwable When a failure happens before the job exists or after it has stopped.
      */
-    public static function step(string $id, int $revision, int $limit = 25, int $seconds = 8): array
-    {
+    public static function step(
+        string $id,
+        int $revision,
+        int $limit = 25,
+        int $seconds = 8
+    ): array {
         // Take the writer lock
         if (! DB::lock()) {
             return self::busy($id);
@@ -172,13 +179,13 @@ final class Rebuild
         try {
             // Return the current job when it is stopped or the caller is behind
             $job = self::require_job($id);
-            if (! in_array($job['status'], ['running', 'paused'], true) || $job['revision'] !== $revision) {
+            if (! \in_array($job['status'], ['running', 'paused'], true) || $job['revision'] !== $revision) {
                 return ['job' => $job, 'busy' => false];
             }
 
             // Refuse to continue after the index settings change
             if ($job['fingerprint'] !== Config::fingerprint()) {
-                throw new \RuntimeException('Index settings changed. Cancel this rebuild, then start a new one.');
+                throw new RuntimeException('Index settings changed. Cancel this rebuild, then start a new one.');
             }
 
             // Run units until a limit is reached
@@ -190,9 +197,9 @@ final class Rebuild
             $seconds = max(1, min(10, $seconds));
             do {
                 // Stop before the server runs out of memory
-                $memory = wp_convert_hr_to_bytes(ini_get('memory_limit'));
+                $memory = wp_convert_hr_to_bytes(\ini_get('memory_limit'));
                 if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) {
-                    throw new \RuntimeException('The server is low on memory. Pause other work, then resume the rebuild.');
+                    throw new RuntimeException('The server is low on memory. Pause other work, then resume the rebuild.');
                 }
 
                 // Run one unit and save the cursor
@@ -202,9 +209,9 @@ final class Rebuild
             } while ($job['status'] === 'running' && $units < $limit && microtime(true) - $started < $seconds);
 
             return ['job' => $job, 'busy' => false];
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             // Pause the job with the error so the page can resume it
-            if (isset($job) && in_array($job['status'], ['running', 'paused'], true)) {
+            if (isset($job) && \in_array($job['status'], ['running', 'paused'], true)) {
                 $job['status'] = 'paused';
                 $job['error'] = mb_substr($throwable->getMessage(), 0, 2000);
                 self::save($job);
@@ -225,13 +232,13 @@ final class Rebuild
      * @param  string  $id  The job ID.
      * @return array<string, mixed> The job.
      *
-     * @throws \RuntimeException When there is no job or its ID differs.
+     * @throws RuntimeException When there is no job or its ID differs.
      */
     private static function require_job(string $id): array
     {
         $job = self::state();
         if (! $job || ! hash_equals($job['id'], $id)) {
-            throw new \RuntimeException('This rebuild is no longer current. Reload the page.');
+            throw new RuntimeException('This rebuild is no longer current. Reload the page.');
         }
 
         return $job;
@@ -243,7 +250,7 @@ final class Rebuild
      * @param  string  $id  The job ID.
      * @return array{job: array<string, mixed>|null, busy: bool} The job, and whether another writer holds the lock.
      *
-     * @throws \RuntimeException When the job is not current.
+     * @throws RuntimeException When the job is not current.
      */
     public static function pause(string $id): array
     {
@@ -272,7 +279,7 @@ final class Rebuild
      * @param  string  $id  The job ID.
      * @return array{job: array<string, mixed>|null, busy: bool} The job, and whether another writer holds the lock.
      *
-     * @throws \RuntimeException When the job is not current or cannot be saved.
+     * @throws RuntimeException When the job is not current or cannot be saved.
      */
     public static function cancel(string $id): array
     {
@@ -285,7 +292,7 @@ final class Rebuild
         try {
             // Mark an unfinished job cancelled
             $job = self::require_job($id);
-            if (in_array($job['status'], ['running', 'paused'], true)) {
+            if (\in_array($job['status'], ['running', 'paused'], true)) {
                 $site = $job['sites'][$job['site_index']]['id'] ?? 0;
                 $job['status'] = 'cancelled';
                 $job['inflight'] = null;
@@ -308,7 +315,7 @@ final class Rebuild
      *
      * @param  array<string, mixed>  $job  The job, updated in place.
      *
-     * @throws \RuntimeException When the site is no longer eligible, the phase is unknown or the database reports an error.
+     * @throws RuntimeException When the site is no longer eligible, the phase is unknown or the database reports an error.
      */
     private static function unit(array &$job): void
     {
@@ -316,8 +323,8 @@ final class Rebuild
         // Read the current site and check it is still eligible
         $site = $job['sites'][$job['site_index']];
         $id = (int) $site['id'];
-        if (! in_array($id, Config::index_sites(), true)) {
-            throw new \RuntimeException('A site is no longer eligible. Cancel and start a new rebuild.');
+        if (! \in_array($id, Config::index_sites(), true)) {
+            throw new RuntimeException('A site is no longer eligible. Cancel and start a new rebuild.');
         }
 
         // Run the phase
@@ -336,10 +343,10 @@ final class Rebuild
             case 'scan':
                 // Read the next post after the cursor
                 $posts = $wpdb->get_blog_prefix($id).'posts';
-                $marks = implode(',', array_fill(0, count($job['types']), '%s'));
+                $marks = implode(',', array_fill(0, \count($job['types']), '%s'));
                 $post = $wpdb->get_row($wpdb->prepare("SELECT ID,post_type FROM `$posts` WHERE ID>%d AND ID<=%d AND post_type IN ($marks) ORDER BY ID LIMIT 1", array_merge([$job['cursor'], $site['maximum']], $job['types'])), ARRAY_A);
                 if ($wpdb->last_error) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 // Move on to promotion when no posts remain
@@ -372,7 +379,7 @@ final class Rebuild
                 Indexer::promote($id);
                 $job['dictionary_total'] = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `$live` WHERE site_id=%d AND status IN ('ready','scanned')", $id));
                 if ($wpdb->last_error) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 $job['dictionary_done'] = 0;
@@ -385,7 +392,7 @@ final class Rebuild
                 $docs = DB::table('word_docs');
                 $stale = $wpdb->get_var($wpdb->prepare("SELECT d.object_id FROM `$docs` d LEFT JOIN `$live` i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.site_id=%d AND (i.id IS NULL OR i.status='error') LIMIT 1", $id));
                 if ($wpdb->last_error) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 // Move on when none remain, otherwise remove one
@@ -400,7 +407,7 @@ final class Rebuild
                 // Read the next live row after the cursor
                 $row = $wpdb->get_row($wpdb->prepare("SELECT site_id,object_id,title,content,fields,terms,pdf FROM `$live` WHERE site_id=%d AND object_id>%d AND status IN ('ready','scanned') ORDER BY object_id LIMIT 1", $id, $job['dictionary_cursor']), ARRAY_A);
                 if ($wpdb->last_error) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 // Move on to finishing when no rows remain
@@ -430,14 +437,14 @@ final class Rebuild
                 update_site_option('uams_search_rebuilt_'.$id, gmdate('Y-m-d H:i:s'));
                 $job['completed_sites']++;
                 $job['site_index']++;
-                if ($job['site_index'] >= count($job['sites'])) {
+                if ($job['site_index'] >= \count($job['sites'])) {
                     $job['status'] = 'complete';
                 } else {
                     $job['phase'] = 'prepare';
                 }
 
                 break;
-            default: throw new \RuntimeException('Unknown rebuild phase. Cancel and start again.');
+            default: throw new RuntimeException('Unknown rebuild phase. Cancel and start again.');
         }
     }
 
@@ -449,10 +456,12 @@ final class Rebuild
      * @param  int  $object  The post ID being worked on.
      * @return bool True when the item should be skipped.
      *
-     * @throws \RuntimeException When the job cannot be saved.
+     * @throws RuntimeException When the job cannot be saved.
      */
-    private static function interrupted(array &$job, int $object): bool
-    {
+    private static function interrupted(
+        array &$job,
+        int $object
+    ): bool {
         // Count earlier attempts at this item and phase
         $previous = $job['inflight'];
         $attempts = $previous && $previous['object'] === $object && $previous['phase'] === $job['phase'] ? (int) $previous['attempts'] : 0;
@@ -473,7 +482,7 @@ final class Rebuild
      *
      * @param  callable(): mixed  $work  The work to run.
      *
-     * @throws \Throwable When the work fails, after the transaction is rolled back.
+     * @throws Throwable When the work fails, after the transaction is rolled back.
      */
     private static function dictionary_transaction(callable $work): void
     {
@@ -482,7 +491,7 @@ final class Rebuild
         try {
             $work();
             DB::exec('COMMIT');
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             DB::exec('ROLLBACK');
             throw $throwable;
         }

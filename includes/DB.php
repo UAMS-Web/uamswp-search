@@ -2,6 +2,9 @@
 
 namespace UAMS_Search;
 
+use InvalidArgumentException;
+use RuntimeException;
+
 /** The plugin's tables: their names, creation, readiness and the writer lock. */
 final class DB
 {
@@ -19,14 +22,14 @@ final class DB
      *                          `stopwords` or `stage`.
      * @return string The name, with the network's base prefix.
      *
-     * @throws \InvalidArgumentException When the suffix is not one of those.
+     * @throws InvalidArgumentException When the suffix is not one of those.
      */
     public static function table(string $suffix = 'index'): string
     {
         global $wpdb;
         // Accept only the plugin's own table names
-        if (! in_array($suffix, ['index', 'queue', 'words', 'word_docs', 'misses', 'stopwords', 'stage'], true)) {
-            throw new \InvalidArgumentException('Unknown table');
+        if (! \in_array($suffix, ['index', 'queue', 'words', 'word_docs', 'misses', 'stopwords', 'stage'], true)) {
+            throw new InvalidArgumentException('Unknown table');
         }
 
         return $wpdb->base_prefix.'uams_search_'.$suffix;
@@ -38,7 +41,7 @@ final class DB
      * @param  string  $sql  A prepared statement.
      * @return int Rows affected.
      *
-     * @throws \RuntimeException When the database reports an error.
+     * @throws RuntimeException When the database reports an error.
      */
     public static function exec(string $sql): int
     {
@@ -46,7 +49,7 @@ final class DB
         // Run the statement and stop on an error
         $result = $wpdb->query($sql);
         if ($result === false) {
-            throw new \RuntimeException($wpdb->last_error ?: 'Database operation failed');
+            throw new RuntimeException($wpdb->last_error ?: 'Database operation failed');
         }
 
         return $result;
@@ -80,20 +83,20 @@ final class DB
     /**
      * Create or update every table.
      *
-     * @throws \RuntimeException When a PHP extension or the database setting
-     *                           `innodb_ft_min_token_size=3` is missing, or a statement fails.
+     * @throws RuntimeException When a PHP extension or the database setting
+     *                          `innodb_ft_min_token_size=3` is missing, or a statement fails.
      */
     public static function install(): void
     {
         global $wpdb;
         // Check the required PHP extensions
-        if (! extension_loaded('mbstring') || ! extension_loaded('zlib') || ! extension_loaded('iconv')) {
-            throw new \RuntimeException('UAMS Search requires the mbstring, zlib and iconv PHP extensions.');
+        if (! \extension_loaded('mbstring') || ! \extension_loaded('zlib') || ! \extension_loaded('iconv')) {
+            throw new RuntimeException('UAMS Search requires the mbstring, zlib and iconv PHP extensions.');
         }
 
         // Check the full-text minimum token size
         if ((int) $wpdb->get_var('SELECT @@innodb_ft_min_token_size') !== 3) {
-            throw new \RuntimeException('UAMS Search requires innodb_ft_min_token_size=3. Run wp uams-search doctor.');
+            throw new RuntimeException('UAMS Search requires innodb_ft_min_token_size=3. Run wp uams-search doctor.');
         }
 
         // Create the empty stopword table the index tables use
@@ -171,8 +174,8 @@ final class DB
     /**
      * Give the dictionary's `word` columns the binary collation, under the lock.
      *
-     * @throws \RuntimeException When a column is missing or another indexer holds
-     *                           the lock.
+     * @throws RuntimeException When a column is missing or another indexer holds
+     *                          the lock.
      */
     private static function dictionary_collation(): void
     {
@@ -183,7 +186,7 @@ final class DB
             $table = self::table($suffix);
             $column = $wpdb->get_row("SHOW FULL COLUMNS FROM `$table` WHERE Field='word'", ARRAY_A);
             if (! $column) {
-                throw new \RuntimeException($wpdb->last_error ?: 'Missing dictionary word column');
+                throw new RuntimeException($wpdb->last_error ?: 'Missing dictionary word column');
             }
 
             if ($column['Collation'] !== 'utf8mb4_bin') {
@@ -198,7 +201,7 @@ final class DB
 
         // Take the lock for the change
         if (! self::lock()) {
-            throw new \RuntimeException('Another indexer is running. Retry schema setup after it finishes.');
+            throw new RuntimeException('Another indexer is running. Retry schema setup after it finishes.');
         }
 
         try {
@@ -215,8 +218,8 @@ final class DB
     /**
      * Widen the `short_tokens` columns to `LONGTEXT`, under the lock.
      *
-     * @throws \RuntimeException When a column is missing or another indexer holds
-     *                           the lock.
+     * @throws RuntimeException When a column is missing or another indexer holds
+     *                          the lock.
      */
     private static function short_token_storage(): void
     {
@@ -227,7 +230,7 @@ final class DB
             $table = self::table($suffix);
             $column = $wpdb->get_row("SHOW FULL COLUMNS FROM `$table` WHERE Field='short_tokens'", ARRAY_A);
             if (! $column) {
-                throw new \RuntimeException($wpdb->last_error ?: 'Missing short-token column');
+                throw new RuntimeException($wpdb->last_error ?: 'Missing short-token column');
             }
 
             if (strtolower($column['Type']) !== 'longtext') {
@@ -242,7 +245,7 @@ final class DB
 
         // Take the lock for the change
         if (! self::lock()) {
-            throw new \RuntimeException('Another indexer is running. Retry schema setup after it finishes.');
+            throw new RuntimeException('Another indexer is running. Retry schema setup after it finishes.');
         }
 
         try {

@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+
 /** Runs a search against the index and ranks the results. */
 final class Query
 {
@@ -18,7 +20,7 @@ final class Query
      *         size), the total match count, the page count, whether the results
      *         match any word instead of all, and a corrected search if one fits.
      *
-     * @throws \RuntimeException When the database reports an error.
+     * @throws RuntimeException When the database reports an error.
      */
     public static function run(array $args): array
     {
@@ -26,7 +28,7 @@ final class Query
         // Prepare the empty result returned when nothing can match
         $empty = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
         // Read the search text and split it into term groups
-        $search = mb_substr(is_scalar($args['s'] ?? '') ? (string) $args['s'] : '', 0, 200);
+        $search = mb_substr(\is_scalar($args['s'] ?? '') ? (string) $args['s'] : '', 0, 200);
         if (! DB::ready() || ! ($groups = Text::groups($search))) {
             return $empty;
         }
@@ -60,7 +62,7 @@ final class Query
 
         // Limit the rows to the chosen types and to what is public now
         $types = $types ?: $configured;
-        $where .= $wpdb->prepare(' AND i.post_type IN ('.implode(',', array_fill(0, count($types), '%s')).')', $types);
+        $where .= $wpdb->prepare(' AND i.post_type IN ('.implode(',', array_fill(0, \count($types), '%s')).')', $types);
         $where .= ' AND ('.self::public_sql($sites).')';
         // Count the results that match every word
         $boolean = Text::boolean($groups, true);
@@ -68,7 +70,7 @@ final class Query
         $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
         $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
         if ($wpdb->last_error) {
-            throw new \RuntimeException($wpdb->last_error);
+            throw new RuntimeException($wpdb->last_error);
         }
 
         // Fall back to results that match any word
@@ -78,7 +80,7 @@ final class Query
             $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
             $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
             if ($wpdb->last_error) {
-                throw new \RuntimeException($wpdb->last_error);
+                throw new RuntimeException($wpdb->last_error);
             }
         }
 
@@ -87,7 +89,7 @@ final class Query
         $explain = [];
         $scoring = Text::boolean($groups, false);
         foreach (Config::section('weights') as $column => $weight) {
-            if (! in_array($column, ['title', 'content', 'terms', 'fields', 'pdf'], true)) {
+            if (! \in_array($column, ['title', 'content', 'terms', 'fields', 'pdf'], true)) {
                 continue;
             }
 
@@ -113,7 +115,7 @@ final class Query
         $sql = $wpdb->prepare("SELECT i.*, $score AS relevance $columns FROM `$t` i WHERE $where AND $condition ORDER BY relevance DESC,i.modified_at DESC,i.site_id ASC,i.object_id ASC LIMIT %d OFFSET %d", $limit, ($page - 1) * $limit);
         $rows = $wpdb->get_results($sql, ARRAY_A);
         if ($wpdb->last_error) {
-            throw new \RuntimeException($wpdb->last_error);
+            throw new RuntimeException($wpdb->last_error);
         }
 
         // Turn each row into a result object
@@ -165,10 +167,10 @@ final class Query
     {
         global $wpdb;
         // Check whether any field weight differs from 1
-        $custom = Config::number('related_provider_weight') !== 1.0 || function_exists('has_filter') && has_filter('uams_search_fields');
+        $custom = Config::number('related_provider_weight') !== 1.0 || \function_exists('has_filter') && has_filter('uams_search_fields');
         foreach (['fields', 'taxonomies'] as $source) {
             foreach (Config::section($source) as $weights) {
-                foreach (is_array($weights) ? $weights : [] as $weight) {
+                foreach (\is_array($weights) ? $weights : [] as $weight) {
                     if ((float) $weight !== 1.0) {
                         $custom = true;
                     }
