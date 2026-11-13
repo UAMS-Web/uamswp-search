@@ -285,7 +285,8 @@ final class Admin
                         continue;
                     }
 
-                    $key = sanitize_key(\is_scalar($row['name'] ?? '') ? $row['name'] : '');
+                    $name_value = $row['name'] ?? '';
+                    $key = sanitize_key(\is_scalar($name_value) ? $name_value : '');
                     if ($key) {
                         $parsed[$key] = self::number($row['weight'] ?? 1);
                     }
@@ -312,7 +313,8 @@ final class Admin
         $c['stopwords'] = Text::words(\is_scalar($stopwords) ? (string) $stopwords : '');
         // Read the synonym rules: one word, an equals sign and up to ten alternates per line
         $c['synonyms'] = [];
-        $lines = \is_scalar($input['synonyms'] ?? '') ? (string) $input['synonyms'] : '';
+        $submitted = $input['synonyms'] ?? '';
+        $lines = \is_scalar($submitted) ? (string) $submitted : '';
         foreach (preg_split('/\R/', $lines) as $line) {
             $parts = explode('=', $line, 2);
             if (\count($parts) !== 2) {
