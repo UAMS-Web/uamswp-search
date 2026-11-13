@@ -32,8 +32,8 @@
     counts.textContent = `Checked ${n(job.checked)} posts of about ${n(job.total)}. Prepared ${n(job.indexed)} searchable items. Failed: ${n(job.failed)}. Sites finished: ${n(job.completed_sites)} of ${n(job.sites.length)}.`;
     if (job.dictionary_skipped) counts.textContent += ` Spelling lists skipped after repeated interruptions: ${n(job.dictionary_skipped)}.`;
     if (job.status === 'complete') { say('Index rebuilt. Reload this page to see the updated status counts.'); return; }
-    if (job.status === 'cancelled') { say('Rebuild cancelled. Search keeps the most recent completed content for each site.'); return; }
-    if (pending) { say(`${pending === 'pause' ? 'Pausing' : 'Cancelling'} after the current batch finishes…`); return; }
+    if (job.status === 'cancelled') { say('Rebuild canceled. Search keeps the most recent completed content for each site.'); return; }
+    if (pending) { say(`${pending === 'pause' ? 'Pausing' : 'Canceling'} after the current batch finishes…`); return; }
     if (!running || job.status === 'paused') { say('Rebuild paused. Your progress is saved. Choose Resume rebuild to continue.'); return; }
     const phases = { prepare: 'Preparing', scan: 'Reading content on', promote: 'Making content searchable on', dictionary_cleanup: 'Updating spelling lists on', dictionary: 'Building spelling lists on', finish: 'Finishing' };
     say(`${phases[job.phase] || 'Working on'} ${job.sites[job.site_index]?.name || 'this site'}.`);

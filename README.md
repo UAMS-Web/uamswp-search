@@ -16,7 +16,7 @@ The menu has three screens: **Index** (rebuild and index status), **Reports** (f
 
 ## Operations
 
-The browser rebuild saves its progress after each item. Use **Pause rebuild**, **Resume rebuild**, or **Cancel rebuild** on the settings page. If the tab closes or a request fails, reopen the page and resume. The browser drives short requests; the full rebuild does not depend on WP-Cron. Saved edits and CLI indexing wait until the browser rebuild finishes or is cancelled. A repeatedly interrupted item is marked failed after three attempts so other items can finish. Cancellation discards unfinished staged content; already completed sites retain their new content. Reload the page after completion to refresh the status counts.
+The browser rebuild saves its progress after each item. Use **Pause rebuild**, **Resume rebuild**, or **Cancel rebuild** on the settings page. If the tab closes or a request fails, reopen the page and resume. The browser drives short requests; the full rebuild does not depend on WP-Cron. Saved edits and CLI indexing wait until the browser rebuild finishes or is canceled. A repeatedly interrupted item is marked failed after three attempts so other items can finish. Cancellation discards unfinished staged content; already completed sites retain their new content. Reload the page after completion to refresh the status counts.
 
 Command-line tools remain available when the server provides access:
 

@@ -183,7 +183,7 @@ The plugin answers the main WordPress search query, and results come back in the
 
 ## PDF indexing (phase 2)
 
-PDF attachments get their own index rows with extracted text, labelled "PDF" in results. Extraction happens only in the background queue, never during a page load.
+PDF attachments get their own index rows with extracted text, labeled "PDF" in results. Extraction happens only in the background queue, never during a page load.
 
 **Extracting text**
 

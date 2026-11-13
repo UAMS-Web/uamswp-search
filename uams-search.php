@@ -30,12 +30,16 @@ use UAMS_Search\Plugin;
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+// Stop when WordPress is not loading the file
 defined('ABSPATH') || exit;
+// Define the plugin constants
 define('UAMS_SEARCH_FILE', __FILE__);
 define('UAMS_SEARCH_VERSION', '0.5.1');
 define('UAMS_SEARCH_SCHEMA_VERSION', '0.1.0');
+// Load the class loader and global helpers
 require_once __DIR__.'/includes/autoload.php';
 require_once __DIR__.'/includes/helpers.php';
+// Connect the plugin to WordPress
 register_activation_hook(__FILE__, [Plugin::class, 'activate']);
 register_deactivation_hook(__FILE__, [Plugin::class, 'deactivate']);
 add_action('plugins_loaded', [Plugin::class, 'boot'], 20);

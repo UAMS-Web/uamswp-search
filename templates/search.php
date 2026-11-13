@@ -1,5 +1,7 @@
 <?php
 
+/** Search results template for other themes: the header, the results and the footer. */
+
 use UAMS_Search\Integration;
 
 defined('ABSPATH') || exit;
