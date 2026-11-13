@@ -33,7 +33,7 @@ final class CLI
             // Choose the sites to rebuild
             $sites = isset($assoc['all']) ? Config::index_sites() : [(int) ($assoc['site'] ?? get_current_blog_id())];
             if ($sites === []) {
-                throw new RuntimeException('No sites are eligible. Use the rebuild button in uams search settings to include no-index sites for signed-in previews.');
+                throw new RuntimeException('No sites are eligible. Use the rebuild button in UAMSWP Search settings to include no-index sites for signed-in previews.');
             }
 
             // Rebuild each site and report its counts
