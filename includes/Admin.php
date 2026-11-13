@@ -252,7 +252,8 @@ final class Admin
         $c['types'] = $types;
         $c['fields'] = $fields;
         $c['taxonomies'] = $taxonomies;
-        $c['stopwords'] = Text::words(is_scalar($input['stopwords'] ?? '') ? $input['stopwords'] : '');
+        $stopwords = $input['stopwords'] ?? '';
+        $c['stopwords'] = Text::words(is_scalar($stopwords) ? (string) $stopwords : '');
         $c['synonyms'] = [];
         $lines = is_scalar($input['synonyms'] ?? '') ? (string) $input['synonyms'] : '';
         foreach (preg_split('/\R/', $lines) as $line) {

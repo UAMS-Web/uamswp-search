@@ -134,6 +134,32 @@ final class GuardsTest extends TestCase
         self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', $GLOBALS['uams_test_redirect'], 'The save returns to the settings screen.');
     }
 
+    public function test_saving_without_the_stopwords_field_stores_the_rest_and_an_empty_list(): void
+    {
+        $_POST['settings'] = ['types' => ['post' => ['include' => '1', 'boost' => '2']], 'synonyms' => ''];
+
+        try {
+            Admin::save();
+        } catch (RuntimeException) {
+        }
+
+        $saved = $GLOBALS['uams_test_options']['uams_search_settings'];
+        self::assertSame(['post' => 2.0], $saved['types']);
+        self::assertSame([], $saved['stopwords']);
+    }
+
+    public function test_saving_with_the_stopwords_field_stores_its_words(): void
+    {
+        $_POST['settings'] = ['types' => ['post' => ['include' => '1']], 'stopwords' => 'alpha beta', 'synonyms' => ''];
+
+        try {
+            Admin::save();
+        } catch (RuntimeException) {
+        }
+
+        self::assertSame(['alpha', 'beta'], $GLOBALS['uams_test_options']['uams_search_settings']['stopwords']);
+    }
+
     public function test_saving_without_a_post_type_is_refused_and_stores_nothing(): void
     {
         $_POST['settings'] = ['types' => ['post' => ['boost' => '2']]];
