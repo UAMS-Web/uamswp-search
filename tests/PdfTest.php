@@ -5,16 +5,23 @@ use UAMS_Search\Pdf;
 
 function get_attached_file($id)
 {
-    return __DIR__.'/../fixtures/text.pdf';
+    return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
 }
 
 function wp_get_upload_dir()
 {
-    return ['basedir' => __DIR__.'/../fixtures'];
+    return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
 }
 
 final class PdfTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['uams_test_attached'], $GLOBALS['uams_test_uploads']);
+        $GLOBALS['uams_test_options'] = [];
+        $GLOBALS['uams_test_filters'] = [];
+    }
+
     public function test_cached_extraction_keeps_filename_and_skips_worker(): void
     {
         $GLOBALS['uams_test_options'] = [];
@@ -108,5 +115,153 @@ final class PdfTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('PDF extractor failed');
         Pdf::process([PHP_BINARY, '-d', 'memory_limit=16M', '-d', 'display_errors=stderr', '-r', '$s = str_repeat("x", 64 * 1024 * 1024);'], 5);
+    }
+
+    public function test_a_missing_file_is_refused(): void
+    {
+        $GLOBALS['uams_test_attached'] = __DIR__.'/../fixtures/does-not-exist.pdf';
+        $this->expectExceptionMessage('PDF file is missing or outside uploads');
+        Pdf::extract(new WP_Post, null);
+    }
+
+    public function test_a_file_outside_the_uploads_folder_is_refused(): void
+    {
+        $GLOBALS['uams_test_attached'] = __FILE__;
+        $this->expectExceptionMessage('PDF file is missing or outside uploads');
+        Pdf::extract(new WP_Post, null);
+    }
+
+    public function test_a_file_over_the_size_limit_is_refused(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_max_mb' => 0.0001];
+        $this->expectExceptionMessage('PDF exceeds size limit');
+        Pdf::extract(new WP_Post, null);
+    }
+
+    public function test_the_bundled_parser_runs_when_poppler_is_unavailable(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+        $GLOBALS['uams_test_filters'] = [
+            'uams_search_pdftotext' => [static fn (): string => ''],
+            'uams_search_php_binary' => [static fn (): string => PHP_BINARY],
+        ];
+        $row = Pdf::extract(new WP_Post, null);
+
+        self::assertSame('ready', $row['status']);
+        self::assertStringContainsString('Cardiology PDF sentinel', $row['pdf']);
+    }
+
+    public function test_extraction_stops_when_poppler_fails_and_no_time_is_left(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 1];
+        $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): string => PHP_BINARY]];
+        $this->expectExceptionMessage('PDF extraction timed out');
+        Pdf::extract(new WP_Post, null);
+    }
+
+    public function test_the_fallback_needs_an_executable_php(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+        $GLOBALS['uams_test_filters'] = [
+            'uams_search_pdftotext' => [static fn (): string => ''],
+            'uams_search_php_binary' => [static fn (): string => '/nonexistent/php'],
+        ];
+        $this->expectExceptionMessage('PDF fallback needs an executable PHP CLI; set uams_search_php_binary. Poppler unavailable');
+        Pdf::extract(new WP_Post, null);
+    }
+
+    public function test_binary_finds_an_executable_and_reports_a_missing_one_as_null(): void
+    {
+        $found = Pdf::binary('sh');
+        self::assertNotNull($found);
+        self::assertTrue(is_executable($found));
+        self::assertNull(Pdf::binary('uams-search-no-such-program'));
+    }
+
+    public function test_too_much_error_output_stops_the_command(): void
+    {
+        $this->expectExceptionMessage('PDF extraction output limit exceeded');
+        Pdf::process([PHP_BINARY, '-r', 'fwrite(STDERR, str_repeat("x", 70000)); usleep(3000000);'], 10);
+    }
+
+    public function test_a_clean_exit_returns_what_the_command_printed(): void
+    {
+        self::assertSame('hello', Pdf::process([PHP_BINARY, '-r', 'echo "hello";'], 5));
+    }
+
+    public function test_a_missing_uploads_folder_refuses_every_file(): void
+    {
+        $GLOBALS['uams_test_uploads'] = __DIR__.'/../fixtures/no-such-folder';
+        $this->expectExceptionMessage('PDF file is missing or outside uploads');
+        Pdf::extract(new WP_Post, null);
+    }
+
+    public function test_a_sibling_folder_sharing_the_uploads_prefix_is_outside_uploads(): void
+    {
+        $base = sys_get_temp_dir().'/uams-search-pdf-'.getmypid();
+        mkdir($base.'/up', 0777, true);
+        mkdir($base.'/up-evil', 0777, true);
+        copy(__DIR__.'/../fixtures/text.pdf', $base.'/up-evil/a.pdf');
+        $GLOBALS['uams_test_uploads'] = $base.'/up';
+        $GLOBALS['uams_test_attached'] = $base.'/up-evil/a.pdf';
+        try {
+            Pdf::extract(new WP_Post, null);
+            self::fail('A sibling folder must be refused.');
+        } catch (RuntimeException $runtimeException) {
+            self::assertSame('PDF file is missing or outside uploads', $runtimeException->getMessage());
+        } finally {
+            unlink($base.'/up-evil/a.pdf');
+            rmdir($base.'/up-evil');
+            rmdir($base.'/up');
+            rmdir($base);
+        }
+    }
+
+    public function test_a_file_exactly_at_the_size_limit_is_accepted(): void
+    {
+        $size = filesize(__DIR__.'/../fixtures/text.pdf');
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_max_mb' => $size / 1048576, 'pdf_timeout' => 60];
+        $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
+
+        self::assertSame($size, Pdf::extract(new WP_Post, null)['file_size']);
+    }
+
+    public function test_cached_text_is_reused_only_for_a_finished_extraction(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+        $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
+        $path = realpath(get_attached_file(42));
+        $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
+
+        $row = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'failed', 'pdf' => 'stale text', 'error' => 'x']);
+        self::assertStringContainsString('Cardiology PDF sentinel', $row['pdf']);
+
+        $row = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'scanned', 'pdf' => '', 'error' => 'kept']);
+        self::assertSame('scanned', $row['status']);
+        self::assertSame('kept', $row['error']);
+    }
+
+    public function test_a_pdf_without_a_text_layer_is_marked_scanned(): void
+    {
+        $GLOBALS['uams_test_attached'] = __DIR__.'/../fixtures/scanned.pdf';
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+        $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
+        $row = Pdf::extract(new WP_Post, null);
+
+        self::assertSame('scanned', $row['status']);
+        self::assertSame('', $row['pdf']);
+        self::assertSame('No text layer; matched by title and filename only.', $row['error']);
+        self::assertSame('scanned', $row['fields']);
+    }
+
+    public function test_an_empty_path_entry_is_not_searched_as_the_root_folder(): void
+    {
+        $path = getenv('PATH');
+        putenv('PATH=');
+        try {
+            self::assertNull(Pdf::binary('bin'));
+        } finally {
+            putenv('PATH='.$path);
+        }
     }
 }
