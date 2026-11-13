@@ -36,11 +36,6 @@ function wp_unique_id($prefix)
     return $prefix.++$i;
 }
 
-function is_user_logged_in()
-{
-    return false;
-}
-
 function is_scalar_string($v)
 {
     return is_scalar($v) ? (string) $v : '';
