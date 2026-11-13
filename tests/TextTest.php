@@ -16,11 +16,33 @@ final class TextTest extends TestCase
 
     public function test_normalization_and_unicode(): void
     {
-        self::assertSame(['mri', 'ent', 'gi', 'o', 'neal', 'café', '医生'], Text::words('MRI, ENT; GI / O’Neal Café 医生'));
+        self::assertSame(['mri', 'ent', 'gi', 'o', 'neal', 'cafe', '医生'], Text::words('MRI, ENT; GI / O’Neal Café 医生'));
         self::assertSame([], Text::words('?! 🩺'));
         self::assertSame([], Text::tokens('the and with'));
         self::assertSame('', Text::plain('<script>alert(1)</script><style>bad</style>'));
         self::assertSame('heart care & billing', Text::plain('<p>heart</p><p>care &amp; billing</p>'));
+    }
+
+    public function test_accents_are_folded_like_wordpress_does(): void
+    {
+        self::assertSame(['cafe', 'nino'], Text::words('Café Niño'));
+        self::assertSame(Phonetic::key('nino'), Phonetic::key('Niño'));
+        self::assertSame('NN', Phonetic::key('Niño'));
+        self::assertSame(Text::index('cafe'), Text::index('Café'));
+    }
+
+    public function test_stop_words_are_dropped_from_the_search_groups(): void
+    {
+        self::assertSame([['heart*']], Text::groups('the heart and'));
+        // One chunk can hold several words when punctuation joins them.
+        self::assertSame([['heart*']], Text::groups('the-heart'));
+        self::assertSame([], Text::groups('the and'));
+    }
+
+    public function test_flatten_skips_keys_that_start_with_an_underscore(): void
+    {
+        self::assertSame('visible', Text::flatten(['_hidden' => 'secret', 'shown' => 'visible']));
+        self::assertSame('secret visible', Text::flatten(['hidden_' => 'secret', 'shown' => 'visible']));
     }
 
     public function test_porter_published_examples(): void
