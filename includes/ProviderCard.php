@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use WP_Term;
+
 /** Present current provider fields in the card layout used by Find-a-Doc. */
 final class ProviderCard
 {
@@ -18,7 +20,7 @@ final class ProviderCard
         // Read the result's site and post, and check the site is public
         $site = (int) $result->site;
         $id = (int) $result->id;
-        if ($site < 1 || $id < 1 || ! in_array($site, Config::public_sites(), true)) {
+        if ($site < 1 || $id < 1 || ! \in_array($site, Config::public_sites(), true)) {
             return null;
         }
 
@@ -54,9 +56,9 @@ final class ProviderCard
             if ($use_parts) {
                 $degrees = [];
                 $values = CardFields::field('physician_degree', $id);
-                foreach (is_array($values) ? $values : [$values] as $value) {
+                foreach (\is_array($values) ? $values : [$values] as $value) {
                     $term = CardFields::term($value, 'degree');
-                    if ($term instanceof \WP_Term && ($degree = CardFields::text($term->name)) !== '') {
+                    if ($term instanceof WP_Term && ($degree = CardFields::text($term->name)) !== '') {
                         $degrees[] = $degree;
                     }
                 }
@@ -77,8 +79,8 @@ final class ProviderCard
                 $subtitle = 'Resident Physician';
             } else {
                 $title = CardFields::field('physician_title', $id);
-                $term = CardFields::term(is_array($title) ? reset($title) : $title, 'clinical_title');
-                if ($term instanceof \WP_Term) {
+                $term = CardFields::term(\is_array($title) ? reset($title) : $title, 'clinical_title');
+                if ($term instanceof WP_Term) {
                     $subtitle = CardFields::text(CardFields::field('clinical_specialization_title', $term)) ?: CardFields::text($term->name);
                 }
             }
@@ -90,7 +92,7 @@ final class ProviderCard
                 $image = wp_get_attachment_image($thumbnail, 'medium', false, ['class' => 'card-img-top', 'alt' => $name, 'loading' => 'lazy']);
             }
 
-            if (! $image && defined('UAMS_FAD_ROOT_URL')) {
+            if (! $image && \defined('UAMS_FAD_ROOT_URL')) {
                 $image = '<img src="'.esc_url(rtrim(UAMS_FAD_ROOT_URL, '/').'/assets/svg/no-image_3-4.svg').'" alt="" class="card-img-top" loading="lazy" width="253" height="337">';
             }
 

@@ -14,7 +14,7 @@ final class Config
     {
         return [
             'enabled' => false, 'live' => true, 'logging' => true,
-            'preview_noindex' => function_exists('wp_get_environment_type') && in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
+            'preview_noindex' => \function_exists('wp_get_environment_type') && \in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
             'results_per_page' => 20,
             'sites' => null, 'related_provider_weight' => 0.25,
             'weights' => ['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1],
@@ -45,7 +45,7 @@ final class Config
         // Read the saved settings, apply the defaults and the filter, and fix the types
         $saved = get_site_option('uams_search_settings', []);
 
-        return self::normalize(Filters::array('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : [])));
+        return self::normalize(Filters::array('uams_search_config', array_replace(self::defaults(), \is_array($saved) ? $saved : [])));
     }
 
     /**
@@ -54,11 +54,13 @@ final class Config
      * @param  string  $name  Option name.
      * @param  string  $default  Value to use when the option is not a non-empty string.
      */
-    public static function option_string(string $name, string $default): string
-    {
+    public static function option_string(
+        string $name,
+        string $default
+    ): string {
         $value = get_option($name, $default);
 
-        return is_string($value) && $value !== '' ? $value : $default;
+        return \is_string($value) && $value !== '' ? $value : $default;
     }
 
     /**
@@ -67,11 +69,13 @@ final class Config
      * @param  string  $name  Option name.
      * @param  bool  $default  Value to use when the option is not scalar.
      */
-    public static function option_flag(string $name, bool $default): bool
-    {
+    public static function option_flag(
+        string $name,
+        bool $default
+    ): bool {
         $value = get_option($name, $default);
 
-        return is_scalar($value) ? (bool) $value : $default;
+        return \is_scalar($value) ? (bool) $value : $default;
     }
 
     /**
@@ -106,7 +110,7 @@ final class Config
     {
         $value = self::get()[$key] ?? [];
 
-        return is_array($value) ? $value : [];
+        return \is_array($value) ? $value : [];
     }
 
     /**
@@ -116,11 +120,13 @@ final class Config
      * @param  string  $name  Entry key within the setting.
      * @return array<mixed>
      */
-    public static function entry(string $key, string $name): array
-    {
+    public static function entry(
+        string $key,
+        string $name
+    ): array {
         $value = self::section($key)[$name] ?? [];
 
-        return is_array($value) ? $value : [];
+        return \is_array($value) ? $value : [];
     }
 
     /**
@@ -132,7 +138,7 @@ final class Config
     {
         $value = self::get()['sites'] ?? null;
 
-        return is_array($value) ? array_values(array_map(intval(...), $value)) : null;
+        return \is_array($value) ? array_values(array_map(intval(...), $value)) : null;
     }
 
     /**
@@ -148,13 +154,13 @@ final class Config
         foreach (self::defaults() as $key => $default) {
             $value = $config[$key] ?? $default;
             if ($default === null) {
-                $config[$key] = is_array($value) ? $value : null;
-            } elseif (is_bool($default)) {
-                $config[$key] = is_scalar($value) ? (bool) $value : $default;
-            } elseif (is_int($default) || is_float($default)) {
+                $config[$key] = \is_array($value) ? $value : null;
+            } elseif (\is_bool($default)) {
+                $config[$key] = \is_scalar($value) ? (bool) $value : $default;
+            } elseif (\is_int($default) || \is_float($default)) {
                 $config[$key] = is_numeric($value) ? $value + 0 : $default;
             } else {
-                $config[$key] = is_array($value) ? $value : $default;
+                $config[$key] = \is_array($value) ? $value : $default;
             }
         }
 
@@ -172,7 +178,7 @@ final class Config
         // Fall back to the configured size
         $value ??= self::number('results_per_page') ?: 20;
 
-        return is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
+        return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
     }
 
     /**
@@ -189,7 +195,7 @@ final class Config
         }
 
         // Include sites that discourage indexing when previewing
-        $preview = self::flag('preview_noindex') && ((defined('WP_CLI') && WP_CLI) || is_user_logged_in());
+        $preview = self::flag('preview_noindex') && ((\defined('WP_CLI') && WP_CLI) || is_user_logged_in());
 
         return self::site_ids($preview);
     }
@@ -238,12 +244,14 @@ final class Config
      * @param  int  $site  The current site's ID.
      * @return list<int> Site IDs.
      */
-    public static function sites(string $scope, int $site): array
-    {
+    public static function sites(
+        string $scope,
+        int $site
+    ): array {
         // Search the current site alone when it is public
         $public = self::public_sites();
         if ($scope === 'site') {
-            return in_array($site, $public, true) ? [$site] : [];
+            return \in_array($site, $public, true) ? [$site] : [];
         }
 
         // Search the chosen sites, or every public site when none are chosen
@@ -320,14 +328,14 @@ final class Config
     {
         // Use the requested scope when offered
         $options = array_keys(self::scope_options());
-        if (is_string($value) && in_array($value, $options, true)) {
+        if (\is_string($value) && \in_array($value, $options, true)) {
             return $value;
         }
 
         // Use the site's default scope when offered, otherwise the first option
         $default = self::option_string('uams_search_scope', 'site');
 
-        return is_string($default) && in_array($default, $options, true) ? $default : $options[0];
+        return \is_string($default) && \in_array($default, $options, true) ? $default : $options[0];
     }
 
     /**

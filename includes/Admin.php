@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use InvalidArgumentException;
+use Throwable;
 use WP_Post;
 
 /** The admin screens, settings forms and AJAX endpoint of the plugin. */
@@ -185,9 +187,9 @@ final class Admin
 
         // Check the nonce and read the request
         check_ajax_referer('uams_search_rebuild', 'nonce');
-        $op = isset($_POST['op']) && is_scalar($_POST['op']) ? sanitize_key(wp_unslash((string) $_POST['op'])) : '';
-        $id = isset($_POST['job_id']) && is_scalar($_POST['job_id']) ? sanitize_text_field(wp_unslash((string) $_POST['job_id'])) : '';
-        $revision = isset($_POST['revision']) && is_scalar($_POST['revision']) ? absint($_POST['revision']) : 0;
+        $op = isset($_POST['op']) && \is_scalar($_POST['op']) ? sanitize_key(wp_unslash((string) $_POST['op'])) : '';
+        $id = isset($_POST['job_id']) && \is_scalar($_POST['job_id']) ? sanitize_text_field(wp_unslash((string) $_POST['job_id'])) : '';
+        $revision = isset($_POST['revision']) && \is_scalar($_POST['revision']) ? absint($_POST['revision']) : 0;
         // Run the requested action
         try {
             $result = match ($op) {
@@ -196,10 +198,10 @@ final class Admin
                 'pause' => Rebuild::pause($id),
                 'cancel' => Rebuild::cancel($id),
                 'status' => ['job' => Rebuild::state(), 'busy' => false],
-                default => throw new \InvalidArgumentException('Unknown rebuild action.'),
+                default => throw new InvalidArgumentException('Unknown rebuild action.'),
             };
-        } catch (\Throwable $throwable) {
-            wp_send_json_error(['message' => $throwable->getMessage()], $throwable instanceof \InvalidArgumentException ? 400 : 500);
+        } catch (Throwable $throwable) {
+            wp_send_json_error(['message' => $throwable->getMessage()], $throwable instanceof InvalidArgumentException ? 400 : 500);
         }
 
         // Send the result
@@ -236,7 +238,7 @@ final class Admin
         // Create the tables
         try {
             DB::install();
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             wp_die(esc_html($throwable->getMessage()));
         }
 
@@ -251,7 +253,7 @@ final class Admin
         // Check the user and the nonce, and read the submitted settings
         self::capable();
         check_admin_referer('uams_search_save');
-        $input = isset($_POST['settings']) && is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
+        $input = isset($_POST['settings']) && \is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $c = Config::get();
         // Save the page size, the switches and the chosen sites
         $c['results_per_page'] = Config::page_size($input['results_per_page'] ?? 20);
@@ -271,7 +273,7 @@ final class Admin
         $taxonomies = [];
         foreach ((array) ($input['types'] ?? []) as $name => $values) {
             $name = sanitize_key($name);
-            if (! $name || ! is_array($values) || empty($values['include'])) {
+            if (! $name || ! \is_array($values) || empty($values['include'])) {
                 continue;
             }
 
@@ -279,11 +281,11 @@ final class Admin
             foreach (['fields', 'taxonomies'] as $group) {
                 $parsed = [];
                 foreach ((array) ($values[$group] ?? []) as $row) {
-                    if (! is_array($row)) {
+                    if (! \is_array($row)) {
                         continue;
                     }
 
-                    $key = sanitize_key(is_scalar($row['name'] ?? '') ? $row['name'] : '');
+                    $key = sanitize_key(\is_scalar($row['name'] ?? '') ? $row['name'] : '');
                     if ($key) {
                         $parsed[$key] = self::number($row['weight'] ?? 1);
                     }
@@ -307,18 +309,18 @@ final class Admin
         $c['fields'] = $fields;
         $c['taxonomies'] = $taxonomies;
         $stopwords = $input['stopwords'] ?? '';
-        $c['stopwords'] = Text::words(is_scalar($stopwords) ? (string) $stopwords : '');
+        $c['stopwords'] = Text::words(\is_scalar($stopwords) ? (string) $stopwords : '');
         // Read the synonym rules: one word, an equals sign and up to ten alternates per line
         $c['synonyms'] = [];
-        $lines = is_scalar($input['synonyms'] ?? '') ? (string) $input['synonyms'] : '';
+        $lines = \is_scalar($input['synonyms'] ?? '') ? (string) $input['synonyms'] : '';
         foreach (preg_split('/\R/', $lines) as $line) {
             $parts = explode('=', $line, 2);
-            if (count($parts) !== 2) {
+            if (\count($parts) !== 2) {
                 continue;
             }
 
             $key = Text::words($parts[0]);
-            if (count($key) !== 1) {
+            if (\count($key) !== 1) {
                 continue;
             }
 
@@ -330,7 +332,7 @@ final class Admin
                 }
             }
 
-            $c['synonyms'][$key[0]] = array_slice(array_unique($alternates), 0, 10);
+            $c['synonyms'][$key[0]] = \array_slice(array_unique($alternates), 0, 10);
         }
 
         // Save the PDF limits
@@ -355,7 +357,7 @@ final class Admin
      */
     private static function number(mixed $value): float
     {
-        return is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(0, min(100, (float) $value)) : 0;
+        return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(0, min(100, (float) $value)) : 0;
     }
 
     /** Print the per-site search settings form. */
@@ -373,7 +375,7 @@ final class Admin
         // The same options and labels as the results page, whether or not Google results are switched on.
         $options = Config::scope_options(false);
         $saved = get_option('uams_search_scope', 'site');
-        $current = is_string($saved) && isset($options[$saved]) ? $saved : array_key_first($options);
+        $current = \is_string($saved) && isset($options[$saved]) ? $saved : array_key_first($options);
         foreach ($options as $value => $label) {
             echo '<p><label><input type="radio" name="scope" value="'.esc_attr($value).'" '.checked($current, $value, false).'> '.esc_html($label).'</label></p>';
         }
@@ -395,8 +397,8 @@ final class Admin
         check_admin_referer('uams_search_site');
         // Save the scope and the Google switch
         $options = array_keys(Config::scope_options(false));
-        $scope = is_scalar($_POST['scope'] ?? '') ? sanitize_text_field(wp_unslash($_POST['scope'])) : '';
-        update_option('uams_search_scope', in_array($scope, $options, true) ? $scope : $options[0]);
+        $scope = \is_scalar($_POST['scope'] ?? '') ? sanitize_text_field(wp_unslash($_POST['scope'])) : '';
+        update_option('uams_search_scope', \in_array($scope, $options, true) ? $scope : $options[0]);
         update_option('uams_search_google', ! empty($_POST['google']));
         // Return to the page
         wp_safe_redirect(admin_url('options-general.php?page=uams-search-site'));
@@ -411,7 +413,7 @@ final class Admin
         check_admin_referer('uams_search_retry');
         $site = absint($_GET['site'] ?? 0);
         $id = absint($_GET['object'] ?? 0);
-        if (! in_array($site, Config::public_sites(), true) || ! $id) {
+        if (! \in_array($site, Config::public_sites(), true) || ! $id) {
             wp_die('Invalid site or item.');
         }
 
@@ -443,8 +445,10 @@ final class Admin
      * @param  string  $intro  Trusted HTML to print under the heading.
      * @return bool Whether the screen can show its content.
      */
-    private static function open(string $heading, string $intro = ''): bool
-    {
+    private static function open(
+        string $heading,
+        string $intro = ''
+    ): bool {
         // Check the user and print the heading
         self::capable();
         echo '<div class="wrap"><h1>'.esc_html($heading).'</h1>'.$intro;
@@ -509,7 +513,7 @@ final class Admin
         echo '<fieldset><legend><h2>Sub-Sites in Whole-Website Search</h2></legend>';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? get_blog_details($site)->blogname.' (#'.$site.')' : get_bloginfo('name');
-            echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked(Config::chosen_sites() === null || in_array($site, Config::chosen_sites(), true), true, false).'> '.esc_html($label).'</label></p>';
+            echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked(Config::chosen_sites() === null || \in_array($site, Config::chosen_sites(), true), true, false).'> '.esc_html($label).'</label></p>';
         }
 
         // Print the source weights
@@ -589,8 +593,13 @@ final class Admin
      * @param  array{name: string, weight: mixed}  $row  The row's values.
      * @param  int  $size  The width of the name input.
      */
-    private static function field_row(string $prefix, string $what, int $i, array $row, int $size): void
-    {
+    private static function field_row(
+        string $prefix,
+        string $what,
+        int $i,
+        array $row,
+        int $size
+    ): void {
         $key = $prefix.'['.$i.']';
         echo '<tr><td><input size="'.$size.'" aria-label="'.esc_attr($what.' name '.($i + 1)).'" name="'.esc_attr($key.'[name]').'" value="'.esc_attr($row['name']).'"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="'.esc_attr($what.' weight '.($i + 1)).'" name="'.esc_attr($key.'[weight]').'" value="'.esc_attr($row['weight']).'"></td><td><button type="button" class="button uams-remove-row" aria-label="'.esc_attr('Remove '.$what.' row '.($i + 1)).'" hidden>Remove</button></td></tr>';
     }
@@ -603,8 +612,12 @@ final class Admin
      * @param  mixed  $value  The current value.
      * @param  int  $max  The largest value allowed.
      */
-    private static function numeric(string $name, string $label, mixed $value, int $max = 100): void
-    {
+    private static function numeric(
+        string $name,
+        string $label,
+        mixed $value,
+        int $max = 100
+    ): void {
         // Derive the input ID from the name
         $id = 'uams-'.trim((string) preg_replace('/[^a-z0-9]+/i', '-', $name), '-');
         echo '<tr><th scope="row"><label for="'.esc_attr($id).'">'.esc_html($label).'</label></th><td><input id="'.esc_attr($id).'" type="number" min="0" max="'.$max.'" step="0.1" style="width:6em" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></td></tr>';
@@ -652,8 +665,10 @@ final class Admin
      * @param  array<int, string>  $heads  The column headings.
      * @param  array<int, array<int, mixed>>  $rows  The cell values of each row.
      */
-    private static function table(array $heads, array $rows): void
-    {
+    private static function table(
+        array $heads,
+        array $rows
+    ): void {
         // Print the headings, then the rows
         echo '<table class="widefat striped"><thead><tr>';
         foreach ($heads as $head) {

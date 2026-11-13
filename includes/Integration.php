@@ -2,7 +2,11 @@
 
 namespace UAMS_Search;
 
+use Throwable;
+use WP_Error;
+use WP_Query;
 use WP_REST_Request;
+use WP_REST_Response;
 
 /** Connects the plugin to WordPress search: the query, template, form, assets, suggestions endpoint and results page. */
 final class Integration
@@ -21,9 +25,11 @@ final class Integration
      * @param  string  $default  The value to return when the key is missing or not scalar.
      * @return string The sanitized value.
      */
-    public static function param(string $name, string $default = ''): string
-    {
-        return isset($_GET[$name]) && is_scalar($_GET[$name]) ? sanitize_text_field(wp_unslash((string) $_GET[$name])) : $default;
+    public static function param(
+        string $name,
+        string $default = ''
+    ): string {
+        return isset($_GET[$name]) && \is_scalar($_GET[$name]) ? sanitize_text_field(wp_unslash((string) $_GET[$name])) : $default;
     }
 
     /**
@@ -82,25 +88,29 @@ final class Integration
      * @param  mixed  $query  The query.
      * @return mixed False for a query with results from this plugin, otherwise `$allowed`.
      */
-    public static function allow_other_engine(mixed $allowed, mixed $query): mixed
-    {
+    public static function allow_other_engine(
+        mixed $allowed,
+        mixed $query
+    ): mixed {
         // Only yield a query we already answered. Other engines keep normal searches,
         // secondary queries, and the error/missing-index fallback they handled before.
-        return $query instanceof \WP_Query && is_array($query->get('uams_search_results')) ? false : $allowed;
+        return $query instanceof WP_Query && \is_array($query->get('uams_search_results')) ? false : $allowed;
     }
 
     /**
      * Answer the main search query from the index.
      *
      * @param  mixed  $posts  The posts another filter already chose, or null.
-     * @param  \WP_Query  $query  The query.
+     * @param  WP_Query  $query  The query.
      * @return mixed The result posts, an empty array for the all-websites scope, or `$posts` unchanged when this plugin
      *               does not answer or a failure sends the search back to WordPress.
      */
-    public static function posts(mixed $posts, \WP_Query $query): mixed
-    {
+    public static function posts(
+        mixed $posts,
+        WP_Query $query
+    ): mixed {
         // Answer only the main search query, when the plugin is active
-        if ($posts !== null || ! $query->is_main_query() || ! $query->is_search() || ! in_array($query->get('fields'), ['', 'all'], true) || is_admin() || ! self::active()) {
+        if ($posts !== null || ! $query->is_main_query() || ! $query->is_search() || ! \in_array($query->get('fields'), ['', 'all'], true) || is_admin() || ! self::active()) {
             return $posts;
         }
 
@@ -157,7 +167,7 @@ final class Integration
             $query->set('uams_search_results', $results);
 
             return $out;
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             // Fall back to the WordPress search
             error_log('UAMS Search: search failed; using WordPress. '.$throwable->getMessage());
 
@@ -196,8 +206,10 @@ final class Integration
      * @param  mixed  $post  The post.
      * @return mixed The saved excerpt for a result of this plugin, otherwise `$excerpt`.
      */
-    public static function excerpt(mixed $excerpt, mixed $post): mixed
-    {
+    public static function excerpt(
+        mixed $excerpt,
+        mixed $post
+    ): mixed {
         // Leave other excerpts alone
         if (! $post || ! is_search() || ! self::active()) {
             return $excerpt;
@@ -264,18 +276,18 @@ final class Integration
                 'type' => ['type' => 'string', 'sanitize_callback' => 'sanitize_key'],
                 'engine' => ['type' => 'string', 'enum' => ['uams']],
             ],
-            'callback' => static function (WP_REST_Request $request): \WP_REST_Response|\WP_Error {
+            'callback' => static function (WP_REST_Request $request): WP_REST_Response|WP_Error {
                 try {
                     $out = Query::run(['s' => $request['s'], 'site' => get_current_blog_id(), 'scope' => Config::scope($request->get_param('scope')), 'type' => $request->get_param('type') ?: '', 'per_page' => 6, 'suggest' => false]);
                     $items = array_map(static fn (object $r): array => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title.($r->post_type === 'attachment' ? ' (PDF, '.size_format($r->file_size).')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
-                    $response = new \WP_REST_Response(['items' => $items, 'total' => $out['total']], 200);
+                    $response = new WP_REST_Response(['items' => $items, 'total' => $out['total']], 200);
                     $response->header('Cache-Control', 'no-store');
 
                     return $response;
-                } catch (\Throwable $throwable) {
+                } catch (Throwable $throwable) {
                     error_log('UAMS Search: REST '.$throwable->getMessage());
 
-                    return new \WP_Error('uams_search_unavailable', 'Search suggestions are unavailable.', ['status' => 503]);
+                    return new WP_Error('uams_search_unavailable', 'Search suggestions are unavailable.', ['status' => 503]);
                 }
             },
         ]);

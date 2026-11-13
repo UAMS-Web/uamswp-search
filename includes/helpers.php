@@ -11,7 +11,9 @@ use UAMS_Search\Integration;
  * @return string Safe HTML with only `<mark>` tags, or an empty string when the
  *                result has no excerpt.
  */
-function uams_search_excerpt(int $post_id, ?int $site_id = null): string
-{
+function uams_search_excerpt(
+    int $post_id,
+    ?int $site_id = null
+): string {
     return Integration::$excerpts[($site_id ?: get_current_blog_id()).':'.$post_id] ?? '';
 }

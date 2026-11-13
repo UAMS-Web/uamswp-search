@@ -2,6 +2,10 @@
 
 namespace UAMS_Search;
 
+use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
+
 /** Writes posts into the search index, singly or for a whole site. */
 final class Indexer
 {
@@ -15,8 +19,11 @@ final class Indexer
      * @return array<string, mixed> The saved row, a `removed` result, or the
      *                              error row from `failure()`.
      */
-    public static function one(int $site, int $id, string $target = 'index'): array
-    {
+    public static function one(
+        int $site,
+        int $id,
+        string $target = 'index'
+    ): array {
         global $wpdb;
         // Switch to the post's site
         $changed = get_current_blog_id() !== $site;
@@ -31,9 +38,9 @@ final class Indexer
             $post = get_post($id);
             $table = DB::table($target);
             // Remove the post from the table when it should not be indexed
-            if (! $post || ! in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) {
+            if (! $post || ! \in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) {
                 if ($wpdb->delete($table, ['site_id' => $site, 'object_id' => $id]) === false) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 // Take its words out of the dictionary
@@ -54,14 +61,14 @@ final class Indexer
 
             try {
                 if ($wpdb->replace($table, $row) === false) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 if ($target === 'index') {
                     Suggestions::record($row);
                     DB::exec('COMMIT');
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Undo the partial save and pass the failure up
                 if ($target === 'index') {
                     DB::exec('ROLLBACK');
@@ -69,7 +76,7 @@ final class Indexer
             }
 
             return $row;
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             // Save the failure as an error row
             return self::failure($site, $id, isset($post) && $post ? $post->post_type : 'page', $throwable->getMessage(), $target);
         } finally {
@@ -96,10 +103,15 @@ final class Indexer
      * @param  string  $target  Table to write: `index` or `stage`.
      * @return array<string, mixed> The saved row, with status `error`.
      *
-     * @throws \RuntimeException When the error row cannot be saved.
+     * @throws RuntimeException When the error row cannot be saved.
      */
-    public static function failure(int $site, int $id, string $type, string $message, string $target): array
-    {
+    public static function failure(
+        int $site,
+        int $id,
+        string $type,
+        string $message,
+        string $target
+    ): array {
         global $wpdb;
         // Log the failure
         $message = mb_substr($message, 0, 2000);
@@ -109,7 +121,7 @@ final class Indexer
         $row = array_merge($row, ['site_id' => $site, 'object_id' => $id, 'post_type' => $type, 'status' => 'error', 'error' => $message, 'indexed_at' => gmdate('Y-m-d H:i:s')]);
         // Save the row
         if ($wpdb->replace(DB::table($target), $row) === false) {
-            throw new \RuntimeException('Could not save indexing failure: '.$wpdb->last_error);
+            throw new RuntimeException('Could not save indexing failure: '.$wpdb->last_error);
         }
 
         return $row;
@@ -124,27 +136,30 @@ final class Indexer
      * @return array{indexed: int, errors: int} Posts indexed and posts that
      *                                          failed.
      *
-     * @throws \InvalidArgumentException When the site or post type is not
-     *                                   configured.
-     * @throws \RuntimeException When another indexer or a browser rebuild is
-     *                           running, or the database fails.
+     * @throws InvalidArgumentException When the site or post type is not
+     *                                  configured.
+     * @throws RuntimeException When another indexer or a browser rebuild is
+     *                          running, or the database fails.
      */
-    public static function rebuild(int $site, ?string $type = null, ?callable $progress = null): array
-    {
+    public static function rebuild(
+        int $site,
+        ?string $type = null,
+        ?callable $progress = null
+    ): array {
         global $wpdb;
         // Check the site is indexed
-        if (! in_array($site, Config::index_sites(), true)) {
-            throw new \InvalidArgumentException('Unknown or excluded site');
+        if (! \in_array($site, Config::index_sites(), true)) {
+            throw new InvalidArgumentException('Unknown or excluded site');
         }
 
         // Check the post type is configured
         if ($type && ! isset(Config::section('types')[$type])) {
-            throw new \InvalidArgumentException('Post type is not configured');
+            throw new InvalidArgumentException('Post type is not configured');
         }
 
         // Take the lock so only one indexer works at a time
         if (! DB::lock()) {
-            throw new \RuntimeException('Another indexer is running. Try again after it finishes.');
+            throw new RuntimeException('Another indexer is running. Try again after it finishes.');
         }
 
         // Prepare the tables, the counters and the site to work in
@@ -159,7 +174,7 @@ final class Indexer
 
             // Refuse to run beside a browser rebuild
             if (Rebuild::active()) {
-                throw new \RuntimeException('A browser rebuild is active. Resume or cancel it in uams search settings first.');
+                throw new RuntimeException('A browser rebuild is active. Resume or cancel it in uams search settings first.');
             }
 
             // Clear the site's staged rows
@@ -168,11 +183,11 @@ final class Indexer
             // Index the posts 100 at a time
             $last = 0;
             $types = $type ? [$type] : array_keys(Config::section('types'));
-            $marks = implode(',', array_fill(0, count($types), '%s'));
+            $marks = implode(',', array_fill(0, \count($types), '%s'));
             do {
                 $ids = $wpdb->get_col($wpdb->prepare("SELECT ID FROM `$wpdb->posts` WHERE ID>%d AND post_type IN ($marks) ORDER BY ID LIMIT 100", array_merge([$last], $types)));
                 if ($wpdb->last_error) {
-                    throw new \RuntimeException($wpdb->last_error);
+                    throw new RuntimeException($wpdb->last_error);
                 }
 
                 // Index each post into the stage table
@@ -195,7 +210,7 @@ final class Indexer
                 }
 
                 // Free memory between batches
-                if (function_exists('wp_cache_flush_runtime')) {
+                if (\function_exists('wp_cache_flush_runtime')) {
                     wp_cache_flush_runtime();
                 }
             } while ($ids);
@@ -229,12 +244,14 @@ final class Indexer
      * @param  int  $site  Site ID.
      * @param  string|null  $type  Post type to replace, or null for all.
      *
-     * @throws \RuntimeException When the index columns cannot be read.
-     * @throws \Throwable Whatever the database raises; the transaction is rolled
-     *                    back first.
+     * @throws RuntimeException When the index columns cannot be read.
+     * @throws Throwable Whatever the database raises; the transaction is rolled
+     *                   back first.
      */
-    public static function promote(int $site, ?string $type = null): void
-    {
+    public static function promote(
+        int $site,
+        ?string $type = null
+    ): void {
         global $wpdb;
         // Name the tables and the rows to replace
         $stage = DB::table('stage');
@@ -243,7 +260,7 @@ final class Indexer
         // Read the live columns, except the row ID
         $columns = array_diff($wpdb->get_col("SHOW COLUMNS FROM `$live`", 0), ['id']);
         if ($wpdb->last_error || ! $columns) {
-            throw new \RuntimeException($wpdb->last_error ?: 'Index columns are missing');
+            throw new RuntimeException($wpdb->last_error ?: 'Index columns are missing');
         }
 
         $columns = '`'.implode('`,`', $columns).'`';
@@ -253,7 +270,7 @@ final class Indexer
             DB::exec("DELETE FROM `$live` WHERE $where OR (".$wpdb->prepare('site_id=%d', $site)." AND object_id IN (SELECT object_id FROM `$stage` WHERE ".$wpdb->prepare('site_id=%d', $site).'))');
             DB::exec("INSERT INTO `$live` ($columns) SELECT $columns FROM `$stage` WHERE $where");
             DB::exec('COMMIT');
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             // Undo the replacement and pass the failure up
             DB::exec('ROLLBACK');
             throw $throwable;

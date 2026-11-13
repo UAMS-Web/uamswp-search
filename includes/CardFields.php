@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use WP_Term;
+
 /** Shared value boundaries for live directory cards. The caller sets the site context. */
 final class CardFields
 {
@@ -13,7 +15,7 @@ final class CardFields
      */
     public static function text(mixed $value): string
     {
-        return is_string($value) || is_int($value) || is_float($value) ? Text::plain((string) $value) : '';
+        return \is_string($value) || \is_int($value) || \is_float($value) ? Text::plain((string) $value) : '';
     }
 
     /**
@@ -23,15 +25,17 @@ final class CardFields
      * @param  mixed  $object  Post ID or `WP_Term` to read from.
      * @return mixed The stored value, unformatted.
      */
-    public static function field(string $name, mixed $object): mixed
-    {
+    public static function field(
+        string $name,
+        mixed $object
+    ): mixed {
         // Use ACF when it is available
-        if (function_exists('get_field')) {
+        if (\function_exists('get_field')) {
             return get_field($name, $object, false);
         }
 
         // Fall back to the term or post meta
-        return $object instanceof \WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
+        return $object instanceof WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
     }
 
     /**
@@ -42,7 +46,7 @@ final class CardFields
      */
     public static function id(mixed $value): int
     {
-        return (is_int($value) || (is_string($value) && ctype_digit($value))) && (int) $value > 0 ? (int) $value : 0;
+        return (\is_int($value) || (\is_string($value) && ctype_digit($value))) && (int) $value > 0 ? (int) $value : 0;
     }
 
     /**
@@ -53,7 +57,7 @@ final class CardFields
      */
     public static function flag(mixed $value): bool
     {
-        return in_array($value, [true, 1, '1'], true);
+        return \in_array($value, [true, 1, '1'], true);
     }
 
     /**
@@ -61,11 +65,13 @@ final class CardFields
      *
      * @param  mixed  $value  Value read from a field, expected to be a term ID.
      * @param  string  $taxonomy  Taxonomy the term must belong to.
-     * @return \WP_Term|null The term, or null when the value is not a usable ID
-     *                       or no such term exists.
+     * @return WP_Term|null The term, or null when the value is not a usable ID
+     *                      or no such term exists.
      */
-    public static function term(mixed $value, string $taxonomy): ?\WP_Term
-    {
+    public static function term(
+        mixed $value,
+        string $taxonomy
+    ): ?WP_Term {
         // Validate the ID
         $id = self::id($value);
         if (! $id) {
@@ -75,6 +81,6 @@ final class CardFields
         // Look up the term
         $term = get_term($id, $taxonomy);
 
-        return $term instanceof \WP_Term ? $term : null;
+        return $term instanceof WP_Term ? $term : null;
     }
 }

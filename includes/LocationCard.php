@@ -2,6 +2,9 @@
 
 namespace UAMS_Search;
 
+use DateTimeImmutable;
+use WP_Term;
+
 /** Current location details in the directory's landscape card layout. */
 final class LocationCard
 {
@@ -14,32 +17,32 @@ final class LocationCard
     private static function lines(mixed $value): array
     {
         // Ignore a value that is not text
-        if (! is_string($value) && ! is_int($value)) {
+        if (! \is_string($value) && ! \is_int($value)) {
             return [];
         }
 
         // Split at breaks and drop empty lines
         $lines = preg_split('/(?:<br\s*\/?\s*>|\r?\n)+/i', (string) $value);
 
-        return array_values(array_filter(array_map([CardFields::class, 'text'], $lines), static fn (string $line): bool => $line !== ''));
+        return array_values(array_filter(array_map(CardFields::text(...), $lines), static fn (string $line): bool => $line !== ''));
     }
 
     /**
      * Read a date field in one of the formats the directory stores.
      *
      * @param  mixed  $value  A field value in `Ymd`, `Y-m-d` or `F j, Y` form.
-     * @return \DateTimeImmutable|null The date at midnight in the site's timezone, or null when it is not a valid date.
+     * @return DateTimeImmutable|null The date at midnight in the site's timezone, or null when it is not a valid date.
      */
-    private static function date(mixed $value): ?\DateTimeImmutable
+    private static function date(mixed $value): ?DateTimeImmutable
     {
         // Reject a value that cannot be a date
-        if (! is_string($value) || $value === '' || strlen($value) > 40 || str_contains($value, "\0")) {
+        if (! \is_string($value) || $value === '' || \strlen($value) > 40 || str_contains($value, "\0")) {
             return null;
         }
 
         // Accept the first format that round-trips to the same text
         foreach (['Ymd', 'Y-m-d', 'F j, Y'] as $format) {
-            $date = \DateTimeImmutable::createFromFormat('!'.$format, $value, wp_timezone());
+            $date = DateTimeImmutable::createFromFormat('!'.$format, $value, wp_timezone());
             if ($date && $date->format($format) === $value) {
                 return $date;
             }
@@ -62,8 +65,8 @@ final class LocationCard
             $length = CardFields::field('location_closing_length', $id);
             $start = self::date(CardFields::field('location_closing_date', $id));
             $end = self::date(CardFields::field('location_reopen_date', $id));
-            if ($length === 'permanent' || ($length === 'temporary' && (! $end instanceof \DateTimeImmutable || $end > $today))) {
-                if (! $start instanceof \DateTimeImmutable || $start <= $today) {
+            if ($length === 'permanent' || ($length === 'temporary' && (! $end instanceof DateTimeImmutable || $end > $today))) {
+                if (! $start instanceof DateTimeImmutable || $start <= $today) {
                     $text = 'This location is '.($length === 'temporary' ? 'temporarily' : 'permanently').' closed.';
                 } else {
                     $text = 'This location will be closing '.($length === 'temporary' ? 'temporarily beginning ' : 'permanently on ').$start->format('F j, Y').'.';
@@ -75,7 +78,7 @@ final class LocationCard
 
         // Read the hours group
         $hours = CardFields::field('location_hours_group', $id);
-        $hours = is_array($hours) ? $hours : [];
+        $hours = \is_array($hours) ? $hours : [];
 
         // Collect the start dates of modified hours that begin within 30 days or are in effect
         $starts = [];
@@ -83,13 +86,13 @@ final class LocationCard
             $keys = [$prefix === 'location_modified_hours' ? $prefix : $prefix.'_query', $prefix.'_start_date', $prefix.'_end', $prefix.'_end_date'];
             $values = [];
             foreach ($keys as $key) {
-                $values[] = array_key_exists($key, $hours) ? $hours[$key] : (array_key_exists('field_'.$key, $hours) ? $hours['field_'.$key] : CardFields::field('location_hours_group_'.$key, $id));
+                $values[] = \array_key_exists($key, $hours) ? $hours[$key] : (\array_key_exists('field_'.$key, $hours) ? $hours['field_'.$key] : CardFields::field('location_hours_group_'.$key, $id));
             }
 
             [$enabled,$start_value,$end_known,$end_value] = $values;
             $start = self::date($start_value);
             $end = self::date($end_value);
-            if (CardFields::flag($enabled) && $start instanceof \DateTimeImmutable && $start <= $today->modify('+30 days') && (! CardFields::flag($end_known) || ($end instanceof \DateTimeImmutable && $end >= $today))) {
+            if (CardFields::flag($enabled) && $start instanceof DateTimeImmutable && $start <= $today->modify('+30 days') && (! CardFields::flag($end_known) || ($end instanceof DateTimeImmutable && $end >= $today))) {
                 $starts[] = $start;
             }
         }
@@ -115,13 +118,13 @@ final class LocationCard
     private static function phone(mixed $value): ?array
     {
         // Ignore a value that is not text
-        if (! is_string($value) && ! is_int($value)) {
+        if (! \is_string($value) && ! \is_int($value)) {
             return null;
         }
 
         // Reject a value too long to be a phone number
         $raw = trim((string) $value);
-        if (strlen($raw) > 100) {
+        if (\strlen($raw) > 100) {
             return null;
         }
 
@@ -139,13 +142,13 @@ final class LocationCard
 
         // Check the digit count
         $digits = preg_replace('/\D/', '', $raw);
-        if (strlen($digits) < 7 || strlen($digits) > 15) {
+        if (\strlen($digits) < 7 || \strlen($digits) > 15) {
             return null;
         }
 
         // Format a ten-digit number as 000-000-0000 and build the dial string
-        $national = strlen($digits) === 11 && $digits[0] === '1' ? substr($digits, 1) : $digits;
-        $display = strlen($national) === 10 ? substr($national, 0, 3).'-'.substr($national, 3, 3).'-'.substr($national, 6) : trim($raw);
+        $national = \strlen($digits) === 11 && $digits[0] === '1' ? substr($digits, 1) : $digits;
+        $display = \strlen($national) === 10 ? substr($national, 0, 3).'-'.substr($national, 3, 3).'-'.substr($national, 6) : trim($raw);
         $dial = (str_starts_with(trim($raw), '+') ? '+' : '').$digits;
 
         return ['text' => $display.($extension !== '' ? ' ext. '.$extension : ''), 'url' => 'tel:'.$dial.($extension !== '' ? ';ext='.$extension : ''), 'label' => ''];
@@ -206,7 +209,7 @@ final class LocationCard
         }
 
         // Pluralize the heading for several numbers
-        return ['heading' => 'Appointment Phone Number'.(count($numbers) > 1 ? 's' : ''), 'numbers' => $numbers];
+        return ['heading' => 'Appointment Phone Number'.(\count($numbers) > 1 ? 's' : ''), 'numbers' => $numbers];
     }
 
     /**
@@ -220,14 +223,14 @@ final class LocationCard
         // Start with the street address and read the building
         $lines = self::lines(CardFields::field('location_address_1', $id));
         $building = CardFields::term(CardFields::field('location_building', $id), 'building');
-        $building_name = $building instanceof \WP_Term && $building->slug !== '_none' ? CardFields::text($building->name) : '';
+        $building_name = $building instanceof WP_Term && $building->slug !== '_none' ? CardFields::text($building->name) : '';
         // Name the floor from the field's choices, or from its value
         $floor_value = CardFields::text(CardFields::field('location_building_floor', $id));
         $floor = '';
         if ($floor_value !== '' && $floor_value !== '0') {
-            if (function_exists('get_field_object')) {
+            if (\function_exists('get_field_object')) {
                 $object = get_field_object('location_building_floor', $id, false);
-                if (is_array($object) && isset($object['choices']) && is_array($object['choices'])) {
+                if (\is_array($object) && isset($object['choices']) && \is_array($object['choices'])) {
                     $floor = CardFields::text($object['choices'][$floor_value] ?? '');
                 }
             } elseif ($floor_value === 'B' || $floor_value === 'G') {
@@ -274,7 +277,7 @@ final class LocationCard
     private static function directions(mixed $map): string
     {
         // Reject a map without numeric coordinates
-        if (! is_array($map) || ! isset($map['lat'],$map['lng']) || ! is_numeric($map['lat']) || ! is_numeric($map['lng'])) {
+        if (! \is_array($map) || ! isset($map['lat'],$map['lng']) || ! is_numeric($map['lat']) || ! is_numeric($map['lng'])) {
             return '';
         }
 
@@ -301,7 +304,7 @@ final class LocationCard
         // Read the result's site and post, and check the site is public
         $site = (int) $result->site;
         $id = (int) $result->id;
-        if ($site < 1 || $id < 1 || ! in_array($site, Config::public_sites(), true)) {
+        if ($site < 1 || $id < 1 || ! \in_array($site, Config::public_sites(), true)) {
             return null;
         }
 
@@ -345,7 +348,7 @@ final class LocationCard
                 $image = wp_get_attachment_image($thumbnail, 'aspect-16-9-small', false, ['class' => 'card-img-top', 'loading' => 'lazy']);
             }
 
-            if (! $image && defined('UAMS_FAD_ROOT_URL')) {
+            if (! $image && \defined('UAMS_FAD_ROOT_URL')) {
                 $image = '<img src="'.esc_url(rtrim(UAMS_FAD_ROOT_URL, '/').'/assets/svg/no-image_16-9.svg').'" alt="" loading="lazy" width="512" height="288">';
             }
 

@@ -42,7 +42,7 @@ final class Text
         // Lowercase the text
         $text = mb_strtolower($text, 'UTF-8');
         // Remove accents when WordPress can
-        if (function_exists('remove_accents')) {
+        if (\function_exists('remove_accents')) {
             $text = remove_accents($text);
         }
 
@@ -92,7 +92,7 @@ final class Text
         $stops = self::stops();
 
         // Stem every word that is not a stop word
-        return array_values(array_map([self::class, 'token'], array_filter(self::words($text), static fn (string $w): bool => ! isset($stops[$w]))));
+        return array_values(array_map(self::token(...), array_filter(self::words($text), static fn (string $w): bool => ! isset($stops[$w]))));
     }
 
     /**
@@ -115,8 +115,10 @@ final class Text
      * @return array<int, array<int, string>> Up to 20 groups, each a list of
      *                                        alternative terms.
      */
-    public static function groups(string $text, bool $synonyms = true): array
-    {
+    public static function groups(
+        string $text,
+        bool $synonyms = true
+    ): array {
         $groups = [];
         // Split the search into quoted phrases and single words
         preg_match_all('/"([^"]+)"|([^\s"]+)/u', mb_substr($text, 0, 200), $chunks, PREG_SET_ORDER);
@@ -150,7 +152,7 @@ final class Text
                     foreach (Config::entry('synonyms', $word) as $synonym) {
                         $parts = self::tokens((string) $synonym);
                         if ($parts !== []) {
-                            $alternatives[] = count($parts) > 1 ? '"'.implode(' ', $parts).'"' : $parts[0].'*';
+                            $alternatives[] = \count($parts) > 1 ? '"'.implode(' ', $parts).'"' : $parts[0].'*';
                         }
                     }
                 }
@@ -158,7 +160,7 @@ final class Text
                 // Add the word's alternatives as one group
                 $groups[] = array_values(array_unique($alternatives));
                 // Stop at 20 groups
-                if (count($groups) >= 20) {
+                if (\count($groups) >= 20) {
                     break 2;
                 }
             }
@@ -174,9 +176,11 @@ final class Text
      * @param  bool  $all  Whether every group is required.
      * @return string The expression for `MATCH ... AGAINST`.
      */
-    public static function boolean(array $groups, bool $all): string
-    {
-        return implode(' ', array_map(static fn (array $g): string => ($all ? '+' : '').(count($g) > 1 ? '('.implode(' ', $g).')' : $g[0]), $groups));
+    public static function boolean(
+        array $groups,
+        bool $all
+    ): string {
+        return implode(' ', array_map(static fn (array $g): string => ($all ? '+' : '').(\count($g) > 1 ? '('.implode(' ', $g).')' : $g[0]), $groups));
     }
 
     /**
@@ -188,23 +192,25 @@ final class Text
      * @return string The text, skipping array keys that start with an underscore;
      *                empty past 12 levels or for any other type.
      */
-    public static function flatten(mixed $value, int $depth = 0): string
-    {
+    public static function flatten(
+        mixed $value,
+        int $depth = 0
+    ): string {
         // Stop at the nesting limit
         if ($depth > 12) {
             return '';
         }
 
         // Convert a scalar to plain text
-        if (is_string($value) || is_int($value) || is_float($value)) {
+        if (\is_string($value) || \is_int($value) || \is_float($value)) {
             return self::plain((string) $value);
         }
 
         // Join the text of each array item
-        if (is_array($value)) {
+        if (\is_array($value)) {
             $out = [];
             foreach ($value as $key => $item) {
-                if (is_string($key) && str_starts_with($key, '_')) {
+                if (\is_string($key) && str_starts_with($key, '_')) {
                     continue;
                 } $text = self::flatten($item, $depth + 1);
                 if ($text !== '') {
