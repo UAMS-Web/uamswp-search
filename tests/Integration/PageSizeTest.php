@@ -30,9 +30,6 @@ final class PageSizeTest extends IntegrationTestCase
 {
     private string $word = '';
 
-    /** @var list<int> */
-    private array $first = [];
-
     private array $previous = [];
 
     public function set_up(): void
@@ -40,8 +37,14 @@ final class PageSizeTest extends IntegrationTestCase
         parent::set_up();
         $this->previous = [$GLOBALS['wp_query'], $GLOBALS['wp_the_query'], $_GET, $_POST, $_REQUEST, get_current_user_id()];
         wp_set_current_user(1);
-        $defaults = Config::defaults();
-        $this->settings(['enabled' => true, 'types' => ['page' => 1.0], 'fields' => ['page' => []], 'taxonomies' => ['page' => []], 'pdf_max_mb' => 20.0, 'results_per_page' => $defaults['results_per_page']]);
+        // Replace the settings outright: a recursive merge would keep the default types, and the saved form would then change the fingerprint.
+        $config = Config::defaults();
+        $config['enabled'] = true;
+        $config['types'] = ['page' => 1.0];
+        $config['fields'] = ['page' => []];
+        $config['taxonomies'] = ['page' => []];
+        $config['pdf_max_mb'] = 20.0;
+        update_site_option('uams_search_settings', $config);
         $this->word = 'pagesizefixture'.strtolower(wp_generate_password(8, false, false));
         for ($i = 0; $i < 25; $i++) {
             Indexer::one($this->site, $this->make_page(['post_title' => $this->word.' '.$i]));
