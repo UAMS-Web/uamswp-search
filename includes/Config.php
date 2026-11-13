@@ -2,8 +2,14 @@
 
 namespace UAMS_Search;
 
+/** Reads the plugin's settings and the sites and scopes they choose. */
 final class Config
 {
+    /**
+     * The default value of every setting. A setting's default also fixes its type.
+     *
+     * @return array<string, mixed> Setting names and default values.
+     */
     public static function defaults(): array
     {
         return [
@@ -32,16 +38,22 @@ final class Config
     /**
      * The whole normalized settings array, for code that writes it back. Readers use `flag()`, `number()`, `section()`, `entry()` or `chosen_sites()`.
      *
-     * @return array<mixed>
+     * @return array<mixed> The saved settings over the defaults, as filtered by `uams_search_config`.
      */
     public static function get(): array
     {
+        // Read the saved settings, apply the defaults and the filter, and fix the types
         $saved = get_site_option('uams_search_settings', []);
 
         return self::normalize(Filters::array('uams_search_config', array_replace(self::defaults(), is_array($saved) ? $saved : [])));
     }
 
-    /** A WordPress option as a string, or `$default` when the stored value is not one. */
+    /**
+     * A WordPress option as a string, or `$default` when the stored value is not one.
+     *
+     * @param  string  $name  Option name.
+     * @param  string  $default  Value to use when the option is not a non-empty string.
+     */
     public static function option_string(string $name, string $default): string
     {
         $value = get_option($name, $default);
@@ -49,7 +61,12 @@ final class Config
         return is_string($value) && $value !== '' ? $value : $default;
     }
 
-    /** A WordPress option as a boolean, or `$default` when the stored value is not scalar. */
+    /**
+     * A WordPress option as a boolean, or `$default` when the stored value is not scalar.
+     *
+     * @param  string  $name  Option name.
+     * @param  bool  $default  Value to use when the option is not scalar.
+     */
     public static function option_flag(string $name, bool $default): bool
     {
         $value = get_option($name, $default);
@@ -57,13 +74,23 @@ final class Config
         return is_scalar($value) ? (bool) $value : $default;
     }
 
-    /** One boolean setting. */
+    /**
+     * One boolean setting.
+     *
+     * @param  string  $key  Setting name.
+     * @return bool False when the setting does not exist.
+     */
     public static function flag(string $key): bool
     {
         return (bool) (self::get()[$key] ?? false);
     }
 
-    /** One numeric setting. */
+    /**
+     * One numeric setting.
+     *
+     * @param  string  $key  Setting name.
+     * @return float Zero when the setting does not exist.
+     */
     public static function number(string $key): float
     {
         return (float) (self::get()[$key] ?? 0);
@@ -72,6 +99,7 @@ final class Config
     /**
      * One list or map setting, such as `types` or `stopwords`.
      *
+     * @param  string  $key  Setting name.
      * @return array<mixed>
      */
     public static function section(string $key): array
@@ -84,6 +112,8 @@ final class Config
     /**
      * One named entry of a map setting, such as the field weights for one post type, as an array.
      *
+     * @param  string  $key  Setting name.
+     * @param  string  $name  Entry key within the setting.
      * @return array<mixed>
      */
     public static function entry(string $key, string $name): array
@@ -110,10 +140,11 @@ final class Config
      * cannot reach a caller. `sites` stays null (every public site) or a list.
      *
      * @param  array<mixed>  $config
-     * @return array<mixed>
+     * @return array<mixed> The settings with each value cast to the type of its default.
      */
     private static function normalize(array $config): array
     {
+        // Cast each known setting to the type of its default
         foreach (self::defaults() as $key => $default) {
             $value = $config[$key] ?? $default;
             if ($default === null) {
@@ -130,26 +161,47 @@ final class Config
         return $config;
     }
 
+    /**
+     * The number of results per page.
+     *
+     * @param  mixed  $value  A requested size; the `results_per_page` setting (or 20) when null.
+     * @return int The size limited to 1 to 100, or 20 when it is not a usable number.
+     */
     public static function page_size(mixed $value = null): int
     {
+        // Fall back to the configured size
         $value ??= self::number('results_per_page') ?: 20;
 
         return is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
     }
 
+    /**
+     * The sites a search may return results from.
+     *
+     * @return list<int> Site IDs. Sites that discourage indexing are included for a signed-in visitor or WP-CLI when
+     *                   `preview_noindex` is on.
+     */
     public static function public_sites(): array
     {
+        // Use the current site on a single site
         if (! is_multisite()) {
             return [get_current_blog_id()];
         }
 
+        // Include sites that discourage indexing when previewing
         $preview = self::flag('preview_noindex') && ((defined('WP_CLI') && WP_CLI) || is_user_logged_in());
 
         return self::site_ids($preview);
     }
 
+    /**
+     * The sites the indexer covers.
+     *
+     * @return list<int> Site IDs. Sites that discourage indexing are included when `preview_noindex` is on.
+     */
     public static function index_sites(): array
     {
+        // Use the current site on a single site
         if (! is_multisite()) {
             return [get_current_blog_id()];
         }
@@ -157,12 +209,20 @@ final class Config
         return self::site_ids(self::flag('preview_noindex'));
     }
 
+    /**
+     * The IDs of the sites on the network, leaving out archived, spam and deleted sites.
+     *
+     * @param  bool  $include_noindex  Whether to include sites that discourage search engines.
+     * @return list<int> Site IDs.
+     */
     public static function site_ids(bool $include_noindex): array
     {
+        // Use the current site on a single site
         if (! is_multisite()) {
             return [get_current_blog_id()];
         }
 
+        // Query the network's sites
         $args = ['fields' => 'ids', 'number' => 0, 'archived' => 0, 'spam' => 0, 'deleted' => 0];
         if (! $include_noindex) {
             $args['public'] = 1;
@@ -171,13 +231,22 @@ final class Config
         return array_map(intval(...), get_sites($args));
     }
 
+    /**
+     * The sites a search with a scope covers.
+     *
+     * @param  string  $scope  `site` for the current site alone, otherwise every site the settings include.
+     * @param  int  $site  The current site's ID.
+     * @return list<int> Site IDs.
+     */
     public static function sites(string $scope, int $site): array
     {
+        // Search the current site alone when it is public
         $public = self::public_sites();
         if ($scope === 'site') {
             return in_array($site, $public, true) ? [$site] : [];
         }
 
+        // Search the chosen sites, or every public site when none are chosen
         $chosen = self::chosen_sites();
 
         return $chosen === null ? $public : array_values(array_intersect($public, $chosen));
@@ -226,12 +295,14 @@ final class Config
      */
     public static function scope_options(bool $google = true): array
     {
+        // Choose the labels for this site and its network
         if (is_multisite() && ! is_subdomain_install()) {
             $options = is_main_site() ? ['install' => 'This site'] : ['site' => 'This site', 'install' => 'All of '.get_blog_option(get_main_site_id(), 'blogname')];
         } else {
             $options = ['site' => 'This site'];
         }
 
+        // Offer the Google scope
         if (! $google || self::google_enabled()) {
             $options['all'] = 'All UAMS websites';
         }
@@ -241,26 +312,42 @@ final class Config
 
     /**
      * The scope to search with: the requested one when this site offers it, otherwise the site's default, otherwise the first option.
+     *
+     * @param  mixed  $value  The requested scope.
+     * @return string `site`, `install` or `all`.
      */
     public static function scope(mixed $value = null): string
     {
+        // Use the requested scope when offered
         $options = array_keys(self::scope_options());
         if (is_string($value) && in_array($value, $options, true)) {
             return $value;
         }
 
+        // Use the site's default scope when offered, otherwise the first option
         $default = self::option_string('uams_search_scope', 'site');
 
         return is_string($default) && in_array($default, $options, true) ? $default : $options[0];
     }
 
+    /**
+     * A hash of the settings that change what the index holds.
+     *
+     * @return string A SHA-256 hash; a change means the index needs a rebuild.
+     */
     public static function fingerprint(): string
     {
         return hash('sha256', wp_json_encode([self::section('fields'), self::section('taxonomies'), self::section('stopwords'), array_keys(self::section('types')), self::flag('pdf'), self::flag('pdf_parent'), self::number('pdf_max_mb'), self::number('pdf_timeout'), self::flag('preview_noindex'), Related::VERSION, self::number('related_provider_weight')]));
     }
 
+    /**
+     * Whether any indexed site was built with different settings.
+     *
+     * @return bool True when a site's saved fingerprint differs from the current one.
+     */
     public static function needs_rebuild(): bool
     {
+        // Compare each site's saved fingerprint with the current one
         $fingerprint = self::fingerprint();
         foreach (self::index_sites() as $site) {
             if (get_site_option('uams_search_fingerprint_'.$site) !== $fingerprint) {
