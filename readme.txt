@@ -1,4 +1,4 @@
-=== uams search ===
+=== UAMSWP Search ===
 Contributors: uams-web
 Requires at least: 6.4
 Requires PHP: 8.2

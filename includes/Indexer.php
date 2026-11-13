@@ -174,7 +174,7 @@ final class Indexer
 
             // Refuse to run beside a browser rebuild
             if (Rebuild::active()) {
-                throw new RuntimeException('A browser rebuild is active. Resume or cancel it in uams search settings first.');
+                throw new RuntimeException('A browser rebuild is active. Resume or cancel it in UAMSWP Search settings first.');
             }
 
             // Clear the site's staged rows
