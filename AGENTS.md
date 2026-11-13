@@ -6,34 +6,24 @@ Everything above the generated section below belongs to this repository and is e
 
 ## About this repository
 
-This is a WordPress multisite search plugin. Runtime code is in `includes/`,
-`assets/`, and `templates/`; the bundled PDF parser is in `vendor/pdfparser/`.
-Do not remove that tracked library when installing Composer dependencies.
+`uams search` is a network-activated WordPress multisite plugin that replaces SearchWP on the UAMS installs. It indexes posts, fields and PDF text into its own tables, searches them with InnoDB full-text indexes, and calls no external search service; the one exception is the optional Google "All UAMS websites" block, which loads Google's script on the results page. Runtime code is `uams-search.php`, `includes/`, `assets/`, `templates/`, `lib/pdfparser/` and `scripts/pdf-worker.php`, which is exactly what the `.gitattributes` keep-list puts in the download. `README.md` holds the operator view: install, settings, requirements, database choices and release gates.
 
-In Amp orbs, `.agents/setup` installs PHP 8.2, Composer, Poppler, locked PHP and
-npm development dependencies, and Playwright's Chromium and system dependencies.
-Node.js and npm come from the orb base image. Setup is safe to rerun after a
-lockfile changes. `.agents/resume` only checks tool and dependency availability
-and never reinstalls dependencies.
+### Development install
 
-See `README.md` under **Tests and build** for orb setup, snapshot reuse, and
-environment repair instructions. Standalone tests need no secrets or running
-WordPress installation.
+Check the plugin out in `wp-content/plugins/` of a local WordPress install, multisite for anything that touches network settings or more than one site, and network-activate it. The database needs `innodb_ft_min_token_size=3`, and the plugin needs PHP 8.2 or later. `composer install` installs Pest, PHPStan, Pint and Rector into the ignored `vendor/`; the plugin itself loads nothing from it. `npm ci` and `npx playwright install chromium` set up the browser suites.
 
-- PHP tests: `composer test`.
-- Search component and accessibility tests: `npm run test:browser`. This command
-  overwrites the tracked screenshot `docs/search-preview.png`.
-- Rebuild component tests: `npm run test:rebuild-browser`.
-- Build the plugin ZIP: `composer build` (runs `node scripts/build-zip.mjs`, which archives `HEAD`
-  with the `.gitattributes` keep-list into the ignored `build/`, with a `.sha256` file beside it).
+In Amp orbs, `.agents/setup` installs PHP 8.2, Composer, Poppler, the locked PHP and npm development dependencies, and Playwright's Chromium with its system libraries; Node.js and npm come from the orb base image. It is safe to rerun after a lockfile changes. `.agents/resume` only checks that the tools and dependencies are present and never installs anything. Neither one provisions a WordPress install or a database.
 
-Do not commit generated screenshots or release files incidentally.
+### Test suites
 
-Database integration tests require a separately provisioned, disposable WordPress
-installation with WP-CLI, a database name beginning with `uams_search_test`,
-environment type `local`, and `UAMS_SEARCH_TESTS=1`. Orb setup does not provision
-or run that integration environment. See `README.md` for the guarded commands.
-Component checks do not replace integration or real-theme release checks.
+- **Unit:** `composer test` runs Pest over `tests/*Test.php`, with WordPress stand-ins from `tests/bootstrap.php` and real child processes and PDF fixtures for extraction. It needs no WordPress, no database and no secrets. `python3 scripts/make-fixtures.py` regenerates the small test PDFs.
+- **Browser components:** `npm run test:browser`, `test:rebuild-browser`, `test:provider-browser` and `test:location-browser` render each component with fake data and drive it in Chromium, with axe. `test:browser` overwrites the tracked screenshot `docs/search-preview.png`; do not commit it unless the change is meant to update it. These do not replace the axe and screen-reader checks on the real theme.
+- **WordPress integration:** PHPUnit 9.6 over wp-phpunit in `tests/Integration/`, which has its own `composer.json`. Run `composer setup:integration` once, then `composer test:integration`; set `WP_MULTISITE=1` for the multisite run. `WP_TESTS_ABSPATH` defaults to the WordPress install the checkout sits in, and `WP_TESTS_DB_NAME` (with `WP_TESTS_DB_USER`, `WP_TESTS_DB_PASSWORD` and `WP_TESTS_DB_HOST`) defaults to `uams_search_test` as passwordless `root` on `127.0.0.1`. **The test installer drops every table in that database on each run.** Create a database used for nothing else; `tests/Integration/bootstrap.php` refuses to run when the name matches the `DB_NAME` in that install's `wp-config.php`, and that is the only guard. CI runs single site and multisite on MariaDB 10.6 and MySQL 8.0.
+- **Static checks and the build:** `composer stan`, `composer test:pint` and `composer test:refactor`; `composer build` writes the keep-list ZIP and its `.sha256` to the ignored `build/`.
+
+### The bundled PDF parser
+
+`lib/pdfparser/` is a tracked copy of smalot/pdfparser 2.13.1 (commit `a71c6dd38e60a995fdb4d36e4433b8b3557c65dc`) with every namespace changed from `Smalot\PdfParser` to `UAMS_Search_Vendor\PdfParser`, so it cannot collide with another plugin's copy. `includes/autoload.php` loads it; Composer does not, so never add `smalot/pdfparser` to `composer.json`. It runs only in the child process `scripts/pdf-worker.php` starts, as the fallback when Poppler's `pdftotext` is missing or fails within the time budget. To update it, download the upstream release archive for the pinned commit and run `python3 scripts/bundle-pdfparser.py <archive.zip>`: the script refuses an archive whose top folder does not match the pinned commit, replaces `lib/pdfparser/src/`, and rewrites `lib/pdfparser/UAMS-MODIFICATIONS.md` with the archive's SHA-256. Change `VERSION` and `COMMIT` in the script first, then update `THIRD-PARTY.md` to match. Why it is bundled this way, and what was rejected, is in `docs/DECISIONS.md`.
 
 <!-- uams-claude-skills:begin -->
 ## Shared skills and rules
