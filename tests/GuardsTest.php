@@ -19,6 +19,13 @@ if (! function_exists('check_admin_referer')) {
     }
 }
 
+if (! function_exists('wp_unslash')) {
+    function wp_unslash($s)
+    {
+        return $s;
+    }
+}
+
 if (! function_exists('sanitize_key')) {
     function sanitize_key($key)
     {
@@ -216,5 +223,87 @@ final class GuardsTest extends TestCase
         self::assertSame(['kept_first' => 2.0, 'kept_second' => 3.0, 'added_one' => 1.0, 'added_two' => 0.5], $saved['fields']['post']);
         self::assertSame([], $saved['taxonomies']['post']);
         self::assertArrayNotHasKey('removed_row', $saved['fields']['post']);
+    }
+
+    /** @param array<string, mixed> $settings */
+    private function save(array $settings): array
+    {
+        $_POST['settings'] = $settings + ['types' => ['post' => ['include' => '1']], 'synonyms' => ''];
+
+        try {
+            Admin::save();
+            self::fail('The save must end in a redirect.');
+        } catch (RuntimeException $runtimeException) {
+            self::assertSame('redirect', $runtimeException->getMessage());
+        }
+
+        return $GLOBALS['uams_test_options']['uams_search_settings'];
+    }
+
+    public function test_synonym_rules_keep_one_word_keys_and_clean_alternates(): void
+    {
+        $long = implode(' ', array_fill(0, 40, 'abc'));
+        $many = implode(', ', array_map(static fn (int $n): string => 'alt'.$n, range(1, 12)));
+        $saved = $this->save(['synonyms' => "Heart = Cardiac, Cardiology, cardiac, , Heart Care\ntwo words = ignored\nno equals sign\nlong = $long\nmany = $many\nbare ="]);
+
+        self::assertSame(['heart', 'long', 'many', 'bare'], array_keys($saved['synonyms']));
+        self::assertSame(['cardiac', 'cardiology', 'heart care'], $saved['synonyms']['heart']);
+        self::assertSame([substr(str_repeat('abc ', 40), 0, 100)], $saved['synonyms']['long']);
+        self::assertSame(array_map(static fn (int $n): string => 'alt'.$n, range(1, 10)), $saved['synonyms']['many']);
+        self::assertSame([], $saved['synonyms']['bare']);
+        self::assertSame([], $this->save(['synonyms' => ['not', 'text']])['synonyms']);
+    }
+
+    public function test_switches_numbers_and_sites_are_stored_in_range(): void
+    {
+        $saved = $this->save([
+            'enabled' => '', 'live' => '1', 'logging' => '1', 'pdf' => '1', 'pdf_parent' => '',
+            'results_per_page' => '500', 'pdf_max_mb' => '500', 'pdf_timeout' => '500',
+            'sites' => ['1', '7', 'x'], 'weights' => ['title' => '150', 'terms' => '-3', 'fields' => 'abc', 'content' => '2.5'],
+        ]);
+
+        self::assertFalse($saved['enabled']);
+        self::assertTrue($saved['live']);
+        self::assertTrue($saved['logging']);
+        self::assertTrue($saved['pdf']);
+        self::assertFalse($saved['pdf_parent']);
+        self::assertSame(100, $saved['results_per_page']);
+        self::assertEquals(100.0, $saved['pdf_max_mb']);
+        self::assertSame(120, $saved['pdf_timeout']);
+        self::assertSame([1], $saved['sites']);
+        self::assertSame(['title' => 100.0, 'terms' => 0.0, 'fields' => 0.0, 'content' => 2.5, 'pdf' => 0.0], $saved['weights']);
+
+        $saved = $this->save(['pdf_max_mb' => '0', 'pdf_timeout' => '0']);
+        self::assertEquals(1.0, $saved['pdf_max_mb']);
+        self::assertSame(1, $saved['pdf_timeout']);
+    }
+
+    public function test_search_cannot_be_enabled_before_the_index_exists(): void
+    {
+        $_POST['settings'] = ['enabled' => '1', 'types' => ['post' => ['include' => '1']], 'synonyms' => ''];
+
+        try {
+            Admin::save();
+            self::fail('Enabling search without an index must be refused.');
+        } catch (RuntimeException $runtimeException) {
+            self::assertSame('wp_die: Create and build the index before enabling search.', $runtimeException->getMessage());
+        }
+
+        self::assertArrayNotHasKey('uams_search_settings', $GLOBALS['uams_test_options']);
+    }
+
+    public function test_saving_without_the_capability_is_refused_and_stores_nothing(): void
+    {
+        $GLOBALS['uams_test_caps'] = [];
+        $_POST['settings'] = ['types' => ['post' => ['include' => '1']]];
+
+        try {
+            Admin::save();
+            self::fail('A user who cannot manage settings must be refused.');
+        } catch (RuntimeException $runtimeException) {
+            self::assertSame('wp_die: You cannot manage search settings.', $runtimeException->getMessage());
+        }
+
+        self::assertArrayNotHasKey('uams_search_settings', $GLOBALS['uams_test_options']);
     }
 }
