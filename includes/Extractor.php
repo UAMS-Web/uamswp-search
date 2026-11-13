@@ -84,6 +84,9 @@ final class Extractor
         $field_list = Filters::array('uams_search_fields', Config::entry('fields', $post->post_type), $post->post_type);
         foreach ($field_list as $name => $weight) {
             $value = \function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
+            // Index the labels, titles and names ACF stores as keys and IDs, then let a site change the value last
+            $key = get_post_meta($post->ID, '_'.$name, true);
+            $value = FieldText::readable($value, \is_string($key) ? $key : '', $name);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
             self::log_skips($value, $post->ID, $name);
             $fields[$name] = ['text' => Text::flatten($value), 'weight' => max(0, (float) $weight), 'source' => 'fields'];
@@ -180,7 +183,9 @@ final class Extractor
                 foreach ($data as $key => $value) {
                     // ACF's saved repeater keys are field_0_child; never include _field key references.
                     if ($key === $name || str_starts_with((string) $key, $name.'_')) {
-                        $values[] = Text::flatten($value);
+                        // The block saves each field's key beside its value under `_<name>`
+                        $field_key = $data['_'.$key] ?? '';
+                        $values[] = Text::flatten(FieldText::readable($value, \is_string($field_key) ? $field_key : '', (string) $key));
                     }
                 }
 
