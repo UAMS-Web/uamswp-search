@@ -13,14 +13,13 @@ final class FieldText
     /** Types whose stored value is a choice key. */
     private const CHOICES = ['select', 'radio', 'button_group', 'checkbox'];
 
-    /** Types whose stored value is one or more post IDs. */
-    private const POSTS = ['relationship', 'post_object'];
-
-    /** Types whose stored value is one or more term IDs. */
-    private const TERMS = ['taxonomy', 'acfe_taxonomy_terms'];
-
-    /** Types whose stored value has no searchable text: IDs of media, flags, link and map arrays. */
-    private const SKIPPED = ['image', 'file', 'gallery', 'true_false', 'link', 'google_map'];
+    /**
+     * Types whose stored value has no searchable text: IDs of media, posts and
+     * terms, flags, link and map arrays. Post titles and term names are not
+     * copied in, because nothing reindexes a page when the linked post or term
+     * changes, so an unpublished or renamed title would stay searchable.
+     */
+    private const SKIPPED = ['image', 'file', 'gallery', 'true_false', 'link', 'google_map', 'relationship', 'post_object', 'taxonomy', 'acfe_taxonomy_terms'];
 
     /**
      * Types that hold sub-fields. ACF loads them as rows keyed by sub-field
@@ -42,10 +41,10 @@ final class FieldText
      * @param  string  $key  The field key ACF saved beside the value (`field_...`), or an empty string.
      * @param  string  $name  The field name, used when there is no key.
      * @param  int  $depth  Sub-field nesting level.
-     * @return mixed The choice labels, post titles or term names as a list of
-     *               strings; a readable date; the readable sub-field values of
-     *               a repeater, flexible content or group; an empty string for a
-     *               skipped type or a row count; otherwise the value unchanged.
+     * @return mixed The choice labels as a list of strings; a readable date;
+     *               the readable sub-field values of a repeater, flexible
+     *               content or group; an empty string for a skipped type or a
+     *               row count; otherwise the value unchanged.
      */
     public static function readable(
         mixed $value,
@@ -73,14 +72,6 @@ final class FieldText
             $labels = self::labels(\is_array($field['choices'] ?? null) ? $field['choices'] : []);
 
             return array_map(static fn (string $item): string => $labels[$item] ?? $item, self::items($value));
-        }
-
-        if (\in_array($type, self::POSTS, true)) {
-            return self::titles(self::items($value));
-        }
-
-        if (\in_array($type, self::TERMS, true)) {
-            return self::names(self::items($value), \is_string($field['taxonomy'] ?? null) ? $field['taxonomy'] : '');
         }
 
         if ($type === 'date_picker') {
@@ -175,57 +166,6 @@ final class FieldText
         $items = \is_array($value) ? $value : [$value];
 
         return array_values(array_filter(array_map(static fn (mixed $item): string => \is_scalar($item) ? trim((string) $item) : '', $items), static fn (string $item): bool => $item !== ''));
-    }
-
-    /**
-     * Read the titles of the viewable posts among the IDs, on the current site.
-     *
-     * @param  list<string>  $ids  Post IDs; anything else is dropped.
-     * @return list<string> The titles.
-     */
-    private static function titles(array $ids): array
-    {
-        $titles = [];
-        foreach ($ids as $id) {
-            // Skip anything that is not an ID, and posts a visitor cannot see
-            if (! ctype_digit($id) || ! is_post_status_viewable((string) get_post_status((int) $id))) {
-                continue;
-            }
-
-            $title = get_post_field('post_title', (int) $id);
-            if (\is_string($title) && $title !== '') {
-                $titles[] = $title;
-            }
-        }
-
-        return $titles;
-    }
-
-    /**
-     * Read the names of the terms among the IDs, on the current site.
-     *
-     * @param  list<string>  $ids  Term IDs; anything else is dropped.
-     * @param  string  $taxonomy  The field's taxonomy, or an empty string.
-     * @return list<string> The names.
-     */
-    private static function names(
-        array $ids,
-        string $taxonomy
-    ): array {
-        $names = [];
-        foreach ($ids as $id) {
-            // Skip anything that is not an ID, and terms that cannot be read
-            if (! ctype_digit($id)) {
-                continue;
-            }
-
-            $name = get_term_field('name', (int) $id, $taxonomy);
-            if (\is_string($name) && $name !== '') {
-                $names[] = $name;
-            }
-        }
-
-        return $names;
     }
 
     /**

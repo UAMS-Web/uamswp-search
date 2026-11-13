@@ -4,44 +4,13 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use UAMS_Search\FieldText;
 
-// Stand-ins for the ACF definitions and the post and term reads FieldText makes. Each answers from a global the test sets.
+// A stand-in for the ACF definitions FieldText reads. It answers from a global the test sets and records each lookup.
 if (! function_exists('acf_get_field')) {
     function acf_get_field($selector)
     {
         $GLOBALS['uams_test_acf_lookups'][] = $selector;
 
         return $GLOBALS['uams_test_acf_fields'][$selector] ?? false;
-    }
-}
-
-if (! function_exists('get_post_status')) {
-    function get_post_status($id)
-    {
-        return $GLOBALS['uams_test_post_status'][$id] ?? false;
-    }
-}
-
-if (! function_exists('get_post_field')) {
-    function get_post_field($field, $id)
-    {
-        return $GLOBALS['uams_test_post_titles'][$id] ?? '';
-    }
-}
-
-if (! function_exists('get_term_field')) {
-    function get_term_field($field, $id, $taxonomy = '')
-    {
-        $GLOBALS['uams_test_term_lookups'][] = [$field, $id, $taxonomy];
-
-        // WordPress answers a missing term with a WP_Error; ExtractorTest declares the class
-        return $GLOBALS['uams_test_term_names'][$id] ?? (class_exists('WP_Error') ? new WP_Error('invalid_term', 'Empty Term.') : null);
-    }
-}
-
-if (! function_exists('is_post_status_viewable')) {
-    function is_post_status_viewable($status): bool
-    {
-        return in_array($status, $GLOBALS['uams_test_viewable_statuses'] ?? ['publish'], true);
     }
 }
 
@@ -52,11 +21,6 @@ final class FieldTextTest extends TestCase
     {
         $GLOBALS['uams_test_acf_fields'] = [];
         $GLOBALS['uams_test_acf_lookups'] = [];
-        $GLOBALS['uams_test_post_status'] = [];
-        $GLOBALS['uams_test_post_titles'] = [];
-        $GLOBALS['uams_test_term_names'] = [];
-        $GLOBALS['uams_test_term_lookups'] = [];
-        $GLOBALS['uams_test_viewable_statuses'] = ['publish'];
     }
 
     protected function tearDown(): void
@@ -93,48 +57,6 @@ final class FieldTextTest extends TestCase
         self::assertSame([], FieldText::readable('', 'field_1', 'location_state'));
     }
 
-    /** @return array<string, array{0: string}> */
-    public static function post_types(): array
-    {
-        return ['relationship' => ['relationship'], 'post object' => ['post_object']];
-    }
-
-    #[DataProvider('post_types')]
-    public function test_a_post_field_indexes_the_titles_of_viewable_posts(string $type): void
-    {
-        $this->field($type);
-        $GLOBALS['uams_test_post_status'] = [12 => 'publish', 13 => 'draft', 14 => 'publish'];
-        $GLOBALS['uams_test_post_titles'] = [12 => 'Heart Clinic', 13 => 'Unpublished Clinic', 14 => 'Eye Clinic'];
-
-        self::assertSame(['Heart Clinic', 'Eye Clinic'], FieldText::readable(['12', 13, '14', 'not-an-id', '99'], 'field_1', 'physician_locations'));
-        self::assertSame(['Heart Clinic'], FieldText::readable('12', 'field_1', 'physician_locations'));
-    }
-
-    /** @return array<string, array{0: string}> */
-    public static function term_types(): array
-    {
-        return ['taxonomy' => ['taxonomy'], 'ACFE taxonomy terms' => ['acfe_taxonomy_terms']];
-    }
-
-    #[DataProvider('term_types')]
-    public function test_a_term_field_indexes_the_term_names(string $type): void
-    {
-        $this->field($type, ['taxonomy' => 'region']);
-        $GLOBALS['uams_test_term_names'] = [7 => 'Central Arkansas', 8 => 'Northwest Arkansas'];
-
-        self::assertSame(['Central Arkansas', 'Northwest Arkansas'], FieldText::readable([7, '8', '404', 'slug'], 'field_1', 'location_region'));
-        self::assertSame([['name', 7, 'region'], ['name', 8, 'region'], ['name', 404, 'region']], $GLOBALS['uams_test_term_lookups']);
-    }
-
-    public function test_a_term_field_without_one_taxonomy_reads_the_term_by_id_alone(): void
-    {
-        $this->field('acfe_taxonomy_terms', ['taxonomy' => ['region', 'portal']]);
-        $GLOBALS['uams_test_term_names'] = [7 => 'Central Arkansas'];
-
-        self::assertSame(['Central Arkansas'], FieldText::readable('7', 'field_1', 'location_region'));
-        self::assertSame([['name', 7, '']], $GLOBALS['uams_test_term_lookups']);
-    }
-
     /** @return array<string, array{0: string, 1: mixed}> */
     public static function skipped_types(): array
     {
@@ -146,6 +68,10 @@ final class FieldTextTest extends TestCase
             'repeater row count' => ['repeater', '3'],
             'group with no rows' => ['group', ''],
             'link' => ['link', ['title' => 'Book', 'url' => 'https://example.test/', 'target' => '']],
+            'relationship' => ['relationship', ['12', '13']],
+            'post object' => ['post_object', '12'],
+            'taxonomy' => ['taxonomy', ['7', '8']],
+            'ACFE taxonomy terms' => ['acfe_taxonomy_terms', '7'],
             'Google Map' => ['google_map', ['address' => '4301 W Markham St', 'lat' => '34.75', 'lng' => '-92.32', 'zoom' => 14]],
         ];
     }
@@ -187,7 +113,7 @@ final class FieldTextTest extends TestCase
         self::assertSame([['Welcome']], FieldText::readable([['acf_fc_layout' => 'hero', 'field_title' => 'Welcome']], 'field_1', 'uamswp_modules'));
     }
 
-    public function test_a_loaded_group_indexes_its_sub_fields_and_a_sub_field_ac_f_does_not_know_keeps_its_value(): void
+    public function test_a_loaded_group_indexes_its_sub_fields_and_a_sub_field_acf_does_not_know_keeps_its_value(): void
     {
         $this->field('group');
         $GLOBALS['uams_test_acf_fields']['field_state'] = ['type' => 'radio', 'choices' => ['AR' => 'Arkansas']];
