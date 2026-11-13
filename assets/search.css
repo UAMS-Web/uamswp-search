@@ -64,3 +64,8 @@
 .uams-search-location .alert{margin:0 0 1rem;padding:.75rem;border:1px solid #e6ca71;background:#fff3cd;color:#533f0a;text-align:left;font-size:1rem;font-weight:400}
 .uams-search-location .alert p{margin:0 0 .5rem}.uams-search-location .alert a{color:inherit}
 @media(forced-colors:active){.uams-search-location.card{border:1px solid CanvasText}.uams-search-location a.btn{border:1px solid ButtonText}.uams-search-location .alert{border:1px solid CanvasText;background:Canvas;color:CanvasText}}
+
+/* Google results: size each thumbnail's box to its image, at most 104px on either side, over the theme's and Google's own rules, and keep the one-line address beside it. */
+.uams-search-results .uams-search-google .gsc-control-cse .gs-web-image-box a.gs-image{display:block;width:auto;height:auto;background:none}
+.uams-search-results .uams-search-google .gsc-control-cse .gs-web-image-box a.gs-image img.gs-image{display:block;width:auto;height:auto;max-width:104px;max-height:104px;object-fit:contain}
+.uams-search-results .uams-search-google .gsc-control-cse .gsc-url-top{overflow:hidden;text-overflow:ellipsis}
