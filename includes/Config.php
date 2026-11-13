@@ -356,7 +356,7 @@ final class Config
      */
     public static function fingerprint(): string
     {
-        return hash('sha256', wp_json_encode([self::section('fields'), self::section('taxonomies'), self::section('stopwords'), array_keys(self::section('types')), self::flag('pdf'), self::flag('pdf_parent'), self::number('pdf_max_mb'), self::number('pdf_timeout'), self::flag('preview_noindex'), Related::VERSION, self::number('related_provider_weight')]));
+        return hash('sha256', wp_json_encode([self::section('fields'), self::section('taxonomies'), self::section('stopwords'), array_keys(self::section('types')), self::flag('pdf'), self::flag('pdf_parent'), self::number('pdf_max_mb'), self::number('pdf_timeout'), self::flag('preview_noindex'), Related::VERSION, FieldText::VERSION, self::number('related_provider_weight')]));
     }
 
     /**

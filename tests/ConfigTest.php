@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 use UAMS_Search\Config;
+use UAMS_Search\FieldText;
 use UAMS_Search\Related;
 
 function wp_get_environment_type()
@@ -157,7 +158,7 @@ final class ConfigTest extends TestCase
         $fingerprint = Config::fingerprint();
         self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $fingerprint);
         self::assertSame($fingerprint, Config::fingerprint());
-        self::assertSame($fingerprint, hash('sha256', json_encode([['page' => ['a' => 1]], ['page' => ['b' => 1]], ['x'], ['page'], false, false, 20.0, 30.0, false, Related::VERSION, 0.25])));
+        self::assertSame($fingerprint, hash('sha256', json_encode([['page' => ['a' => 1]], ['page' => ['b' => 1]], ['x'], ['page'], false, false, 20.0, 30.0, false, Related::VERSION, FieldText::VERSION, 0.25])));
 
         $changes = ['fields' => ['page' => ['a' => 2]], 'taxonomies' => ['page' => ['b' => 2]], 'stopwords' => ['y'], 'types' => ['post' => 1.0], 'pdf' => true, 'pdf_parent' => true, 'pdf_max_mb' => 21, 'pdf_timeout' => 31, 'preview_noindex' => true, 'related_provider_weight' => 0.5];
         foreach ($changes as $key => $value) {

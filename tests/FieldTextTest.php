@@ -143,8 +143,8 @@ final class FieldTextTest extends TestCase
             'file' => ['file', '346'],
             'gallery' => ['gallery', ['345', '346']],
             'true/false' => ['true_false', '1'],
-            'repeater' => ['repeater', '3'],
-            'flexible content' => ['flexible_content', ['hero', 'content']],
+            'repeater row count' => ['repeater', '3'],
+            'group with no rows' => ['group', ''],
             'link' => ['link', ['title' => 'Book', 'url' => 'https://example.test/', 'target' => '']],
             'Google Map' => ['google_map', ['address' => '4301 W Markham St', 'lat' => '34.75', 'lng' => '-92.32', 'zoom' => 14]],
         ];
@@ -156,6 +156,64 @@ final class FieldTextTest extends TestCase
         $this->field($type);
 
         self::assertSame('', FieldText::readable($value, 'field_1', 'some_field'));
+    }
+
+    public function test_a_flexible_content_layout_list_adds_no_text(): void
+    {
+        $this->field('flexible_content');
+
+        self::assertSame([], FieldText::readable(['hero', 'content'], 'field_1', 'uamswp_modules'));
+    }
+
+    public function test_loaded_repeater_rows_index_each_sub_field_by_its_own_type(): void
+    {
+        $this->field('repeater');
+        $GLOBALS['uams_test_acf_fields']['field_school'] = ['type' => 'text'];
+        $GLOBALS['uams_test_acf_fields']['field_kind'] = ['type' => 'select', 'choices' => ['md' => 'Medical School']];
+        $GLOBALS['uams_test_acf_fields']['field_logo'] = ['type' => 'image'];
+        $rows = [
+            ['field_school' => 'Harvard Medical School', 'field_kind' => 'md', 'field_logo' => '345'],
+            ['field_school' => 'UAMS', 'field_kind' => 'md', 'field_logo' => '346'],
+        ];
+
+        self::assertSame([[['Harvard Medical School', ['Medical School'], ''], ['UAMS', ['Medical School'], '']]], [FieldText::readable($rows, 'field_1', 'physician_education')]);
+    }
+
+    public function test_loaded_flexible_content_rows_drop_the_layout_name_and_keep_sub_fields(): void
+    {
+        $this->field('flexible_content');
+        $GLOBALS['uams_test_acf_fields']['field_title'] = ['type' => 'text'];
+
+        self::assertSame([['Welcome']], FieldText::readable([['acf_fc_layout' => 'hero', 'field_title' => 'Welcome']], 'field_1', 'uamswp_modules'));
+    }
+
+    public function test_a_loaded_group_indexes_its_sub_fields_and_a_sub_field_ac_f_does_not_know_keeps_its_value(): void
+    {
+        $this->field('group');
+        $GLOBALS['uams_test_acf_fields']['field_state'] = ['type' => 'radio', 'choices' => ['AR' => 'Arkansas']];
+
+        self::assertSame([['Arkansas'], 'kept'], FieldText::readable(['field_state' => 'AR', 'field_gone' => 'kept', 'plain_key' => 'dropped'], 'field_1', 'physician_resident_profile_group'));
+        // A sub-field key that ACF does not know is not looked up by an empty name
+        self::assertNotContains('', $GLOBALS['uams_test_acf_lookups']);
+    }
+
+    public function test_sub_fields_are_followed_no_deeper_than_twelve_levels(): void
+    {
+        $GLOBALS['uams_test_acf_fields']['field_nest'] = ['type' => 'group'];
+        $value = 'deep';
+        for ($i = 0; $i < 14; $i++) {
+            $value = ['field_nest' => $value];
+        }
+
+        self::assertStringNotContainsString('deep', json_encode(FieldText::readable($value, 'field_nest', 'outer')));
+        self::assertLessThanOrEqual(14, count($GLOBALS['uams_test_acf_lookups']));
+    }
+
+    public function test_choices_inside_option_groups_index_their_labels(): void
+    {
+        $this->field('select', ['choices' => ['South' => ['AR' => 'Arkansas', 'TX' => 'Texas'], 'OK' => 'Oklahoma']]);
+
+        self::assertSame(['Arkansas', 'Oklahoma'], FieldText::readable(['AR', 'OK'], 'field_1', 'location_state'));
     }
 
     public function test_a_date_picker_value_indexes_as_a_readable_date(): void
