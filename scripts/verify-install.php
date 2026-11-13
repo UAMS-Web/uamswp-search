@@ -8,6 +8,7 @@ use UAMS_Search\Integration;
 use UAMS_Search\Query;
 
 require_once ABSPATH.'wp-admin/includes/plugin.php';
+// Collect the installation facts
 global $wpdb;
 $report = [
     'url' => home_url('/'),
@@ -23,24 +24,29 @@ $report = [
     'indexed_sites' => (int) $wpdb->get_var('SELECT COUNT(DISTINCT site_id) FROM `'.DB::table().'`'),
     'failures' => $wpdb->get_results('SELECT error,COUNT(*) AS count FROM `'.DB::table()."` WHERE status='error' GROUP BY error ORDER BY count DESC LIMIT 5", ARRAY_A),
 ];
+// Run sample searches
 foreach (['GI', 'ENT', 'MRI', 'parking', 'breast cancer'] as $s) {
     $out = Query::run(['s' => $s, 'scope' => 'install', 'per_page' => 1, 'suggest' => false]);
     $report['searches'][$s] = ['total' => $out['total'], 'fallback' => $out['fallback']];
 }
+// Save the state the preview checks change
 $previous_user = get_current_user_id();
 $previous_get = $_GET;
 $previous_main = $GLOBALS['wp_the_query'];
 $previous_query = $GLOBALS['wp_query'];
 try {
+    // Check that the plugin is off for an anonymous visitor
     wp_set_current_user(0);
     unset($_GET['engine']);
     $report['anonymous_uams_active'] = Integration::active();
+    // Sign in as a network admin
     $login = get_super_admins()[0] ?? '';
     $admin = $login ? get_user_by('login', $login) : null;
     if (! $admin) {
         throw new RuntimeException('No network admin is available for the signed-in preview check');
     }
     wp_set_current_user($admin->ID);
+    // Run a search as a signed-in preview
     $_GET['engine'] = 'uams';
     $_GET['scope'] = 'install';
     $native = new WP_Query;
@@ -56,17 +62,20 @@ try {
         'ajax_search_yields' => apply_filters('asp_query_is_search', true, $native) === false,
         'template' => basename(Integration::template(get_stylesheet_directory().'/search.php')),
     ];
+    // Request live suggestions
     $request = new WP_REST_Request('GET', '/uams-search/v1/suggest');
     $request->set_query_params(['s' => 'GI', 'scope' => 'install', 'engine' => 'uams']);
     $rest = rest_do_request($request);
     $report['preview']['rest_status'] = $rest->get_status();
     $report['preview']['suggestions'] = count($rest->get_data()['items'] ?? []);
 } finally {
+    // Restore the saved state
     wp_set_current_user($previous_user);
     $_GET = $previous_get;
     $GLOBALS['wp_the_query'] = $previous_main;
     $GLOBALS['wp_query'] = $previous_query;
 }
+// Print the report, and fail when a required check does not pass
 WP_CLI::log('UAMS_INSTALL_CHECK='.wp_json_encode($report, JSON_UNESCAPED_SLASHES));
 if (! $report['network_active'] || ! $report['database_ready'] || $report['anonymous_uams_active'] || ! $report['preview']['uams_owned'] || ! $report['preview']['totals_preserved'] || $report['preview']['rest_status'] !== 200) {
     WP_CLI::error('Installation checks failed. See the report.');
