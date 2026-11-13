@@ -106,6 +106,20 @@ final class ConfigTest extends TestCase
         self::assertSame([], Config::section('unknown'));
     }
 
+    public function test_entry_and_chosen_sites_return_arrays_or_null_whatever_is_saved(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['a' => 1], 'post' => 'bad'], 'sites' => ['2', 3]];
+
+        self::assertSame(['a' => 1], Config::entry('fields', 'page'));
+        self::assertSame([], Config::entry('fields', 'post'));
+        self::assertSame([], Config::entry('fields', 'missing'));
+        self::assertSame([], Config::entry('unknown', 'page'));
+        self::assertSame([2, 3], Config::chosen_sites());
+
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['sites' => 'all'];
+        self::assertNull(Config::chosen_sites());
+    }
+
     public function test_an_option_of_the_wrong_type_reads_as_its_default(): void
     {
         $GLOBALS['uams_test_options'] = ['date_format' => ['x'], 'uams_search_google' => ['x'], 'time_format' => 'H:i'];
