@@ -16,6 +16,12 @@ class QueryFixtureDB
 
     public array $queries = [];
 
+    /** A fragment of SQL that makes the matching query report a database error. */
+    public string $fail_on = '';
+
+    /** How many queries matching `$fail_on` run normally before the error. */
+    public int $fail_after = 0;
+
     public function esc_like($s)
     {
         return addcslashes($s, '_%\\');
@@ -42,6 +48,7 @@ class QueryFixtureDB
     public function get_var($sql)
     {
         $this->queries[] = $sql;
+        $this->maybe_fail($sql);
         if (str_starts_with($sql, 'SHOW TABLES')) {
             return 'wp_uams_search_index';
         }
@@ -52,12 +59,28 @@ class QueryFixtureDB
     public function get_results($sql, $format)
     {
         $this->queries[] = $sql;
+        $this->maybe_fail($sql);
+        if (str_contains($sql, 'uams_search_words')) {
+            return [];
+        }
 
         return [[
             'id' => 987, 'site_id' => 1, 'object_id' => 42, 'relevance' => 8.5,
             'title' => 'Heart care', 'url' => 'https://example.test/heart/', 'post_type' => 'page', 'file_size' => 0,
             'content' => 'Heart care clinic', 'fields' => '', 'pdf' => '',
+            'title_score' => 1.5, 'content_score' => 2.5, 'fields_score' => 0.5, 'terms_score' => 3.5, 'pdf_score' => 0.0,
         ]];
+    }
+
+    private function maybe_fail(string $sql): void
+    {
+        // Like wpdb, report an error for the latest query only
+        $this->last_error = '';
+        if ($this->fail_on !== '' && str_contains($sql, $this->fail_on)) {
+            if ($this->fail_after-- <= 0) {
+                $this->last_error = 'forced failure';
+            }
+        }
     }
 }
 
@@ -106,11 +129,6 @@ function is_admin()
     return false;
 }
 
-function is_user_logged_in()
-{
-    return $GLOBALS['uams_test_logged_in'] ?? false;
-}
-
 final class QueryTest extends TestCase
 {
     protected function setUp(): void
@@ -140,6 +158,96 @@ final class QueryTest extends TestCase
         self::assertTrue($out['fallback']);
         self::assertSame(2, $out['total']);
         self::assertStringEndsWith('LIMIT 1 OFFSET 9999', end($GLOBALS['wpdb']->queries));
+    }
+
+    public function test_pdfs_are_left_out_when_pdf_search_is_off(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => false, 'types' => ['page' => 1.0, 'attachment' => 0.8]];
+        Query::run(['s' => 'heart', 'suggest' => false]);
+        $sql = implode("\n", $GLOBALS['wpdb']->queries);
+        self::assertStringContainsString("i.post_type IN ('page')", $sql);
+        self::assertStringNotContainsString("'attachment')", $sql);
+        self::assertStringNotContainsString("'page','attachment'", $sql);
+    }
+
+    public function test_pdfs_are_searched_when_pdf_search_is_on(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => true, 'types' => ['page' => 1.0, 'attachment' => 0.8]];
+        Query::run(['s' => 'heart', 'suggest' => false]);
+        self::assertStringContainsString("i.post_type IN ('page','attachment')", implode("\n", $GLOBALS['wpdb']->queries));
+    }
+
+    public function test_only_pdf_types_with_pdf_search_off_return_no_results(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => false, 'types' => ['attachment' => 0.8]];
+        $out = Query::run(['s' => 'heart', 'suggest' => false]);
+        self::assertSame([], $out['results']);
+        self::assertSame(0, $out['total']);
+        self::assertSame([], array_filter($GLOBALS['wpdb']->queries, static fn (string $sql): bool => str_starts_with($sql, 'SELECT')));
+    }
+
+    public function test_a_database_error_in_each_query_is_thrown(): void
+    {
+        foreach ([['SELECT COUNT(*)', 0, [21], 'count'], ['SELECT COUNT(*)', 1, [0, 5], 'fallback count'], ['SELECT i.*', 0, [21], 'results']] as [$fragment, $after, $counts, $label]) {
+            $GLOBALS['wpdb'] = new QueryFixtureDB;
+            $GLOBALS['wpdb']->counts = $counts;
+            $GLOBALS['wpdb']->fail_on = $fragment;
+            $GLOBALS['wpdb']->fail_after = $after;
+            try {
+                Query::run(['s' => 'heart', 'suggest' => false]);
+                self::fail("No exception for the $label query");
+            } catch (RuntimeException $exception) {
+                self::assertSame('forced failure', $exception->getMessage(), $label);
+            }
+        }
+    }
+
+    public function test_unknown_weight_columns_are_not_queried(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'weights' => ['title' => 5, 'bogus' => 9]];
+        Query::run(['s' => 'heart', 'suggest' => false]);
+        $sql = end($GLOBALS['wpdb']->queries);
+        self::assertStringContainsString('i.title_stem', $sql);
+        self::assertStringNotContainsString('bogus', $sql);
+    }
+
+    public function test_explain_returns_the_score_of_each_column(): void
+    {
+        $out = Query::run(['s' => 'heart', 'explain' => true, 'suggest' => false]);
+        self::assertSame(['title' => 1.5, 'content' => 2.5, 'fields' => 0.5, 'terms' => 3.5, 'pdf' => 0.0], $out['results'][0]->scores);
+        self::assertStringContainsString('AS title_score', end($GLOBALS['wpdb']->queries));
+        $plain = Query::run(['s' => 'heart', 'suggest' => false]);
+        self::assertFalse(property_exists($plain['results'][0], 'scores'));
+    }
+
+    public function test_the_field_score_is_skipped_when_every_weight_is_one(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'related_provider_weight' => 1];
+        Query::run(['s' => 'heart', 'suggest' => false]);
+        $sql = end($GLOBALS['wpdb']->queries);
+        self::assertStringContainsString('+0)*(CASE', $sql);
+        self::assertStringNotContainsString('COALESCE((SELECT SUM((j.weight-1)', $sql);
+    }
+
+    public function test_a_field_or_taxonomy_weight_other_than_one_adds_the_field_score(): void
+    {
+        foreach (['fields', 'taxonomies'] as $source) {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'related_provider_weight' => 1, $source => ['page' => ['x' => 2.0]]];
+            Query::run(['s' => 'heart', 'suggest' => false]);
+            self::assertStringContainsString('COALESCE((SELECT SUM((j.weight-1)', end($GLOBALS['wpdb']->queries), $source);
+        }
+    }
+
+    public function test_few_results_ask_for_a_spelling_suggestion_and_enough_results_do_not(): void
+    {
+        $GLOBALS['wpdb']->counts = [2];
+        Query::run(['s' => 'heart']);
+        $few = implode("\n", $GLOBALS['wpdb']->queries);
+        self::assertStringContainsString('uams_search_words', $few);
+        $GLOBALS['wpdb'] = new QueryFixtureDB;
+        $GLOBALS['wpdb']->counts = [3];
+        Query::run(['s' => 'heart']);
+        self::assertStringNotContainsString('uams_search_words', implode("\n", $GLOBALS['wpdb']->queries));
     }
 
     public function test_malformed_input_and_wrong_site_return_no_results(): void

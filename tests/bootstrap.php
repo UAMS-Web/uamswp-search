@@ -26,6 +26,12 @@ function is_multisite()
     return $GLOBALS['uams_test_multisite'] ?? false;
 }
 
+/** Signed out unless a test sets `$GLOBALS['uams_test_logged_in']`. */
+function is_user_logged_in()
+{
+    return $GLOBALS['uams_test_logged_in'] ?? false;
+}
+
 function apply_filters($name, $value, ...$args)
 {
     foreach ($GLOBALS['uams_test_filters'][$name] ?? [] as $fn) {
@@ -33,6 +39,12 @@ function apply_filters($name, $value, ...$args)
     }
 
     return $value;
+}
+
+/** The part of WordPress's accent folding the tests rely on: the common accented Latin letters. */
+function remove_accents($text)
+{
+    return strtr($text, ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'í' => 'i', 'ï' => 'i', 'ó' => 'o', 'ö' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'É' => 'E', 'Á' => 'A', 'Ö' => 'O', 'Ü' => 'U']);
 }
 
 function wp_json_encode($value, $flags = 0)
