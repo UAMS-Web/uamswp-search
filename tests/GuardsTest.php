@@ -228,7 +228,7 @@ final class GuardsTest extends TestCase
     /** @param array<string, mixed> $settings */
     private function save(array $settings): array
     {
-        $_POST['settings'] = $settings + ['types' => ['post' => ['include' => '1']], 'synonyms' => ''];
+        $_POST['settings'] = $settings + ['types' => ['post' => ['include' => '1']]];
 
         try {
             Admin::save();
@@ -280,7 +280,7 @@ final class GuardsTest extends TestCase
 
     public function test_search_cannot_be_enabled_before_the_index_exists(): void
     {
-        $_POST['settings'] = ['enabled' => '1', 'types' => ['post' => ['include' => '1']], 'synonyms' => ''];
+        $_POST['settings'] = ['enabled' => '1', 'types' => ['post' => ['include' => '1']]];
 
         try {
             Admin::save();
@@ -305,5 +305,23 @@ final class GuardsTest extends TestCase
         }
 
         self::assertArrayNotHasKey('uams_search_settings', $GLOBALS['uams_test_options']);
+    }
+
+    public function test_saving_without_a_synonyms_field_stores_no_rules_and_raises_no_warning(): void
+    {
+        $warnings = [];
+        set_error_handler(static function (int $level, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+        try {
+            $saved = $this->save([]);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $warnings);
+        self::assertSame([], $saved['synonyms']);
     }
 }
