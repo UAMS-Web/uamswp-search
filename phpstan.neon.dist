@@ -102,7 +102,7 @@ parameters:
         - vendor/php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
 
     # The database constants WordPress defines in wp-config.php, read by the
-    # `wp eval-file` integration scripts under tests/. PHPStan cannot see them,
+    # `tests/` code, if any reads them. PHPStan cannot see them,
     # so a bootstrap defines plain string stand-ins.
     bootstrapFiles:
         - phpstan-bootstrap.php

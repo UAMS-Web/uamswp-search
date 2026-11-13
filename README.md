@@ -146,7 +146,7 @@ npm run test:browser
 
 Platforms: the runs in the [verification record](docs/VERIFICATION.md) were on macOS. CI runs the integration suite on Ubuntu, and the Amp orb setup runs on Debian. Windows is not yet measured, including the Windows equivalent of `python3` (usually the Python launcher, `py -3`).
 
-The database name must start with `uams_search_test` and WordPress's environment type must be `local`. The remaining `wp eval-file` scripts refuse other databases. Browser tests use the actual rendered plugin component with fake data and responses. They do not replace the final axe and screen-reader checks on the real theme. PHP tests use lightweight WordPress seams for API tests and real child processes/PDF fixtures for extraction tests. Developer dependencies are not bundled in the upload ZIP.
+The database name must start with `uams_search_test` and WordPress's environment type must be `local`. The integration suite drops and rebuilds its own database on every run. Browser tests use the actual rendered plugin component with fake data and responses. They do not replace the final axe and screen-reader checks on the real theme. PHP tests use lightweight WordPress seams for API tests and real child processes/PDF fixtures for extraction tests. Developer dependencies are not bundled in the upload ZIP.
 
 ## Release gates
 
