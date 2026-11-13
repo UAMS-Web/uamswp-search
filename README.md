@@ -157,3 +157,12 @@ The database name must start with `uams_search_test` and WordPress's environment
 - Confirm server cron, switch only after the comparisons pass, and observe the status/no-result views for two weeks. Roll back by disabling the visitor engine setting or deactivating the plugin.
 
 Set **Results per page** under **Network Admin > Settings > UAMSWP Search**. The default is 20; choose 1 to 100. The setting applies immediately without rebuilding the index. Explicit API or WordPress query page sizes override this default.
+
+## Credits
+
+Developed and maintained by UAMS Web Services.
+
+Developers:
+
+- Josh Daugherty
+- Brent Passmore
