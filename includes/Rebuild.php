@@ -57,7 +57,7 @@ final class Rebuild
 
             $settings = Config::get();
             $settings['preview_noindex'] = $include_noindex;
-            $types = array_keys($settings['types']);
+            $types = array_keys(Config::section('types'));
             if ($types === []) {
                 throw new \RuntimeException('Choose at least one content type in the settings first.');
             }

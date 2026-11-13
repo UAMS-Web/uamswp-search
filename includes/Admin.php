@@ -406,38 +406,37 @@ final class Admin
             return;
         }
 
-        $c = Config::get();
         echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_save">';
         wp_nonce_field('uams_search_save');
         foreach (['enabled' => 'Use UAMSWP Search for Visitors', 'live' => 'Show Live Search Suggestions', 'logging' => 'Keep Search Text With No Results for up to 90 Days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to Their Parent Page When Available'] as $key => $label) {
-            echo '<p><label><input type="checkbox" name="settings['.esc_attr($key).']" value="1" '.checked((bool) $c[$key], true, false).'> '.esc_html($label).'</label></p>';
+            echo '<p><label><input type="checkbox" name="settings['.esc_attr($key).']" value="1" '.checked(Config::flag($key), true, false).'> '.esc_html($label).'</label></p>';
         }
 
         echo '<p><label>Results per Page <input type="number" name="settings[results_per_page]" min="1" max="100" step="1" value="'.Config::page_size().'"></label><br>Default: 20. Choose 1 to 100. Changes apply without rebuilding the index.</p>';
         echo '<fieldset><legend><h2>Sub-Sites in Whole-Website Search</h2></legend>';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? get_blog_details($site)->blogname.' (#'.$site.')' : get_bloginfo('name');
-            echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked($c['sites'] === null || in_array($site, $c['sites'], true), true, false).'> '.esc_html($label).'</label></p>';
+            echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked(Config::chosen_sites() === null || in_array($site, Config::chosen_sites(), true), true, false).'> '.esc_html($label).'</label></p>';
         }
 
         echo '</fieldset><fieldset><legend><h2>Source Weights</h2></legend>';
         echo '<table class="form-table" role="presentation"><tbody>';
-        foreach ($c['weights'] as $key => $weight) {
+        foreach (Config::section('weights') as $key => $weight) {
             self::numeric('settings[weights]['.$key.']', $key === 'pdf' ? 'PDF' : ucwords(str_replace('_', ' ', (string) $key)), $weight);
         }
 
         echo '</tbody></table></fieldset><h2>Content To Index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
-        $types = array_unique(array_merge(array_keys($c['types']), array_keys(get_post_types(['public' => true]))));
+        $types = array_unique(array_merge(array_keys(Config::section('types')), array_keys(get_post_types(['public' => true]))));
         foreach ($types as $type) {
             $object = get_post_type_object($type);
             $name = $object ? $object->labels->name : ucfirst($type);
             echo '<fieldset style="padding:1rem;border:1px solid #aaa;margin-block:1rem"><legend><strong>'.esc_html($name.' ('.$type.')').'</strong></legend>';
-            echo '<p><label><input type="checkbox" name="settings[types]['.esc_attr($type).'][include]" value="1" '.checked(isset($c['types'][$type]), true, false).'> Include This Content Type</label></p>';
+            echo '<p><label><input type="checkbox" name="settings[types]['.esc_attr($type).'][include]" value="1" '.checked(isset(Config::section('types')[$type]), true, false).'> Include This Content Type</label></p>';
             echo '<table class="form-table" role="presentation"><tbody>';
-            self::numeric('settings[types]['.$type.'][boost]', 'Type Boost', $c['types'][$type] ?? 1);
+            self::numeric('settings[types]['.$type.'][boost]', 'Type Boost', Config::section('types')[$type] ?? 1);
             echo '</tbody></table>';
             foreach (['fields' => 'ACF Fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
-                $rows = array_map(static fn (mixed $k, mixed $v): array => ['name' => (string) $k, 'weight' => $v], array_keys($c[$group][$type] ?? []), array_values($c[$group][$type] ?? []));
+                $rows = array_map(static fn (mixed $k, mixed $v): array => ['name' => (string) $k, 'weight' => $v], array_keys(Config::entry($group, $type)), array_values(Config::entry($group, $type)));
                 // One blank row is always offered, so a new field needs no JavaScript; the Add Row button adds more.
                 $rows[] = ['name' => '', 'weight' => 1];
                 $size = max(28, ...array_map(static fn (array $row): int => mb_strlen($row['name']) + 2, $rows));
@@ -454,16 +453,16 @@ final class Admin
             echo '</fieldset>';
         }
 
-        echo '<p><label for="uams-stopwords">Extra Stop Words, Separated by Spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">'.esc_textarea(implode(' ', $c['stopwords'])).'</textarea></p>';
+        echo '<p><label for="uams-stopwords">Extra Stop Words, Separated by Spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">'.esc_textarea(implode(' ', Config::section('stopwords'))).'</textarea></p>';
         $synonyms = [];
-        foreach ($c['synonyms'] as $key => $values) {
+        foreach (Config::section('synonyms') as $key => $values) {
             $synonyms[] = $key.' = '.implode(', ', $values);
         }
 
         echo '<p><label for="uams-synonyms">Synonyms, One Rule per Line, Such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">'.esc_textarea(implode("\n", $synonyms)).'</textarea></p>';
         echo '<table class="form-table" role="presentation"><tbody>';
-        self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', $c['pdf_max_mb']);
-        self::numeric('settings[pdf_timeout]', 'PDF Time Limit, Seconds', $c['pdf_timeout'], 120);
+        self::numeric('settings[pdf_max_mb]', 'Largest PDF, MB', Config::number('pdf_max_mb'));
+        self::numeric('settings[pdf_timeout]', 'PDF Time Limit, Seconds', Config::number('pdf_timeout'), 120);
         echo '</tbody></table>';
         submit_button('Save network settings');
         echo '</form></div>';

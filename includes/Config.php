@@ -29,6 +29,11 @@ final class Config
         ];
     }
 
+    /**
+     * The whole normalized settings array, for code that writes it back. Readers use `flag()`, `number()`, `section()`, `entry()` or `chosen_sites()`.
+     *
+     * @return array<mixed>
+     */
     public static function get(): array
     {
         $saved = get_site_option('uams_search_settings', []);
@@ -77,6 +82,30 @@ final class Config
     }
 
     /**
+     * One named entry of a map setting, such as the field weights for one post type, as an array.
+     *
+     * @return array<mixed>
+     */
+    public static function entry(string $key, string $name): array
+    {
+        $value = self::section($key)[$name] ?? [];
+
+        return is_array($value) ? $value : [];
+    }
+
+    /**
+     * The sites chosen in the settings, or null when every public site is searched.
+     *
+     * @return list<int>|null
+     */
+    public static function chosen_sites(): ?array
+    {
+        $value = self::get()['sites'] ?? null;
+
+        return is_array($value) ? array_values(array_map(intval(...), $value)) : null;
+    }
+
+    /**
      * Gives every known setting the type of its default, so a saved option or a filter that returns the wrong type
      * cannot reach a caller. `sites` stays null (every public site) or a list.
      *
@@ -103,7 +132,7 @@ final class Config
 
     public static function page_size(mixed $value = null): int
     {
-        $value ??= self::get()['results_per_page'] ?? 20;
+        $value ??= self::number('results_per_page') ?: 20;
 
         return is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
     }
@@ -114,7 +143,7 @@ final class Config
             return [get_current_blog_id()];
         }
 
-        $preview = self::get()['preview_noindex'] && ((defined('WP_CLI') && WP_CLI) || is_user_logged_in());
+        $preview = self::flag('preview_noindex') && ((defined('WP_CLI') && WP_CLI) || is_user_logged_in());
 
         return self::site_ids($preview);
     }
@@ -125,7 +154,7 @@ final class Config
             return [get_current_blog_id()];
         }
 
-        return self::site_ids((bool) self::get()['preview_noindex']);
+        return self::site_ids(self::flag('preview_noindex'));
     }
 
     public static function site_ids(bool $include_noindex): array
@@ -149,9 +178,9 @@ final class Config
             return in_array($site, $public, true) ? [$site] : [];
         }
 
-        $chosen = self::get()['sites'];
+        $chosen = self::chosen_sites();
 
-        return $chosen === null ? $public : array_values(array_intersect($public, array_map(intval(...), $chosen)));
+        return $chosen === null ? $public : array_values(array_intersect($public, $chosen));
     }
 
     /**
@@ -227,9 +256,7 @@ final class Config
 
     public static function fingerprint(): string
     {
-        $c = self::get();
-
-        return hash('sha256', wp_json_encode([$c['fields'], $c['taxonomies'], $c['stopwords'], array_keys($c['types']), $c['pdf'], $c['pdf_parent'], $c['pdf_max_mb'], $c['pdf_timeout'], $c['preview_noindex'], Related::VERSION, $c['related_provider_weight']]));
+        return hash('sha256', wp_json_encode([self::section('fields'), self::section('taxonomies'), self::section('stopwords'), array_keys(self::section('types')), self::flag('pdf'), self::flag('pdf_parent'), self::number('pdf_max_mb'), self::number('pdf_timeout'), self::flag('preview_noindex'), Related::VERSION, self::number('related_provider_weight')]));
     }
 
     public static function needs_rebuild(): bool
