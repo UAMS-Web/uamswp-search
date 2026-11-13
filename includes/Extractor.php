@@ -6,8 +6,7 @@ final class Extractor
 {
     public static function eligible(\WP_Post $post): bool
     {
-        $c = Config::get();
-        if (! isset($c['types'][$post->post_type]) || $post->post_password !== '' || get_post_meta($post->ID, '_uams_search_exclude', true)) {
+        if (! isset(Config::section('types')[$post->post_type]) || $post->post_password !== '' || get_post_meta($post->ID, '_uams_search_exclude', true)) {
             return false;
         }
 
@@ -28,7 +27,7 @@ final class Extractor
         }
 
         if ($post->post_type === 'attachment') {
-            if (! $c['pdf'] || $post->post_mime_type !== 'application/pdf' || ! in_array($post->post_status, ['inherit', 'publish'], true)) {
+            if (! Config::flag('pdf') || $post->post_mime_type !== 'application/pdf' || ! in_array($post->post_status, ['inherit', 'publish'], true)) {
                 return false;
             }
 
@@ -47,10 +46,9 @@ final class Extractor
 
     public static function extract(\WP_Post $post, ?array $old = null): array
     {
-        $config = Config::get();
         $fields = [];
         $terms = [];
-        $field_list = Filters::array('uams_search_fields', $config['fields'][$post->post_type] ?? [], $post->post_type);
+        $field_list = Filters::array('uams_search_fields', Config::entry('fields', $post->post_type), $post->post_type);
         foreach ($field_list as $name => $weight) {
             $value = function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
@@ -61,7 +59,7 @@ final class Extractor
         $fields = array_merge($fields, Related::fields($post));
         $blocks = parse_blocks($post->post_content);
         self::blocks($blocks, $field_list, $fields);
-        foreach (($config['taxonomies'][$post->post_type] ?? []) as $taxonomy => $weight) {
+        foreach (Config::entry('taxonomies', $post->post_type) as $taxonomy => $weight) {
             if (! taxonomy_exists($taxonomy)) {
                 continue;
             }
@@ -97,7 +95,7 @@ final class Extractor
             $pdf = Pdf::extract($post, $old);
             $pdf['fields'] = trim($row['fields'].' '.$pdf['fields']);
             $row = array_replace($row, $pdf);
-            $row['url'] = $config['pdf_parent'] && $post->post_parent ? get_permalink($post->post_parent) : wp_get_attachment_url($post->ID);
+            $row['url'] = Config::flag('pdf_parent') && $post->post_parent ? get_permalink($post->post_parent) : wp_get_attachment_url($post->ID);
         }
 
         $all = [];

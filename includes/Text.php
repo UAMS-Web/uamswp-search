@@ -54,7 +54,6 @@ final class Text
     public static function groups(string $text, bool $synonyms = true): array
     {
         $groups = [];
-        $config = Config::get();
         preg_match_all('/"([^"]+)"|([^\s"]+)/u', mb_substr($text, 0, 200), $chunks, PREG_SET_ORDER);
         foreach ($chunks as $chunk) {
             $phrase = $chunk[1] !== '';
@@ -77,7 +76,7 @@ final class Text
 
                 $alternatives = [self::token($word).'*'];
                 if ($synonyms) {
-                    foreach ((array) ($config['synonyms'][$word] ?? []) as $synonym) {
+                    foreach (Config::entry('synonyms', $word) as $synonym) {
                         $parts = self::tokens((string) $synonym);
                         if ($parts !== []) {
                             $alternatives[] = count($parts) > 1 ? '"'.implode(' ', $parts).'"' : $parts[0].'*';

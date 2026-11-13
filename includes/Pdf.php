@@ -15,8 +15,7 @@ final class Pdf
         }
 
         $size = filesize($real);
-        $config = Config::get();
-        if ($size > (float) $config['pdf_max_mb'] * 1024 * 1024) {
+        if ($size > Config::number('pdf_max_mb') * 1024 * 1024) {
             throw new \RuntimeException('PDF exceeds size limit');
         }
 
@@ -26,7 +25,7 @@ final class Pdf
         }
 
         $binary = Filters::string('uams_search_pdftotext', self::binary('pdftotext') ?? '');
-        $seconds = min(120, max(1, (int) $config['pdf_timeout']));
+        $seconds = min(120, max(1, (int) Config::number('pdf_timeout')));
         $started = microtime(true);
         try {
             if ($binary === '') {
