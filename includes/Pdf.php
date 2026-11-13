@@ -2,6 +2,10 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+use Throwable;
+use WP_Post;
+
 /** Extracts the text of a PDF attachment with Poppler, or a bundled PHP parser. */
 final class Pdf
 {
@@ -9,36 +13,38 @@ final class Pdf
      * Extract the text of a PDF attachment, reusing the earlier result when the
      * file has not changed.
      *
-     * @param  \WP_Post  $post  The PDF attachment.
+     * @param  WP_Post  $post  The PDF attachment.
      * @param  array<string, mixed>|null  $old  The attachment's earlier index row.
      * @return array{pdf: string, file_signature: string, file_size: int|false,
      *         status: string, error: string, fields: string} The text, the file
      *         signature and size, `ready` or `scanned` (no text layer), any
      *         note, and the file name as plain text.
      *
-     * @throws \RuntimeException When the file is missing, outside uploads or
-     *                           over the size limit, or every extractor fails or times out.
+     * @throws RuntimeException When the file is missing, outside uploads or
+     *                          over the size limit, or every extractor fails or times out.
      */
-    public static function extract(\WP_Post $post, ?array $old): array
-    {
+    public static function extract(
+        WP_Post $post,
+        ?array $old
+    ): array {
         // Find the file and check it is a readable file inside uploads
         $path = get_attached_file($post->ID);
         $uploads = wp_get_upload_dir();
         $real = $path ? realpath($path) : false;
         $root = realpath($uploads['basedir']);
         if (! $real || ! $root || ! str_starts_with($real, $root.DIRECTORY_SEPARATOR) || ! is_readable($real)) {
-            throw new \RuntimeException('PDF file is missing or outside uploads');
+            throw new RuntimeException('PDF file is missing or outside uploads');
         }
 
         // Refuse a file over the size limit
         $size = filesize($real);
         if ($size > Config::number('pdf_max_mb') * 1024 * 1024) {
-            throw new \RuntimeException('PDF exceeds size limit');
+            throw new RuntimeException('PDF exceeds size limit');
         }
 
         // Reuse the earlier text when the file is unchanged
         $sig = hash('sha256', $real.'|'.$size.'|'.filemtime($real));
-        if ($old && $old['file_signature'] === $sig && in_array($old['status'], ['ready', 'scanned'], true)) {
+        if ($old && $old['file_signature'] === $sig && \in_array($old['status'], ['ready', 'scanned'], true)) {
             return ['pdf' => $old['pdf'], 'file_signature' => $sig, 'file_size' => $size, 'status' => $old['status'], 'error' => $old['error'], 'fields' => Text::plain(pathinfo($real, PATHINFO_FILENAME))];
         }
 
@@ -49,21 +55,21 @@ final class Pdf
         // Try Poppler first
         try {
             if ($binary === '') {
-                throw new \RuntimeException('Poppler unavailable');
+                throw new RuntimeException('Poppler unavailable');
             }
 
             $text = self::process([$binary, '-enc', 'UTF-8', '-nopgbrk', $real, '-'], $seconds);
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             // Check that time remains for the fallback
             $remaining = (int) floor($seconds - (microtime(true) - $started));
             if ($remaining < 1) {
-                throw new \RuntimeException('PDF extraction timed out', 0, $throwable);
+                throw new RuntimeException('PDF extraction timed out', 0, $throwable);
             }
 
             // Find a PHP command to run the bundled parser
             $php = Filters::string('uams_search_php_binary', PHP_BINDIR.'/php');
             if (! is_executable($php)) {
-                throw new \RuntimeException('PDF fallback needs an executable PHP CLI; set uams_search_php_binary. '.$throwable->getMessage(), $throwable->getCode(), $throwable);
+                throw new RuntimeException('PDF fallback needs an executable PHP CLI; set uams_search_php_binary. '.$throwable->getMessage(), $throwable->getCode(), $throwable);
             }
 
             // Run the bundled parser in a child process
@@ -102,21 +108,23 @@ final class Pdf
      * @param  int  $timeout  Seconds the command may run.
      * @return string Standard output.
      *
-     * @throws \RuntimeException When the command cannot start, prints too
-     *                           much, runs too long or exits with an error.
+     * @throws RuntimeException When the command cannot start, prints too
+     *                          much, runs too long or exits with an error.
      */
-    public static function process(array $command, int $timeout): string
-    {
+    public static function process(
+        array $command,
+        int $timeout
+    ): string {
         // Check that PHP may start processes
-        if (! function_exists('proc_open')) {
-            throw new \RuntimeException('PDF extraction requires proc_open for enforced time and memory limits');
+        if (! \function_exists('proc_open')) {
+            throw new RuntimeException('PDF extraction requires proc_open for enforced time and memory limits');
         }
 
         // Start the command with pipes for input, output and errors
         $pipes = [];
         $proc = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        if (! is_resource($proc)) {
-            throw new \RuntimeException('Could not start PDF extractor');
+        if (! \is_resource($proc)) {
+            throw new RuntimeException('Could not start PDF extractor');
         }
 
         // Close the input and read the output without blocking
@@ -133,13 +141,13 @@ final class Pdf
                 $out .= stream_get_contents($pipes[1]);
                 $err .= stream_get_contents($pipes[2]);
                 // Stop when the output grows past the limit
-                if (strlen($out) > 16 * 1024 * 1024 || strlen($err) > 65536) {
-                    throw new \RuntimeException('PDF extraction output limit exceeded');
+                if (\strlen($out) > 16 * 1024 * 1024 || \strlen($err) > 65536) {
+                    throw new RuntimeException('PDF extraction output limit exceeded');
                 }
 
                 // Stop when the time limit passes
                 if (microtime(true) - $start > $timeout) {
-                    throw new \RuntimeException('PDF extraction timed out');
+                    throw new RuntimeException('PDF extraction timed out');
                 }
 
                 // Finish when the command has ended
@@ -170,7 +178,7 @@ final class Pdf
 
         // Report a failure with the start of its error output
         if ($exit !== 0) {
-            throw new \RuntimeException('PDF extractor failed: '.mb_substr(Text::plain($err), 0, 500));
+            throw new RuntimeException('PDF extractor failed: '.mb_substr(Text::plain($err), 0, 500));
         }
 
         return $out;

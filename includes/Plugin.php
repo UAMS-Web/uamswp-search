@@ -2,6 +2,9 @@
 
 namespace UAMS_Search;
 
+use Throwable;
+use WP_CLI;
+
 /** Starts the plugin: installs it, schedules its jobs and connects its hooks. */
 final class Plugin
 {
@@ -16,7 +19,7 @@ final class Plugin
             // Register the five-minute schedule and schedule the jobs
             add_filter('cron_schedules', [self::class, 'schedules']);
             self::schedule();
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             // Stop activation and show why setup failed
             wp_die(esc_html('UAMS Search setup failed: '.$throwable->getMessage()));
         }
@@ -67,7 +70,7 @@ final class Plugin
         add_action('uams_search_queue', static function (): void {
             try {
                 Queue::process(15, 15);
-            } catch (\Throwable $throwable) {
+            } catch (Throwable $throwable) {
                 error_log('UAMS Search: '.$throwable->getMessage());
             }
         });
@@ -107,7 +110,7 @@ final class Plugin
         // Queue a post when its meta changes, except the edit lock
         foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) {
             add_action($hook, static function (mixed $meta_id, mixed $id, mixed $key): void {
-                if (! in_array($key, ['_edit_lock', '_edit_last'], true)) {
+                if (! \in_array($key, ['_edit_lock', '_edit_last'], true)) {
                     Queue::push((int) $id);
                 }
             }, 10, 3);
@@ -134,8 +137,8 @@ final class Plugin
         Integration::hooks();
         Admin::hooks();
         // Register the WP-CLI command
-        if (defined('WP_CLI') && WP_CLI) {
-            \WP_CLI::add_command('uams-search', CLI::class);
+        if (\defined('WP_CLI') && WP_CLI) {
+            WP_CLI::add_command('uams-search', CLI::class);
         }
     }
 

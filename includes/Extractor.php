@@ -2,18 +2,21 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+use WP_Post;
+
 /** Reads a post and turns it into an index row. */
 final class Extractor
 {
     /**
      * Whether a post belongs in the index.
      *
-     * @param  \WP_Post  $post  The post to check.
+     * @param  WP_Post  $post  The post to check.
      * @return bool False for an unconfigured type, a password-protected or
      *              excluded post, a hidden provider or location, a filter refusal,
      *              a PDF without a viewable parent, or a post that is not viewable.
      */
-    public static function eligible(\WP_Post $post): bool
+    public static function eligible(WP_Post $post): bool
     {
         // Refuse unconfigured types, protected posts and excluded posts
         if (! isset(Config::section('types')[$post->post_type]) || $post->post_password !== '' || get_post_meta($post->ID, '_uams_search_exclude', true)) {
@@ -40,7 +43,7 @@ final class Extractor
 
         // Accept only public PDFs, with a viewable parent when they have one
         if ($post->post_type === 'attachment') {
-            if (! Config::flag('pdf') || $post->post_mime_type !== 'application/pdf' || ! in_array($post->post_status, ['inherit', 'publish'], true)) {
+            if (! Config::flag('pdf') || $post->post_mime_type !== 'application/pdf' || ! \in_array($post->post_status, ['inherit', 'publish'], true)) {
                 return false;
             }
 
@@ -61,24 +64,26 @@ final class Extractor
     /**
      * Build a post's index row.
      *
-     * @param  \WP_Post  $post  The post to index.
+     * @param  WP_Post  $post  The post to index.
      * @param  array<string, mixed>|null  $old  The post's earlier index row, used
      *                                          to reuse PDF text for an unchanged file.
      * @return array<string, mixed> The row: the plain and stemmed text of the
      *                              title, content, fields, terms and PDF, the weighted data, URL and
      *                              dates.
      *
-     * @throws \RuntimeException When the post's terms cannot be read, or a PDF
-     *                           cannot be extracted.
+     * @throws RuntimeException When the post's terms cannot be read, or a PDF
+     *                          cannot be extracted.
      */
-    public static function extract(\WP_Post $post, ?array $old = null): array
-    {
+    public static function extract(
+        WP_Post $post,
+        ?array $old = null
+    ): array {
         // Read the configured custom fields
         $fields = [];
         $terms = [];
         $field_list = Filters::array('uams_search_fields', Config::entry('fields', $post->post_type), $post->post_type);
         foreach ($field_list as $name => $weight) {
-            $value = function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
+            $value = \function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
             self::log_skips($value, $post->ID, $name);
             $fields[$name] = ['text' => Text::flatten($value), 'weight' => max(0, (float) $weight), 'source' => 'fields'];
@@ -96,7 +101,7 @@ final class Extractor
 
             $names = wp_get_object_terms($post->ID, $taxonomy, ['fields' => 'names']);
             if (is_wp_error($names)) {
-                throw new \RuntimeException($names->get_error_message());
+                throw new RuntimeException($names->get_error_message());
             }
 
             $terms[$taxonomy] = ['text' => Text::flatten($names), 'weight' => max(0, (float) $weight), 'source' => 'terms'];
@@ -156,8 +161,12 @@ final class Extractor
      *                                                       in place under `block:<name>` keys.
      * @param  int  $depth  Nesting level, capped at 20.
      */
-    private static function blocks(array $blocks, array $allowed, array &$fields, int $depth = 0): void
-    {
+    private static function blocks(
+        array $blocks,
+        array $allowed,
+        array &$fields,
+        int $depth = 0
+    ): void {
         // Stop at the nesting limit
         if ($depth > 20) {
             return;
@@ -197,8 +206,12 @@ final class Extractor
      * @param  string  $field  Field name.
      * @param  int  $depth  Nesting level, capped at 12.
      */
-    private static function log_skips(mixed $value, int $id, string $field, int $depth = 0): void
-    {
+    private static function log_skips(
+        mixed $value,
+        int $id,
+        string $field,
+        int $depth = 0
+    ): void {
         // Log a value nested too deeply
         if ($depth > 12) {
             error_log('UAMS Search: skipped deeply nested field site='.get_current_blog_id().' post='.$id.' field='.$field);
@@ -207,12 +220,12 @@ final class Extractor
         }
 
         // Log an object or resource, which cannot be indexed
-        if (is_object($value) || is_resource($value)) {
+        if (\is_object($value) || \is_resource($value)) {
             error_log('UAMS Search: skipped unsupported field value site='.get_current_blog_id().' post='.$id.' field='.$field.' type='.get_debug_type($value));
         }
 
         // Check each item of an array
-        if (is_array($value)) {
+        if (\is_array($value)) {
             foreach ($value as $item) {
                 self::log_skips($item, $id, $field, $depth + 1);
             }

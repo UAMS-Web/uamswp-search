@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+
 /** The list of posts waiting to be indexed, and the worker that empties it. */
 final class Queue
 {
@@ -12,8 +14,11 @@ final class Queue
      * @param  string  $action  `upsert` or `delete`.
      * @param  int|null  $site  Site ID; the current site when null.
      */
-    public static function push(int $id, string $action = 'upsert', ?int $site = null): void
-    {
+    public static function push(
+        int $id,
+        string $action = 'upsert',
+        ?int $site = null
+    ): void {
         global $wpdb;
         // Check that the post is one to index and the tables exist
         if ($id < 1 || wp_is_post_revision($id) || wp_is_post_autosave($id) || ! DB::ready()) {
@@ -37,8 +42,10 @@ final class Queue
      *                                                        entries that failed, and whether another run or a rebuild holds
      *                                                        the queue.
      */
-    public static function process(int $limit = 100, int $seconds = 45): array
-    {
+    public static function process(
+        int $limit = 100,
+        int $seconds = 45
+    ): array {
         global $wpdb;
         $stats = ['processed' => 0, 'failed' => 0, 'busy' => false];
         // Check that the tables exist
@@ -67,13 +74,13 @@ final class Queue
             // Read the entries that are due
             $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM `$q` WHERE attempts<3 AND available_at<=UTC_TIMESTAMP() ORDER BY queued_at,site_id,object_id LIMIT %d", max(1, min(10000, $limit))), ARRAY_A);
             if ($wpdb->last_error) {
-                throw new \RuntimeException($wpdb->last_error);
+                throw new RuntimeException($wpdb->last_error);
             }
 
             // Index each entry
             foreach ($rows as $entry) {
                 // Stop when the time or memory limit is near
-                $memory = wp_convert_hr_to_bytes(ini_get('memory_limit'));
+                $memory = wp_convert_hr_to_bytes(\ini_get('memory_limit'));
                 if (microtime(true) - $start >= $seconds || ($memory > 0 && memory_get_usage(true) > $memory * 0.8)) {
                     break;
                 }
@@ -134,8 +141,11 @@ final class Queue
      * @param  int  $tt_id  Term taxonomy ID.
      * @param  string  $taxonomy  Taxonomy. Unused; present for the hook signature.
      */
-    public static function term(int $term_id, int $tt_id = 0, string $taxonomy = ''): void
-    {
+    public static function term(
+        int $term_id,
+        int $tt_id = 0,
+        string $taxonomy = ''
+    ): void {
         global $wpdb;
         // Check that the change names a term taxonomy
         if (! $tt_id) {

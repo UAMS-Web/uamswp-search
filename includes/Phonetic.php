@@ -26,11 +26,11 @@ final class Phonetic
     public static function encode(string $word): array
     {
         // Reduce the word to uppercase letters A to Z
-        $s = strtoupper(function_exists('remove_accents') ? remove_accents($word) : $word);
+        $s = strtoupper(\function_exists('remove_accents') ? remove_accents($word) : $word);
         $s = preg_replace('/[^A-Z]/', '', $s);
 
         // Return empty keys for a word with no letters
-        $n = strlen($s);
+        $n = \strlen($s);
         if (! $n) {
             return ['', ''];
         }
@@ -42,7 +42,7 @@ final class Phonetic
         $i = 0;
         $slavo = str_contains($s, 'W') || str_contains($s, 'K') || str_contains($s, 'CZ') || str_contains($s, 'WITZ');
         // Define the helpers: match at a position, test for a vowel, and append to both keys
-        $at = static fn (int $p, array $values): bool => $p >= 0 && (bool) array_filter($values, static fn (string $v): bool => substr($s, $p, strlen($v)) === $v);
+        $at = static fn (int $p, array $values): bool => $p >= 0 && (bool) array_filter($values, static fn (string $v): bool => substr($s, $p, \strlen($v)) === $v);
         $vowel = static fn (int $p): bool => $p >= 0 && str_contains('AEIOUY', $s[$p] ?? ' ');
         $add = static function (string $p, ?string $a = null) use (&$primary, &$alternate): void {
             $primary .= $p;
@@ -60,7 +60,7 @@ final class Phonetic
         }
 
         // Encode each letter until both keys are 8 characters
-        while ($i < $n && (strlen($primary) < 8 || strlen($alternate) < 8)) {
+        while ($i < $n && (\strlen($primary) < 8 || \strlen($alternate) < 8)) {
             $ch = $s[$i];
             $next = $s[$i + 1];
             $prev = $i ? $s[$i - 1] : ' ';
@@ -79,7 +79,7 @@ final class Phonetic
                     $i += $next === 'B' ? 2 : 1;
                     break;
                 case 'C':
-                    if ($at($i, ['CHIA']) || ($i > 1 && ! $vowel($i - 2) && $at($i - 1, ['ACH']) && ! in_array($s[$i + 2], ['I', 'E'], true))) {
+                    if ($at($i, ['CHIA']) || ($i > 1 && ! $vowel($i - 2) && $at($i - 1, ['ACH']) && ! \in_array($s[$i + 2], ['I', 'E'], true))) {
                         $add('K');
                         $i += 2;
                     } elseif ($i === 0 && $at(0, ['CAESAR'])) {
