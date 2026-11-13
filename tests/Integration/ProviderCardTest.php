@@ -11,10 +11,10 @@ namespace UAMS_Search\Tests\Integration;
 use DOMDocument;
 use DOMXPath;
 use RuntimeException;
-use stdClass;
 use UAMS_Search\DB;
 use UAMS_Search\Integration;
 use UAMS_Search\ProviderCard;
+use UAMS_Search\Result;
 use UAMS_Search\Tests\Support\IntegrationTestCase;
 use WP_Query;
 
@@ -160,7 +160,7 @@ final class ProviderCardTest extends IntegrationTestCase
     public function test_mixed_results_keep_their_order_count_and_pagination(): void
     {
         $fallback = $this->make_page(['post_type' => 'provider', 'post_title' => 'Fallback & "Quoted"']);
-        $out = ['results' => [$this->snapshot($this->provider), (object) ['post_type' => 'page', 'title' => 'A regular page', 'url' => get_permalink($this->page), 'excerpt' => 'Keep this page excerpt'], $this->snapshot($fallback)], 'total' => 91, 'pages' => 10, 'fallback' => false, 'suggestion' => null];
+        $out = ['results' => [$this->snapshot($this->provider), new Result(id: 0, site: get_current_blog_id(), relevance: 0.0, excerpt: 'Keep this page excerpt', title: 'A regular page', url: (string) get_permalink($this->page), post_type: 'page', file_size: 0), $this->snapshot($fallback)], 'total' => 91, 'pages' => 10, 'fallback' => false, 'suggestion' => null];
         $query = new WP_Query;
         $query->set('s', 'Barnes');
         $query->set('uams_search_results', $out);
@@ -221,9 +221,9 @@ final class ProviderCardTest extends IntegrationTestCase
         return $term['term_id'];
     }
 
-    private function snapshot(int $id, ?int $blog = null): stdClass
+    private function snapshot(int $id, ?int $blog = null): Result
     {
-        return (object) ['id' => $id, 'site' => $blog ?? get_current_blog_id(), 'post_type' => 'provider', 'title' => 'Index snapshot', 'url' => 'https://example.test/old/', 'excerpt' => 'Old provider excerpt'];
+        return new Result(id: $id, site: $blog ?? get_current_blog_id(), relevance: 0.0, excerpt: 'Old provider excerpt', title: 'Index snapshot', url: 'https://example.test/old/', post_type: 'provider', file_size: 0);
     }
 
     private function xpath(string $html): DOMXPath

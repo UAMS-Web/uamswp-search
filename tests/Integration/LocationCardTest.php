@@ -12,10 +12,10 @@ use DOMDocument;
 use DOMXPath;
 use ReflectionMethod;
 use RuntimeException;
-use stdClass;
 use UAMS_Search\DB;
 use UAMS_Search\Integration;
 use UAMS_Search\LocationCard;
+use UAMS_Search\Result;
 use UAMS_Search\Tests\Support\IntegrationTestCase;
 use WP_Query;
 
@@ -219,7 +219,7 @@ final class LocationCardTest extends IntegrationTestCase
     {
         $provider = $this->make_page(['post_type' => 'provider', 'post_title' => 'Profile in mixed results']);
         $fallback = $this->make_page(['post_type' => 'location', 'post_title' => 'Fallback clinic']);
-        $payload = ['results' => [(object) ['id' => $provider, 'site' => $this->site, 'post_type' => 'provider', 'url' => get_permalink($provider)], $this->snapshot($this->child), (object) ['post_type' => 'page', 'title' => 'Ordinary page', 'url' => get_permalink($this->page), 'excerpt' => 'Keep this excerpt'], $this->snapshot($fallback)], 'total' => 44, 'pages' => 5, 'fallback' => false, 'suggestion' => null];
+        $payload = ['results' => [new Result(id: $provider, site: $this->site, relevance: 0.0, excerpt: '', title: '', url: (string) get_permalink($provider), post_type: 'provider', file_size: 0), $this->snapshot($this->child), new Result(id: 0, site: $this->site, relevance: 0.0, excerpt: 'Keep this excerpt', title: 'Ordinary page', url: (string) get_permalink($this->page), post_type: 'page', file_size: 0), $this->snapshot($fallback)], 'total' => 44, 'pages' => 5, 'fallback' => false, 'suggestion' => null];
         $query = new WP_Query;
         $query->set('s', 'Clinic');
         $query->set('uams_search_results', $payload);
@@ -280,9 +280,9 @@ final class LocationCardTest extends IntegrationTestCase
         set_post_thumbnail($owner, $id);
     }
 
-    private function snapshot(int $id, ?int $blog = null): stdClass
+    private function snapshot(int $id, ?int $blog = null): Result
     {
-        return (object) ['id' => $id, 'site' => $blog ?? get_current_blog_id(), 'post_type' => 'location', 'url' => 'https://example.test/stale/', 'title' => 'Indexed snapshot', 'excerpt' => 'Old location excerpt'];
+        return new Result(id: $id, site: $blog ?? get_current_blog_id(), relevance: 0.0, excerpt: 'Old location excerpt', title: 'Indexed snapshot', url: 'https://example.test/stale/', post_type: 'location', file_size: 0);
     }
 
     private function xpath(string $html): DOMXPath

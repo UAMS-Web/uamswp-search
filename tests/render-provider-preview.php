@@ -1,5 +1,7 @@
 <?php
 
+use UAMS_Search\Result;
+
 class WP_Post
 {
     public string $post_type = 'provider';
@@ -71,10 +73,12 @@ function get_permalink($post)
     return 'https://uams-search.test/'.$post->post_type.'/'.$post->ID.'/';
 }
 
+// Results are built before render-preview.php loads the bootstrap, so load the class loader first
+require_once __DIR__.'/../includes/autoload.php';
 $GLOBALS['uams_preview_results'] ??= [
-    (object) ['id' => 101, 'site' => 1, 'post_type' => 'provider', 'title' => 'Barnes', 'url' => 'https://uams-search.test/provider/101/', 'excerpt' => 'Provider excerpt must not appear'],
-    (object) ['id' => 102, 'site' => 1, 'post_type' => 'provider', 'title' => 'Resident', 'url' => 'https://uams-search.test/provider/102/', 'excerpt' => 'Provider excerpt must not appear'],
-    (object) ['post_type' => 'page', 'title' => 'Heart care', 'url' => 'https://uams-search.test/heart-care/', 'excerpt' => 'Existing page result excerpt'],
-    (object) ['id' => 103, 'site' => 1, 'post_type' => 'provider', 'title' => 'Fallback', 'url' => 'https://uams-search.test/provider/103/', 'excerpt' => 'Provider excerpt must not appear'],
+    new Result(id: 101, site: 1, relevance: 0.0, excerpt: 'Provider excerpt must not appear', title: 'Barnes', url: 'https://uams-search.test/provider/101/', post_type: 'provider', file_size: 0),
+    new Result(id: 102, site: 1, relevance: 0.0, excerpt: 'Provider excerpt must not appear', title: 'Resident', url: 'https://uams-search.test/provider/102/', post_type: 'provider', file_size: 0),
+    new Result(id: 0, site: 1, relevance: 0.0, excerpt: 'Existing page result excerpt', title: 'Heart care', url: 'https://uams-search.test/heart-care/', post_type: 'page', file_size: 0),
+    new Result(id: 103, site: 1, relevance: 0.0, excerpt: 'Provider excerpt must not appear', title: 'Fallback', url: 'https://uams-search.test/provider/103/', post_type: 'provider', file_size: 0),
 ];
 require __DIR__.'/render-preview.php';

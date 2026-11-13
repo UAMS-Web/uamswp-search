@@ -108,7 +108,7 @@ final class MultisiteTest extends IntegrationTestCase
             $native->query(['s' => $this->term, 'posts_per_page' => 1, 'paged' => 2]);
             $this->assertTrue($native->found_posts === 2 && $native->max_num_pages === 2 && count($native->posts) === 1, 'The real WordPress main query keeps network totals and pagination');
             $native->query(['s' => $this->term, 'posts_per_page' => 10, 'paged' => 1]);
-            $this->assertTrue(count(array_unique(array_map(static fn ($p) => $p->site, $native->posts))) === 2, 'The real WordPress loop retains each result site');
+            $this->assertTrue(count(array_unique(array_map(static fn ($p) => $p->blog_id, $native->posts))) === 2, 'The real WordPress loop retains each result site');
             $this->assertTrue(get_post($this->local_id)->post_content === 'Root fixture body' && ! $native->get('cache_results'), 'Remote posts do not overwrite the local WordPress post cache');
         } finally {
             $_GET = $previous_get;

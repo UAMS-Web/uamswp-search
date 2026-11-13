@@ -217,7 +217,7 @@ final class QueryTest extends TestCase
         self::assertSame(['title' => 1.5, 'content' => 2.5, 'fields' => 0.5, 'terms' => 3.5, 'pdf' => 0.0], $out['results'][0]->scores);
         self::assertStringContainsString('AS title_score', end($GLOBALS['wpdb']->queries));
         $plain = Query::run(['s' => 'heart', 'suggest' => false]);
-        self::assertFalse(property_exists($plain['results'][0], 'scores'));
+        self::assertNull($plain['results'][0]->scores);
     }
 
     public function test_the_field_score_is_skipped_when_every_weight_is_one(): void

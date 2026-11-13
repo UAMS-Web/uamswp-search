@@ -295,15 +295,15 @@ final class LocationCard
     /**
      * Read the live fields shown on a location's card.
      *
-     * @param  object  $result  A search result with `site`, `id` and `url`.
+     * @param  Result  $result  A search result.
      * @return array{name: string, url: string, image: string, parent: array{name: string, url: string, prefix: string}|null, address: list<string>, phones: array{heading: string, numbers: list<array{text: string, url: string, label: string}>}, directions: string, notice: array{text: string, label: string}|null}|null
      *                                                                                                                                                                                                                                                                                                                         The card, or null when the site is not public or the post is not a searchable location.
      */
-    public static function data(object $result): ?array
+    public static function data(Result $result): ?array
     {
         // Read the result's site and post, and check the site is public
-        $site = (int) $result->site;
-        $id = (int) $result->id;
+        $site = $result->site;
+        $id = $result->id;
         if ($site < 1 || $id < 1 || ! \in_array($site, Config::public_sites(), true)) {
             return null;
         }

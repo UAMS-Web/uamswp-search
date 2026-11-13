@@ -1,5 +1,7 @@
 <?php
 
+use UAMS_Search\Result;
+
 function wp_timezone()
 {
     return new DateTimeZone('America/Chicago');
@@ -29,10 +31,12 @@ $GLOBALS['uams_preview_fields'] = [
     202 => ['location_address_1' => '20 Another Street', 'location_city' => 'Fayetteville', 'location_state' => 'AR', 'location_zip' => '72703', 'location_phone' => '5015550000 ext. 23', 'location_appointments_query' => '0'],
     203 => ['location_closing' => '1', 'location_closing_length' => 'permanent', 'location_closing_date' => '20261029'],
 ];
+// Results are built before render-preview.php loads the bootstrap, so load the class loader first
+require_once __DIR__.'/../includes/autoload.php';
 $GLOBALS['uams_preview_results'] = [
-    (object) ['id' => 201, 'site' => 1, 'post_type' => 'location', 'url' => 'https://uams-search.test/location/201/', 'excerpt' => 'Old location excerpt'],
-    (object) ['id' => 202, 'site' => 1, 'post_type' => 'location', 'url' => 'https://uams-search.test/location/202/', 'excerpt' => 'Old location excerpt'],
-    (object) ['id' => 101, 'site' => 1, 'post_type' => 'provider', 'url' => 'https://uams-search.test/provider/101/', 'excerpt' => 'Old provider excerpt'],
-    (object) ['id' => 203, 'site' => 1, 'post_type' => 'location', 'url' => 'https://uams-search.test/location/203/', 'excerpt' => 'Old location excerpt'],
+    new Result(id: 201, site: 1, relevance: 0.0, excerpt: 'Old location excerpt', title: '', url: 'https://uams-search.test/location/201/', post_type: 'location', file_size: 0),
+    new Result(id: 202, site: 1, relevance: 0.0, excerpt: 'Old location excerpt', title: '', url: 'https://uams-search.test/location/202/', post_type: 'location', file_size: 0),
+    new Result(id: 101, site: 1, relevance: 0.0, excerpt: 'Old provider excerpt', title: '', url: 'https://uams-search.test/provider/101/', post_type: 'provider', file_size: 0),
+    new Result(id: 203, site: 1, relevance: 0.0, excerpt: 'Old location excerpt', title: '', url: 'https://uams-search.test/location/203/', post_type: 'location', file_size: 0),
 ];
 require __DIR__.'/render-provider-preview.php';

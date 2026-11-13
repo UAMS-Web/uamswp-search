@@ -268,7 +268,19 @@ final class DB
     {
         global $wpdb;
 
-        return (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,0)', 'uams-search-'.md5($wpdb->dbname.$wpdb->base_prefix))) === 1;
+        return (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,0)', self::lock_name())) === 1;
+    }
+
+    /**
+     * The writer lock's name, unique to this database and table prefix.
+     *
+     * @return string The `GET_LOCK()` name.
+     */
+    private static function lock_name(): string
+    {
+        global $wpdb;
+
+        return 'uams-search-'.md5($wpdb->dbname.$wpdb->base_prefix);
     }
 
     /**
@@ -277,6 +289,6 @@ final class DB
     public static function unlock(): void
     {
         global $wpdb;
-        $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', 'uams-search-'.md5($wpdb->dbname.$wpdb->base_prefix)));
+        $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', self::lock_name()));
     }
 }

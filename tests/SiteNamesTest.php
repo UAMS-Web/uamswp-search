@@ -35,6 +35,19 @@ final class SiteNamesTest extends TestCase
         self::assertSame('(site not found)', SiteNames::name(99));
     }
 
+    public function test_only_site_names_reads_get_blog_details(): void
+    {
+        // get_blog_details() returns false for a deleted site; SiteNames is the one reader that checks.
+        $readers = [];
+        foreach (glob(__DIR__.'/../includes/*.php') as $file) {
+            if (str_contains((string) file_get_contents($file), 'get_blog_details(')) {
+                $readers[] = basename($file);
+            }
+        }
+
+        self::assertSame(['SiteNames.php'], $readers, 'Admin and Rebuild take site titles from SiteNames::name().');
+    }
+
     public function test_rows_get_name_then_id_and_keep_their_order(): void
     {
         $rows = SiteNames::prefix([['1', 'post', 'indexed', '5'], ['4', 'page', 'error', '2'], ['99', 'post', 'indexed', '1']]);

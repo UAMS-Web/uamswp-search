@@ -56,12 +56,22 @@ final class Admin
     }
 
     /**
+     * The capability that manages the plugin's settings.
+     *
+     * @return string `manage_network_options` on a multisite, otherwise `manage_options`.
+     */
+    private static function capability(): string
+    {
+        return is_multisite() ? 'manage_network_options' : 'manage_options';
+    }
+
+    /**
      * Stop the request with an error message unless the user can manage the plugin's settings.
      */
     private static function capable(): void
     {
         // Refuse users without the settings capability
-        if (! current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) {
+        if (! current_user_can(self::capability())) {
             wp_die('You cannot manage search settings.');
         }
     }
@@ -151,7 +161,7 @@ final class Admin
     public static function rebuild_assets(): void
     {
         // Load only on the Index screen, for users who can manage it
-        if (Integration::param('page') !== 'uams-search' || ! current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) {
+        if (Integration::param('page') !== 'uams-search' || ! current_user_can(self::capability())) {
             return;
         }
 
@@ -166,7 +176,7 @@ final class Admin
     public static function settings_assets(): void
     {
         // Load only on the Settings screen, for users who can manage it
-        if (Integration::param('page') !== self::SETTINGS || ! current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) {
+        if (Integration::param('page') !== self::SETTINGS || ! current_user_can(self::capability())) {
             return;
         }
 
@@ -177,7 +187,7 @@ final class Admin
     public static function rebuild_ajax(): void
     {
         // Refuse users who cannot manage the index, and requests that are not POST
-        if (! current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) {
+        if (! current_user_can(self::capability())) {
             wp_send_json_error(['message' => 'You cannot rebuild this search index.'], 403);
         }
 
@@ -212,7 +222,7 @@ final class Admin
     public static function notice(): void
     {
         // Show notices only to users who manage the index
-        if (! current_user_can(is_multisite() ? 'manage_network_options' : 'manage_options')) {
+        if (! current_user_can(self::capability())) {
             return;
         }
 
@@ -264,7 +274,7 @@ final class Admin
         $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map(intval(...), (array) ($input['sites'] ?? []))));
         // Save the source weights
         foreach (array_keys(Config::defaults()['weights']) as $key) {
-            $c['weights'][$key] = self::number($input['weights'][$key] ?? 0);
+            $c['weights'][$key] = Config::weight($input['weights'][$key] ?? 0);
         }
 
         // Read the chosen types with their boosts, field weights and taxonomy weights
@@ -277,7 +287,7 @@ final class Admin
                 continue;
             }
 
-            $types[$name] = self::number($values['boost'] ?? 1);
+            $types[$name] = Config::weight($values['boost'] ?? 1);
             foreach (['fields', 'taxonomies'] as $group) {
                 $parsed = [];
                 foreach ((array) ($values[$group] ?? []) as $row) {
@@ -287,7 +297,7 @@ final class Admin
 
                     $key = sanitize_key(\is_scalar($row['name'] ?? '') ? $row['name'] : '');
                     if ($key) {
-                        $parsed[$key] = self::number($row['weight'] ?? 1);
+                        $parsed[$key] = Config::weight($row['weight'] ?? 1);
                     }
                 }
 
@@ -336,7 +346,7 @@ final class Admin
         }
 
         // Save the PDF limits
-        $c['pdf_max_mb'] = max(1, min(100, self::number($input['pdf_max_mb'] ?? 20)));
+        $c['pdf_max_mb'] = max(1, min(100, Config::weight($input['pdf_max_mb'] ?? 20)));
         $c['pdf_timeout'] = max(1, min(120, (int) ($input['pdf_timeout'] ?? 30)));
         // Refuse to enable search before the index exists
         if ($c['enabled'] && ! DB::ready()) {
@@ -347,17 +357,6 @@ final class Admin
         update_site_option('uams_search_settings', $c);
         wp_safe_redirect(self::screen_url(self::SETTINGS));
         exit;
-    }
-
-    /**
-     * A weight from form input.
-     *
-     * @param  mixed  $value  The submitted value.
-     * @return float The number limited to 0 to 100, or 0 when it is not numeric.
-     */
-    private static function number(mixed $value): float
-    {
-        return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(0, min(100, (float) $value)) : 0;
     }
 
     /** Print the per-site search settings form. */
@@ -512,7 +511,7 @@ final class Admin
         echo '<p><label>Results per Page <input type="number" name="settings[results_per_page]" min="1" max="100" step="1" value="'.Config::page_size().'"></label><br>Default: 20. Choose 1 to 100. Changes apply without rebuilding the index.</p>';
         echo '<fieldset><legend><h2>Sub-Sites in Whole-Website Search</h2></legend>';
         foreach (Config::public_sites() as $site) {
-            $label = is_multisite() ? get_blog_details($site)->blogname.' (#'.$site.')' : get_bloginfo('name');
+            $label = is_multisite() ? SiteNames::name($site).' (#'.$site.')' : get_bloginfo('name');
             echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked(Config::chosen_sites() === null || \in_array($site, Config::chosen_sites(), true), true, false).'> '.esc_html($label).'</label></p>';
         }
 

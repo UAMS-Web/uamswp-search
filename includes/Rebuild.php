@@ -118,7 +118,7 @@ final class Rebuild
                     throw new RuntimeException($wpdb->last_error ?: 'Could not count site content');
                 }
 
-                $name = is_multisite() ? get_blog_details($id)->blogname : get_bloginfo('name');
+                $name = is_multisite() ? SiteNames::name($id) : get_bloginfo('name');
                 $sites[] = ['id' => $id, 'name' => $name, 'maximum' => (int) $count['maximum'], 'total' => (int) $count['total']];
                 $total += (int) $count['total'];
             }
