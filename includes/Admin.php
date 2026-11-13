@@ -29,6 +29,7 @@ final class Admin
         add_action('admin_post_uams_search_site', [self::class, 'save_site']);
         add_action('admin_post_uams_search_retry', [self::class, 'retry']);
         add_action('admin_post_uams_search_setup', [self::class, 'setup']);
+        add_action('admin_post_uams_search_refresh_choices', [self::class, 'refresh_choices']);
         add_action('wp_ajax_uams_search_rebuild', [self::class, 'rebuild_ajax']);
         add_action('admin_enqueue_scripts', [self::class, 'rebuild_assets']);
         add_action('admin_enqueue_scripts', [self::class, 'settings_assets']);
@@ -254,6 +255,24 @@ final class Admin
 
         // Return to the Index screen
         wp_safe_redirect(self::home());
+        exit;
+    }
+
+    /** Look up the field and taxonomy names in use on every covered site, then return to the Settings screen. */
+    public static function refresh_choices(): void
+    {
+        // Check the user and the nonce
+        self::capable();
+        check_admin_referer('uams_search_refresh_choices', 'uams_search_choices_nonce');
+        // Run the lookup and save it
+        try {
+            NameChoices::refresh();
+        } catch (Throwable $throwable) {
+            wp_die(esc_html($throwable->getMessage()));
+        }
+
+        // Return to the Settings screen
+        wp_safe_redirect(self::screen_url(self::SETTINGS));
         exit;
     }
 
@@ -526,8 +545,11 @@ final class Admin
 
         // Print each content type with its boost and its field and taxonomy tables
         echo '</tbody></table></fieldset><h2>Content To Index</h2><p>Field and taxonomy weights multiply the source weight. Blank rows are ignored. Rebuild all sites after changing indexed content or stop words.</p>';
-        $types = array_unique(array_merge(array_keys(Config::section('types')), array_keys(get_post_types(['public' => true]))));
-        foreach ($types as $type) {
+        // Say where the Name suggestions come from, from the cache alone, and offer to refresh them
+        $choices = NameChoices::get();
+        $when = $choices ? 'The Name boxes suggest the field and taxonomy names in use on each content type across every site, last refreshed '.Time::local($choices['refreshed']).'.' : 'The Name boxes have no suggestions yet; type each name, or refresh the choices.';
+        echo '<p id="uams-search-choices-status">'.esc_html($when).' Any other name can still be typed. Refreshing asks every site and leaves this page, so save your changes first. <button type="submit" class="button" form="uams-search-refresh-choices" aria-describedby="uams-search-choices-status">Refresh Choices</button></p>';
+        foreach (NameChoices::types() as $type) {
             $object = get_post_type_object($type);
             $name = $object ? $object->labels->name : ucfirst($type);
             echo '<fieldset style="padding:1rem;border:1px solid #aaa;margin-block:1rem"><legend><strong>'.esc_html($name.' ('.$type.')').'</strong></legend>';
@@ -542,12 +564,19 @@ final class Admin
                 $size = max(28, ...array_map(static fn (array $row): int => mb_strlen($row['name']) + 2, $rows));
                 $prefix = 'settings[types]['.$type.']['.$group.']';
                 $what = $name.' '.$label;
-                echo '<h3>'.esc_html($label).'</h3><table class="uams-search-rows" data-prefix="'.esc_attr($prefix).'" data-label="'.esc_attr($what).'" data-size="'.$size.'"><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>';
+                // Point the Name boxes at this type's suggestions, when the cache has any
+                $names = $choices[$group][$type] ?? [];
+                $list = $names === [] ? null : 'uams-search-names-'.$group.'-'.preg_replace('/[^A-Za-z0-9_-]/', '-', (string) $type);
+                echo '<h3>'.esc_html($label).'</h3><table class="uams-search-rows" data-prefix="'.esc_attr($prefix).'" data-label="'.esc_attr($what).'" data-size="'.$size.'"'.($list ? ' data-list="'.esc_attr($list).'"' : '').'><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>';
                 foreach ($rows as $i => $row) {
-                    self::field_row($prefix, $what, $i, $row, $size);
+                    self::field_row($prefix, $what, $i, $row, $size, $list);
                 }
 
+                // The Add Row paragraph must follow the table directly; assets/admin-settings.js finds it as the next element
                 echo '</tbody></table><p><button type="button" class="button uams-add-row" aria-label="'.esc_attr('Add Row to '.$what).'" hidden>Add Row</button></p>';
+                if ($list) {
+                    echo '<datalist id="'.esc_attr($list).'">'.implode('', array_map(static fn (string $option): string => '<option value="'.esc_attr($option).'"></option>', $names)).'</datalist>';
+                }
             }
 
             echo '</fieldset>';
@@ -567,6 +596,10 @@ final class Admin
         self::numeric('settings[pdf_timeout]', 'PDF Time Limit, Seconds', Config::number('pdf_timeout'), 120);
         echo '</tbody></table>';
         submit_button('Save network settings');
+        echo '</form>';
+        // The Refresh Choices button sits in the settings form and submits this form through its `form` attribute
+        echo '<form id="uams-search-refresh-choices" method="post" action="'.esc_url(admin_url('admin-post.php')).'"><input type="hidden" name="action" value="uams_search_refresh_choices">';
+        wp_nonce_field('uams_search_refresh_choices', 'uams_search_choices_nonce');
         echo '</form></div>';
     }
 
@@ -593,16 +626,18 @@ final class Admin
      * @param  int  $i  The row's position.
      * @param  array{name: string, weight: mixed}  $row  The row's values.
      * @param  int  $size  The width of the name input.
+     * @param  string|null  $list  The ID of the `<datalist>` suggesting names, or null for none.
      */
     private static function field_row(
         string $prefix,
         string $what,
         int $i,
         array $row,
-        int $size
+        int $size,
+        ?string $list = null
     ): void {
         $key = $prefix.'['.$i.']';
-        echo '<tr><td><input size="'.$size.'" aria-label="'.esc_attr($what.' name '.($i + 1)).'" name="'.esc_attr($key.'[name]').'" value="'.esc_attr($row['name']).'"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="'.esc_attr($what.' weight '.($i + 1)).'" name="'.esc_attr($key.'[weight]').'" value="'.esc_attr($row['weight']).'"></td><td><button type="button" class="button uams-remove-row" aria-label="'.esc_attr('Remove '.$what.' row '.($i + 1)).'" hidden>Remove</button></td></tr>';
+        echo '<tr><td><input size="'.$size.'"'.($list ? ' list="'.esc_attr($list).'"' : '').' aria-label="'.esc_attr($what.' name '.($i + 1)).'" name="'.esc_attr($key.'[name]').'" value="'.esc_attr($row['name']).'"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="'.esc_attr($what.' weight '.($i + 1)).'" name="'.esc_attr($key.'[weight]').'" value="'.esc_attr($row['weight']).'"></td><td><button type="button" class="button uams-remove-row" aria-label="'.esc_attr('Remove '.$what.' row '.($i + 1)).'" hidden>Remove</button></td></tr>';
     }
 
     /**

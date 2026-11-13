@@ -439,6 +439,8 @@ final class Rebuild
                 $job['site_index']++;
                 if ($job['site_index'] >= \count($job['sites'])) {
                     $job['status'] = 'complete';
+                    // A full rebuild refreshes the Name suggestions on the Settings screen
+                    NameChoices::refresh_after_rebuild();
                 } else {
                     $job['phase'] = 'prepare';
                 }

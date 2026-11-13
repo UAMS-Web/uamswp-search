@@ -13,7 +13,7 @@ if (! function_exists('wp_die')) {
 }
 
 if (! function_exists('check_admin_referer')) {
-    function check_admin_referer($action = '')
+    function check_admin_referer($action = -1, $query_arg = '_wpnonce')
     {
         return true;
     }

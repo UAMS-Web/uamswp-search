@@ -156,6 +156,9 @@ final class ScreensFixtureDB
 
     public string $last_error = '';
 
+    /** @var list<string> Every query the screen ran. */
+    public array $queries = [];
+
     public function prepare($sql)
     {
         return $sql;
@@ -168,11 +171,15 @@ final class ScreensFixtureDB
 
     public function get_var($sql)
     {
+        $this->queries[] = (string) $sql;
+
         return str_starts_with($sql, 'SHOW TABLES') ? 'wp_uams_search_index' : 0;
     }
 
-    public function get_results()
+    public function get_results($sql = '')
     {
+        $this->queries[] = (string) $sql;
+
         return [];
     }
 }
@@ -243,12 +250,18 @@ final class ScreensTest extends TestCase
     public function test_the_settings_screen_holds_the_whole_settings_form(): void
     {
         $html = $this->render('settings_page');
+        preg_match_all('/<form [^>]*>.*?<\/form>/s', $html, $forms);
+        [$settings, $refresh] = $forms[0] + [null, null];
 
         foreach (['settings[enabled]', 'settings[sites][]', 'settings[weights]', 'settings[types][post][include]', 'settings[stopwords]', 'settings[synonyms]', 'settings[pdf_max_mb]', 'settings[pdf_timeout]'] as $field) {
-            self::assertStringContainsString('name="'.$field, $html, $field);
+            self::assertStringContainsString('name="'.$field, (string) $settings, $field);
         }
 
-        self::assertSame(1, substr_count($html, '<form '), 'The settings are one form.');
+        self::assertCount(2, $forms[0], 'The settings form, and the Refresh Choices form its button submits.');
+        self::assertStringContainsString('value="uams_search_save"', (string) $settings, 'The settings are one form.');
+        self::assertStringContainsString('<form id="uams-search-refresh-choices"', (string) $refresh);
+        self::assertStringContainsString('value="uams_search_refresh_choices"', (string) $refresh);
+        self::assertStringNotContainsString('name="settings[', (string) $refresh, 'Refreshing the choices saves no settings.');
     }
 
     public function test_a_screen_without_index_tables_offers_setup_instead(): void
@@ -325,6 +338,39 @@ final class ScreensTest extends TestCase
         self::assertStringNotContainsString('name="settings[types][post][taxonomies][1]', $html, 'A table with no saved rows starts with one blank row.');
         self::assertStringContainsString('aria-label="Add Row to Posts ACF Fields" hidden>Add Row</button>', $html);
         self::assertStringContainsString('aria-label="Remove Posts ACF Fields row 1" hidden>Remove</button>', $html);
+    }
+
+    public function test_name_boxes_suggest_the_cached_names_without_asking_any_site(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['post' => 1.0], 'fields' => ['post' => ['subtitle' => 1.0]], 'taxonomies' => []];
+        $GLOBALS['uams_test_options']['uams_search_name_choices'] = ['refreshed' => '2026-11-12 18:00:00', 'fields' => ['post' => ['subtitle', 'teaser']], 'taxonomies' => ['post' => ['category']]];
+        $html = $this->render('settings_page');
+
+        self::assertStringContainsString('<datalist id="uams-search-names-fields-post"><option value="subtitle"></option><option value="teaser"></option></datalist>', $html);
+        self::assertStringContainsString('<datalist id="uams-search-names-taxonomies-post"><option value="category"></option></datalist>', $html);
+        self::assertSame(2, substr_count($html, 'list="uams-search-names-fields-post" aria-label="Posts ACF Fields name'), 'The saved row and the blank row both suggest.');
+        self::assertStringContainsString('data-list="uams-search-names-fields-post"', $html, 'Rows added with Add Row read the list from the table.');
+        self::assertMatchesRegularExpression('/Add Row<\/button><\/p><datalist id="uams-search-names-fields-post">/', $html, 'The Add Row paragraph stays right after its table.');
+        self::assertStringContainsString('last refreshed', $html);
+        self::assertStringContainsString('form="uams-search-refresh-choices"', $html);
+        $lookups = array_filter($GLOBALS['wpdb']->queries, static fn (string $sql): bool => str_contains($sql, 'postmeta') || str_contains($sql, 'term_relationships'));
+        self::assertSame([], $lookups, 'The screen reads the cache only.');
+        // Control: the recorder sees a screen that does query, the Index screen's status table
+        $this->render('page');
+        self::assertNotSame([], $GLOBALS['wpdb']->queries, 'The stand-in records the queries screens run.');
+    }
+
+    public function test_name_boxes_are_plain_text_boxes_until_the_choices_are_refreshed(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['post' => 1.0], 'fields' => ['post' => ['subtitle' => 1.0]], 'taxonomies' => []];
+        $html = $this->render('settings_page');
+
+        self::assertStringNotContainsString('<datalist', $html);
+        self::assertStringNotContainsString(' list="', $html);
+        self::assertStringNotContainsString('data-list=', $html);
+        self::assertStringContainsString('name="settings[types][post][fields][0][name]" value="subtitle"', $html, 'The saved name is still shown and can be edited.');
+        self::assertStringContainsString('no suggestions yet', $html);
+        self::assertStringContainsString('>Refresh Choices</button>', $html);
     }
 
     public function test_only_the_settings_screen_loads_the_row_script(): void

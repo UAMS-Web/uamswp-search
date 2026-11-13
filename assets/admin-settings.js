@@ -21,6 +21,8 @@
     const name = document.createElement('input');
     name.size = Number(table.dataset.size) || 28;
     name.name = `${table.dataset.prefix}[${next}][name]`;
+    // Suggest the same names as the printed rows, when the table has a suggestion list.
+    if (table.dataset.list) name.setAttribute('list', table.dataset.list);
     cell().appendChild(name);
     const weight = document.createElement('input');
     Object.assign(weight, { type: 'number', min: '0', max: '100', step: '0.1', value: '1' });
