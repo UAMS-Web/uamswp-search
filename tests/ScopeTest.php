@@ -374,6 +374,8 @@ final class ScopeTest extends TestCase
         }
 
         self::assertStringContainsString('gcse-searchresults-only', $all);
+        self::assertStringContainsString('<section class="uams-search-results"', $all);
+        self::assertStringContainsString('<section class="uams-search-google" aria-label="All UAMS websites">', $all, 'The Google thumbnail rules in search.css are scoped to these two classes.');
         self::assertStringNotContainsString('0 results', $all, 'No count or plugin results beside Google.');
         self::assertStringNotContainsString('Result type', $all);
         self::assertStringNotContainsString('gcse-searchresults-only', $other, 'The block below the results is gone for the other options.');

@@ -330,6 +330,6 @@ final class Integration
     private static function google(): void
     {
         $cx = Filters::string('uams_search_google_cx', '014806496997774146681:pyl1jhwi-bo');
-        echo '<section aria-label="All UAMS websites"><h2>All UAMS Websites</h2><script async src="'.esc_url('https://cse.google.com/cse.js?cx='.rawurlencode($cx)).'"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section>';
+        echo '<section class="uams-search-google" aria-label="All UAMS websites"><h2>All UAMS Websites</h2><script async src="'.esc_url('https://cse.google.com/cse.js?cx='.rawurlencode($cx)).'"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section>';
     }
 }
