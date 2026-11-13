@@ -35,7 +35,7 @@ Phase 1 replaces SearchWP; phases 2 and 3 add what's on the wish list once phase
 - Searching across installs. Google Custom Search covers "All of UAMS".
 - Images and other media as separate results. They count through the page they sit on.
 - OCR for scanned PDFs.
-- External search services such as Elasticsearch, Meilisearch or Algolia.
+- External search services such as Elasticsearch, Meilisearch or Algolia (see [`DECISIONS.md`](DECISIONS.md)).
 
 ## Architecture
 
@@ -188,7 +188,7 @@ PDF attachments get their own index rows with extracted text, labelled "PDF" in 
 **Extracting text**
 
 1. Use the server tool `pdftotext` (Poppler) if BigScoots has it installed and PHP may run it. It's fast and uses little memory.
-2. Otherwise use the PHP library smalot/pdfparser, bundled with the plugin through Composer.
+2. Otherwise use the PHP library smalot/pdfparser. A pinned copy under a private namespace is bundled in `lib/pdfparser` by `scripts/bundle-pdfparser.py`, not installed through Composer (see [`DECISIONS.md`](DECISIONS.md)).
 3. Skip files over a size limit (default 20 MB) or extraction over a time limit (default 30 seconds), and record why.
 
 Extracted text is kept in the index row only, not in post meta. It's re-extracted only when the file changes, checked by file size and modified date.
