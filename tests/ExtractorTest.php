@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 use UAMS_Search\Extractor;
+use UAMS_Search\Related;
 
 if (! class_exists('WP_Error')) {
     class WP_Error
@@ -134,6 +135,26 @@ final class ExtractorTest extends TestCase
         }
 
         return $post;
+    }
+
+    // --- Related::fields() ------------------------------------------------
+
+    public function test_related_providers_skip_other_post_types_and_keep_hidden_or_missing_providers_as_dependencies(): void
+    {
+        $page = $this->post(['ID' => 42, 'post_type' => 'location']);
+        $GLOBALS['uams_test_meta'] = [42 => ['physician_locations' => [12, 13, 14, 15]], 14 => ['physician_hidden' => '1']];
+        $GLOBALS['uams_test_posts'] = [
+            12 => $this->post(['ID' => 12, 'post_type' => 'provider', 'post_title' => 'Dr. <b>Alpha</b>']),
+            13 => $this->post(['ID' => 13, 'post_type' => 'page', 'post_title' => 'Not a provider']),
+            14 => $this->post(['ID' => 14, 'post_type' => 'provider', 'post_title' => 'Hidden Doctor']),
+            15 => null,
+        ];
+
+        self::assertSame([
+            ['provider_id' => 12, 'text' => 'Dr. Alpha', 'weight' => 0.25, 'source' => 'fields', 'provider_title' => 'Dr. <b>Alpha</b>'],
+            ['provider_id' => 14, 'text' => '', 'weight' => 0.25, 'source' => 'fields'],
+            ['provider_id' => 15, 'text' => '', 'weight' => 0.25, 'source' => 'fields'],
+        ], Related::fields($page));
     }
 
     // --- eligible() -------------------------------------------------------
