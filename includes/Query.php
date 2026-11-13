@@ -28,7 +28,8 @@ final class Query
         // Prepare the empty result returned when nothing can match
         $empty = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
         // Read the search text and split it into term groups
-        $search = mb_substr(\is_scalar($args['s'] ?? '') ? (string) $args['s'] : '', 0, 200);
+        $text = $args['s'] ?? '';
+        $search = mb_substr(\is_scalar($text) ? (string) $text : '', 0, 200);
         if (! DB::ready() || ! ($groups = Text::groups($search))) {
             return $empty;
         }

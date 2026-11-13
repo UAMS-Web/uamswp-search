@@ -140,6 +140,26 @@ final class QueryTest extends TestCase
         Integration::$excerpts = [];
     }
 
+    public function test_a_query_without_search_text_returns_the_empty_result_without_a_warning(): void
+    {
+        $warnings = [];
+        set_error_handler(static function (int $level, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+        try {
+            $out = Query::run(['suggest' => false]);
+            $array = Query::run(['s' => ['heart'], 'suggest' => false]);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $warnings);
+        self::assertSame(['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null], $out);
+        self::assertSame($out, $array);
+    }
+
     public function test_api_uses_object_id_and_separate_total(): void
     {
         $out = Query::run(['s' => 'heart', 'per_page' => 10, 'suggest' => false]);
