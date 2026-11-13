@@ -282,8 +282,8 @@ final class QueryTest extends TestCase
         $query = new WP_Query;
         $posts = Integration::posts(null, $query);
         self::assertCount(1, $posts);
-        self::assertSame(42, $posts[0]->id);
-        self::assertSame(1, $posts[0]->site);
+        // The copied post carries only its site; the excerpt is kept by site and post ID
+        self::assertSame(1, $posts[0]->blog_id);
         self::assertSame(21, $query->found_posts);
         self::assertSame(2, $query->max_num_pages);
         self::assertSame(20, $query->get('posts_per_page'));
