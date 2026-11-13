@@ -324,4 +324,23 @@ final class GuardsTest extends TestCase
         self::assertSame([], $warnings);
         self::assertSame([], $saved['synonyms']);
     }
+
+    public function test_a_field_or_taxonomy_row_without_a_name_is_skipped_without_a_warning(): void
+    {
+        $warnings = [];
+        set_error_handler(static function (int $level, string $message) use (&$warnings): bool {
+            $warnings[] = $message;
+
+            return true;
+        });
+        try {
+            $saved = $this->save(['types' => ['post' => ['include' => '1', 'fields' => [['weight' => '3'], ['name' => 'Subtitle', 'weight' => '3']], 'taxonomies' => [['weight' => '2']]]]]);
+        } finally {
+            restore_error_handler();
+        }
+
+        self::assertSame([], $warnings);
+        self::assertEquals(['post' => ['subtitle' => 3]], $saved['fields']);
+        self::assertSame(['post' => []], $saved['taxonomies']);
+    }
 }

@@ -285,7 +285,8 @@ final class Admin
                         continue;
                     }
 
-                    $key = sanitize_key(\is_scalar($row['name'] ?? '') ? $row['name'] : '');
+                    $name_value = $row['name'] ?? '';
+                    $key = sanitize_key(\is_scalar($name_value) ? $name_value : '');
                     if ($key) {
                         $parsed[$key] = self::number($row['weight'] ?? 1);
                     }
