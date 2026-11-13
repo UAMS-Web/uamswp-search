@@ -101,13 +101,8 @@ final class PageSizeTest extends IntegrationTestCase
         $this->assertTrue(count($q->posts) === 3 && $q->max_num_pages === 9 && wp_list_pluck($q->posts, 'ID') === array_slice($first, 3, 3), 'Explicit WordPress limit overrides the setting');
         $out = Query::run(['s' => $this->word, 'per_page' => 4, 'suggest' => false]);
         $this->assertTrue(count($out['results']) === 4 && $out['pages'] === 7, 'Explicit API limit overrides the setting');
-        if (! is_multisite()) {
-            // The screen calls get_blog_details(), which a single site lacks (#136).
-            $this->markTestIncomplete('The settings screen fails on a single site (#136).');
-        }
-
         ob_start();
-        Admin::page();
+        Admin::settings_page();
         $html = ob_get_clean();
         $this->assertStringContainsString('name="settings[results_per_page]" min="1" max="100" step="1" value="7"', $html, 'Settings page shows the saved value and allowed range');
     }
