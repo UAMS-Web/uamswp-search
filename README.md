@@ -89,6 +89,8 @@ Other filters: `uams_search_config`, `uams_search_include_post`, `uams_search_te
 
 ## Database choices
 
+The reasoning and rejected alternatives for these choices are in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
 The spec's `SET SESSION innodb_ft_enable_stopword=OFF` does not apply to MariaDB, where that variable is global. The plugin creates its own empty InnoDB stopword table and temporarily sets the session's `innodb_ft_user_stopword_table` while creating the indexes. It restores the prior session value and never changes global server settings. [MariaDB's variable reference](https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-system-variables) documents this distinction. The database integration suite must confirm behavior on the target host.
 
 The implementation adds `search_stem` and its full-text index so required words may appear in different sources. Individual source indexes supply relevance scores. A boundary token prevents quoted phrases from spanning sources. `weighted_data` holds per-field stemmed text for custom weights. JSON_TABLE is used only when those weights differ from 1 or a field-list filter is active. The target MariaDB version supports JSON_TABLE.

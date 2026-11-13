@@ -51,6 +51,8 @@ Database scripts refuse databases not named `uams_search_test*`, or WordPress en
 
 ## Spec adjustments
 
+Each adjustment has an entry in [`DECISIONS.md`](DECISIONS.md) with its reason and the alternatives rejected.
+
 - An empty plugin-owned stopword table replaces the unsupported MariaDB session toggle. Global server settings remain unchanged.
 - A transactional per-site copy replaces a table rename, since all sub-sites share one live index table.
 - The supplied Genesis template replaces the older reference theme's secondary-query loop while this engine is selected. It preserves the optional Google block but uses a unified list rather than the old cards.
