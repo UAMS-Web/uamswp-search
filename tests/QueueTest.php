@@ -105,6 +105,9 @@ final class QueueTest extends TestCase
 
             public bool $delete_fails = false;
 
+            /** An error that only the read of the queue rows reports, as a failing table would. */
+            public string $queue_error = '';
+
             public function esc_like(string $text): string
             {
                 return $text;
@@ -143,6 +146,11 @@ final class QueueTest extends TestCase
             public function get_results(string $query, $output = null): array
             {
                 $this->queries[] = $query;
+                if ($this->queue_error !== '') {
+                    $this->last_error = $this->queue_error;
+
+                    return [];
+                }
 
                 return $this->entries;
             }
@@ -344,7 +352,7 @@ final class QueueTest extends TestCase
 
     public function test_process_throws_and_still_unlocks_when_the_read_fails(): void
     {
-        $this->db->last_error = 'table is gone';
+        $this->db->queue_error = 'table is gone';
 
         try {
             Queue::process();
