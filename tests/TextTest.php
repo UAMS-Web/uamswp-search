@@ -107,6 +107,13 @@ final class TextTest extends TestCase
         self::assertSame('', Excerpt::make(['', ''], 'heart'));
     }
 
+    public function test_stop_words_never_count_as_matches_in_an_excerpt(): void
+    {
+        // "there" is a stop word that starts with the search token "ther"; "therapy" is not.
+        self::assertSame('<mark>therapy</mark> there', Excerpt::make(['therapy there'], 'ther'));
+        self::assertSame('there is care', Excerpt::make(['there is care'], 'ther'));
+    }
+
     public function test_double_metaphone_primary_and_alternate(): void
     {
         self::assertSame(['SM0', 'XMT'], Phonetic::encode('Smith'));
