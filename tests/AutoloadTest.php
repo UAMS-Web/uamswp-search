@@ -1,13 +1,14 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
+use UAMS_Search\Text;
 
 /** Pins for the class loader in `includes/autoload.php` (#5). */
 final class AutoloadTest extends TestCase
 {
     public function test_plugin_classes_load_from_includes(): void
     {
-        self::assertTrue(class_exists('UAMS_Search\Text'));
+        self::assertTrue(class_exists(Text::class));
         self::assertFalse(class_exists('UAMS_Search\NoSuchClass'));
     }
 
