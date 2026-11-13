@@ -33,6 +33,16 @@ final class Integration
     }
 
     /**
+     * Whether a signed-in user asked to preview the plugin's results with `engine=uams`.
+     *
+     * @return bool True for a signed-in user whose request has `engine=uams`.
+     */
+    public static function preview(): bool
+    {
+        return is_user_logged_in() && self::param('engine') === 'uams';
+    }
+
+    /**
      * Whether the plugin answers searches on this request.
      *
      * @return bool False without the index tables, or for a signed-in user who asks for `engine=wordpress`; otherwise
@@ -51,17 +61,7 @@ final class Integration
         }
 
         // Answer for visitors when enabled, or for a signed-in user previewing
-        return Config::flag('enabled') || (is_user_logged_in() && self::param('engine') === 'uams');
-    }
-
-    /**
-     * The search arguments for the current request.
-     *
-     * @return array{s: string, site: int, scope: string, type: string, page: int, per_page: int} Arguments for `Query::run()`.
-     */
-    public static function args(): array
-    {
-        return ['s' => get_search_query(false), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) get_query_var('paged', 1)), 'per_page' => Config::page_size()];
+        return Config::flag('enabled') || (self::preview());
     }
 
     /** Register the filters, actions and shortcode that connect the plugin to WordPress. */
@@ -135,16 +135,14 @@ final class Integration
                     switch_to_blog($result->site);
                 }
 
-                // Copy the post with the result's site, relevance and excerpt
+                // Copy the post and mark its site. `blog_id` is the one property
+                // added to the post: the uams-2020 theme's search template reads
+                // it to switch to the post's site. The excerpt is kept by site and ID.
                 try {
                     $post = get_post($result->id);
                     if ($post) {
                         $post = clone $post;
-                        $post->id = $result->id;
-                        $post->site = $result->site;
                         $post->blog_id = $result->site;
-                        $post->relevance = $result->relevance;
-                        $post->excerpt = $result->excerpt;
                         $out[] = $post;
                         self::$excerpts[$result->site.':'.$result->id] = $result->excerpt;
                     }
@@ -215,7 +213,7 @@ final class Integration
             return $excerpt;
         }
 
-        return self::$excerpts[($post->site ?? get_current_blog_id()).':'.$post->ID] ?? $excerpt;
+        return self::$excerpts[($post->blog_id ?? get_current_blog_id()).':'.$post->ID] ?? $excerpt;
     }
 
     /**
@@ -236,7 +234,7 @@ final class Integration
         $scope = Config::scope(self::param('scope'));
         $html = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="'.esc_attr($id).'">Search This Website</label><div class="uams-search-input"><input type="search" name="s" id="'.esc_attr($id).'" value="'.esc_attr(get_search_query(false)).'" maxlength="200" autocomplete="off" data-uams-live="'.(Config::flag('live') ? 'true' : 'false').'"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.esc_attr($scope).'">';
         // Keep a preview and the chosen type when searching again
-        if (is_user_logged_in() && self::param('engine') === 'uams') {
+        if (self::preview()) {
             $html .= '<input type="hidden" name="engine" value="uams">';
         }
 
@@ -259,7 +257,7 @@ final class Integration
         wp_enqueue_style('uams-search', plugins_url('assets/search.css', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION);
         if (Config::flag('live')) {
             wp_enqueue_script('uams-search', plugins_url('assets/live-search.js', UAMS_SEARCH_FILE), [], UAMS_SEARCH_VERSION, true);
-            wp_localize_script('uams-search', 'UAMSSearch', ['endpoint' => rest_url('uams-search/v1/suggest'), 'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '', 'preview' => is_user_logged_in() && self::param('engine') === 'uams']);
+            wp_localize_script('uams-search', 'UAMSSearch', ['endpoint' => rest_url('uams-search/v1/suggest'), 'nonce' => is_user_logged_in() ? wp_create_nonce('wp_rest') : '', 'preview' => self::preview()]);
         }
     }
 
@@ -279,7 +277,7 @@ final class Integration
             'callback' => static function (WP_REST_Request $request): WP_REST_Response|WP_Error {
                 try {
                     $out = Query::run(['s' => $request['s'], 'site' => get_current_blog_id(), 'scope' => Config::scope($request->get_param('scope')), 'type' => $request->get_param('type') ?: '', 'per_page' => 6, 'suggest' => false]);
-                    $items = array_map(static fn (object $r): array => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title.($r->post_type === 'attachment' ? ' (PDF, '.size_format($r->file_size).')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
+                    $items = array_map(static fn (Result $r): array => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title.($r->post_type === 'attachment' ? ' (PDF, '.size_format($r->file_size).')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
                     $response = new WP_REST_Response(['items' => $items, 'total' => $out['total']], 200);
                     $response->header('Cache-Control', 'no-store');
 
@@ -407,7 +405,7 @@ final class Integration
             $args['type'] = self::param('type');
         }
 
-        if (is_user_logged_in() && self::param('engine') === 'uams') {
+        if (self::preview()) {
             $args['engine'] = 'uams';
         }
 

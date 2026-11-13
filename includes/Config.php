@@ -101,6 +101,17 @@ final class Config
     }
 
     /**
+     * A weight limited to 0 to 100.
+     *
+     * @param  mixed  $value  A submitted or configured weight.
+     * @return float The number limited to 0 to 100, or 0 when it is not a finite number.
+     */
+    public static function weight(mixed $value): float
+    {
+        return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(0, min(100, (float) $value)) : 0;
+    }
+
+    /**
      * One list or map setting, such as `types` or `stopwords`.
      *
      * @param  string  $key  Setting name.

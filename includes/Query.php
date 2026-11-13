@@ -14,7 +14,7 @@ final class Query
      *                                      200 characters), `site`, `scope`, `type`, `per_page`, `page`,
      *                                      `explain` (add per-column scores) and `suggest` (set false to skip
      *                                      the spelling suggestion).
-     * @return array{results: array<int, object>, total: int, pages: int,
+     * @return array{results: list<Result>, total: int, pages: int,
      *         fallback: bool, suggestion: string|null} The page of results (each
      *         with id, site, relevance, excerpt, title, url, post type and file
      *         size), the total match count, the page count, whether the results
@@ -95,14 +95,14 @@ final class Query
             }
 
             $expression = $wpdb->prepare("MATCH(i.{$column}_stem) AGAINST(%s IN BOOLEAN MODE)", $scoring);
-            $parts[] = '('.$expression.'*'.self::number($weight).')';
+            $parts[] = '('.$expression.'*'.self::sql_weight($weight).')';
             $explain[] = $expression.' AS '.$column.'_score';
         }
 
         // Boost each post type by its weight
         $boost = 'CASE i.post_type';
         foreach (Config::section('types') as $name => $value) {
-            $boost .= $wpdb->prepare(' WHEN %s THEN ', $name).self::number($value);
+            $boost .= $wpdb->prepare(' WHEN %s THEN ', $name).self::sql_weight($value);
         }
 
         $boost .= ' ELSE 1 END';
@@ -110,7 +110,7 @@ final class Query
         $phrase = trim(implode(' ', Text::words($search)));
         $exact = $wpdb->prepare('LOWER(i.title) LIKE %s', '%'.$wpdb->esc_like($phrase).'%');
         $extra = self::field_score($groups);
-        $score = '(('.implode('+', $parts)."+$extra)*($boost) + CASE WHEN $exact THEN ".self::number(Config::number('phrase_bonus'))." ELSE 0 END + CASE WHEN i.post_type='post' AND i.published_at IS NOT NULL THEN ".self::number(Config::number('recency')).'/(1+GREATEST(0,DATEDIFF(UTC_TIMESTAMP(),i.published_at))/365) ELSE 0 END)';
+        $score = '(('.implode('+', $parts)."+$extra)*($boost) + CASE WHEN $exact THEN ".self::sql_weight(Config::number('phrase_bonus'))." ELSE 0 END + CASE WHEN i.post_type='post' AND i.published_at IS NOT NULL THEN ".self::sql_weight(Config::number('recency')).'/(1+GREATEST(0,DATEDIFF(UTC_TIMESTAMP(),i.published_at))/365) ELSE 0 END)';
         // Read the requested page of results, best first
         $columns = ! empty($args['explain']) ? ','.implode(',', $explain) : '';
         $sql = $wpdb->prepare("SELECT i.*, $score AS relevance $columns FROM `$t` i WHERE $where AND $condition ORDER BY relevance DESC,i.modified_at DESC,i.site_id ASC,i.object_id ASC LIMIT %d OFFSET %d", $limit, ($page - 1) * $limit);
@@ -119,19 +119,19 @@ final class Query
             throw new RuntimeException($wpdb->last_error);
         }
 
-        // Turn each row into a result object
+        // Turn each row into a result
         $results = [];
         foreach ($rows as $row) {
-            $result = (object) ['id' => (int) $row['object_id'], 'site' => (int) $row['site_id'], 'relevance' => (float) $row['relevance'], 'excerpt' => Excerpt::make([$row['content'], $row['fields'], $row['pdf']], $search), 'title' => $row['title'], 'url' => $row['url'], 'post_type' => $row['post_type'], 'file_size' => (int) $row['file_size']];
-            // Add the per-column scores when asked
+            // Read the per-column scores when asked
+            $scores = null;
             if (! empty($args['explain'])) {
-                $result->scores = [];
+                $scores = [];
                 foreach (['title', 'content', 'fields', 'terms', 'pdf'] as $col) {
-                    $result->scores[$col] = (float) $row[$col.'_score'];
+                    $scores[$col] = (float) $row[$col.'_score'];
                 }
             }
 
-            $results[] = $result;
+            $results[] = new Result((int) $row['object_id'], (int) $row['site_id'], (float) $row['relevance'], Excerpt::make([$row['content'], $row['fields'], $row['pdf']], $search), (string) $row['title'], (string) $row['url'], (string) $row['post_type'], (int) $row['file_size'], $scores);
         }
 
         // Assemble the answer
@@ -145,15 +145,14 @@ final class Query
     }
 
     /**
-     * A weight as a number that is safe to put in SQL.
+     * A weight as an SQL number literal.
      *
      * @param  mixed  $value  A configured weight.
-     * @return string The number limited to 0 to 100, or `0` when it is not
-     *                numeric.
+     * @return string `Config::weight()` of the value, as text.
      */
-    private static function number(mixed $value): string
+    private static function sql_weight(mixed $value): string
     {
-        return (string) max(0, min(100, is_numeric($value) && is_finite((float) $value) ? (float) $value : 0));
+        return (string) Config::weight($value);
     }
 
     /**
@@ -205,7 +204,7 @@ final class Query
         }
 
         // Individual source weights are relative to their column weight. The JSON data is generated by us.
-        return "COALESCE((SELECT SUM((j.weight-1)*(CASE j.source WHEN 'fields' THEN ".self::number(Config::section('weights')['fields'] ?? 0).' ELSE '.self::number(Config::section('weights')['terms'] ?? 0)." END)) FROM JSON_TABLE(IF(JSON_VALID(i.weighted_data),i.weighted_data,'[]'),'$[*]' COLUMNS(stem LONGTEXT PATH '$.stem', weight DOUBLE PATH '$.weight', source VARCHAR(10) PATH '$.source')) AS j WHERE (".implode(' OR ', $matches).')),0)';
+        return "COALESCE((SELECT SUM((j.weight-1)*(CASE j.source WHEN 'fields' THEN ".self::sql_weight(Config::section('weights')['fields'] ?? 0).' ELSE '.self::sql_weight(Config::section('weights')['terms'] ?? 0)." END)) FROM JSON_TABLE(IF(JSON_VALID(i.weighted_data),i.weighted_data,'[]'),'$[*]' COLUMNS(stem LONGTEXT PATH '$.stem', weight DOUBLE PATH '$.weight', source VARCHAR(10) PATH '$.source')) AS j WHERE (".implode(' OR ', $matches).')),0)';
     }
 
     /**

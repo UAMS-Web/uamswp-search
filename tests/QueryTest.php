@@ -237,7 +237,7 @@ final class QueryTest extends TestCase
         self::assertSame(['title' => 1.5, 'content' => 2.5, 'fields' => 0.5, 'terms' => 3.5, 'pdf' => 0.0], $out['results'][0]->scores);
         self::assertStringContainsString('AS title_score', end($GLOBALS['wpdb']->queries));
         $plain = Query::run(['s' => 'heart', 'suggest' => false]);
-        self::assertFalse(property_exists($plain['results'][0], 'scores'));
+        self::assertNull($plain['results'][0]->scores);
     }
 
     public function test_the_field_score_is_skipped_when_every_weight_is_one(): void
@@ -282,8 +282,8 @@ final class QueryTest extends TestCase
         $query = new WP_Query;
         $posts = Integration::posts(null, $query);
         self::assertCount(1, $posts);
-        self::assertSame(42, $posts[0]->id);
-        self::assertSame(1, $posts[0]->site);
+        // The copied post carries only its site; the excerpt is kept by site and post ID
+        self::assertSame(1, $posts[0]->blog_id);
         self::assertSame(21, $query->found_posts);
         self::assertSame(2, $query->max_num_pages);
         self::assertSame(20, $query->get('posts_per_page'));
