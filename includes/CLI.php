@@ -42,6 +42,11 @@ final class CLI
                 WP_CLI::log(sprintf('Site %d: %d indexed, %d failed.', $site, $stats['indexed'], $stats['errors']));
             }
 
+            // A full rebuild of every content type refreshes the Name suggestions on the Settings screen
+            if (isset($assoc['all']) && ! isset($assoc['post-type'])) {
+                NameChoices::refresh_after_rebuild();
+            }
+
             WP_CLI::success('Rebuild complete. Check status for failed items.');
         });
     }

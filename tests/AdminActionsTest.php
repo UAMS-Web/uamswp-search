@@ -28,7 +28,7 @@ if (! function_exists('wp_die')) {
 }
 
 if (! function_exists('check_admin_referer')) {
-    function check_admin_referer($action = '')
+    function check_admin_referer($action = -1, $query_arg = '_wpnonce')
     {
         return true;
     }
@@ -356,6 +356,47 @@ final class AdminActionsTest extends TestCase
         $GLOBALS['uams_test_caps'] = [];
 
         self::assertSame('wp_die: You cannot manage search settings.', $this->thrown(Admin::setup(...)));
+    }
+
+    public function test_refreshing_the_name_choices_saves_them_and_returns_to_settings(): void
+    {
+        defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
+        $GLOBALS['wpdb'] = new class
+        {
+            public string $last_error = '';
+
+            public function get_blog_prefix(int $site): string
+            {
+                return 'wp_';
+            }
+
+            public function esc_like(string $text): string
+            {
+                return addcslashes($text, '_%\\');
+            }
+
+            public function prepare(string $query, ...$args): string
+            {
+                return $query;
+            }
+
+            public function get_results(string $query, $output = null): array
+            {
+                return str_contains($query, 'postmeta') ? [['type' => 'post', 'name' => 'subtitle']] : [];
+            }
+        };
+
+        self::assertSame('redirect', $this->thrown(Admin::refresh_choices(...)));
+        self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', $GLOBALS['uams_test_redirect']);
+        self::assertSame(['post' => ['subtitle']], $GLOBALS['uams_test_options']['uams_search_name_choices']['fields']);
+    }
+
+    public function test_refreshing_the_name_choices_without_the_capability_asks_no_site(): void
+    {
+        $GLOBALS['uams_test_caps'] = [];
+
+        self::assertSame('wp_die: You cannot manage search settings.', $this->thrown(Admin::refresh_choices(...)));
+        self::assertArrayNotHasKey('uams_search_name_choices', $GLOBALS['uams_test_options']);
     }
 
     public function test_retry_refuses_an_unknown_site_or_item_before_queueing_anything(): void
