@@ -5,45 +5,66 @@ namespace UAMS_Search;
 /** Double Metaphone primary/alternate encodings for the suggestion word list. */
 final class Phonetic
 {
+    /**
+     * The primary Double Metaphone key of a word.
+     *
+     * @param  string  $word  A word.
+     * @return string The primary key, up to 8 characters; empty when the word has no letters.
+     */
     public static function key(string $word): string
     {
         return self::encode($word)[0];
     }
 
+    /**
+     * Encode a word as Double Metaphone.
+     *
+     * @param  string  $word  A word.
+     * @return array{0: string, 1: string} The primary and alternate keys, each up to 8 characters; both empty when the
+     *                                     word has no letters.
+     */
     public static function encode(string $word): array
     {
+        // Reduce the word to uppercase letters A to Z
         $s = strtoupper(function_exists('remove_accents') ? remove_accents($word) : $word);
         $s = preg_replace('/[^A-Z]/', '', $s);
 
+        // Return empty keys for a word with no letters
         $n = strlen($s);
         if (! $n) {
             return ['', ''];
         }
 
+        // Pad the word so look-ahead reads never run past its end
         $s .= '     ';
         $primary = '';
         $alternate = '';
         $i = 0;
         $slavo = str_contains($s, 'W') || str_contains($s, 'K') || str_contains($s, 'CZ') || str_contains($s, 'WITZ');
+        // Define the helpers: match at a position, test for a vowel, and append to both keys
         $at = static fn (int $p, array $values): bool => $p >= 0 && (bool) array_filter($values, static fn (string $v): bool => substr($s, $p, strlen($v)) === $v);
         $vowel = static fn (int $p): bool => $p >= 0 && str_contains('AEIOUY', $s[$p] ?? ' ');
         $add = static function (string $p, ?string $a = null) use (&$primary, &$alternate): void {
             $primary .= $p;
             $alternate .= $a ?? $p;
         };
+        // Skip the silent first letter
         if ($at(0, ['GN', 'KN', 'PN', 'WR', 'PS'])) {
             $i++;
         }
 
+        // Encode an initial X as S
         if ($s[0] === 'X') {
             $add('S');
             $i++;
         }
 
+        // Encode each letter until both keys are 8 characters
         while ($i < $n && (strlen($primary) < 8 || strlen($alternate) < 8)) {
             $ch = $s[$i];
             $next = $s[$i + 1];
             $prev = $i ? $s[$i - 1] : ' ';
+            // Keep a vowel only at the start
             if (str_contains('AEIOUY', $ch)) {
                 if ($i === 0) {
                     $add('A');
@@ -52,6 +73,7 @@ final class Phonetic
                 continue;
             }
 
+            // Encode a consonant by the letters around it
             switch ($ch) {
                 case 'B': $add('P');
                     $i += $next === 'B' ? 2 : 1;
@@ -296,6 +318,7 @@ final class Phonetic
             }
         }
 
+        // Cut both keys to 8 characters
         return [substr($primary, 0, 8), substr($alternate, 0, 8)];
     }
 }
