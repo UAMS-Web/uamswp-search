@@ -83,10 +83,10 @@ $sweepOnlyRules = [
 
     // `declare(strict_types=1)` makes every built-in call in the file reject a
     // mismatched scalar with a TypeError. This plugin passes WordPress values
-    // (option reads, `$wpdb` rows, request input) to built-ins, and the `wp
-    // eval-file` integration scripts that exercise those paths need a WordPress
-    // install that is not part of the gate, so the effect cannot be shown here.
-    // Apply under the sweep profile once they run in CI.
+    // (option reads, `$wpdb` rows, request input) to built-ins, and the paths that
+    // exercise those run in the integration suite, which is not part of the gate
+    // Rector reads, so the effect cannot be shown here.
+    // Apply under the sweep profile once that suite has run against it.
     SafeDeclareStrictTypesRector::class,
 
     // WordPress repositories: uncomment the rule below and the matching `use`
