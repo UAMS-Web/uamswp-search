@@ -252,7 +252,7 @@ namespace UAMS_Search\Tests {
 
         public function test_each_screen_has_its_own_heading(): void
         {
-            self::assertStringContainsString('<h1>UAMSWP Search Index</h1>', $this->render('page'));
+            self::assertStringStartsWith('<div class="wrap"><h1>UAMSWP Search Index</h1><p>Build and compare the index before enabling it.', $this->render('page'));
             self::assertStringContainsString('<h1>UAMSWP Search Reports</h1>', $this->render('reports_page'));
             self::assertStringContainsString('<h1>UAMSWP Search Settings</h1>', $this->render('settings_page'));
         }
@@ -501,7 +501,9 @@ namespace UAMS_Search\Tests {
         public function test_the_rebuild_controls_check_the_no_index_box_only_when_the_setting_says_so_or_only_no_index_sites_exist(): void
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true];
-            self::assertStringContainsString('<input id="uams-rebuild-noindex" type="checkbox"  checked=\'checked\'>', $this->render('page'));
+            $html = $this->render('page');
+            self::assertStringContainsString('<input id="uams-rebuild-noindex" type="checkbox"  checked=\'checked\'>', $html);
+            self::assertSame(1, substr_count($html, "checked='checked'"));
 
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => false];
             self::assertStringContainsString('<input id="uams-rebuild-noindex" type="checkbox" > Include', $this->render('page'));
