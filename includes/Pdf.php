@@ -67,7 +67,7 @@ final class Pdf
             }
 
             // Find a PHP command to run the bundled parser
-            $php = Filters::string('uams_search_php_binary', PHP_BINDIR.'/php');
+            $php = Filters::string('uams_search_php_binary', self::php_binary());
             if (! is_executable($php)) {
                 throw new RuntimeException('PDF fallback needs an executable PHP CLI; set uams_search_php_binary. '.$throwable->getMessage(), $throwable->getCode(), $throwable);
             }
@@ -83,17 +83,48 @@ final class Pdf
     }
 
     /**
+     * The default PHP command line program that runs the bundled parser.
+     *
+     * Looks in the folder PHP was built for, then next to the running binary, which is where a
+     * relocated install such as Herd keeps `php.exe` while `PHP_BINDIR` still names the build folder.
+     * The running binary itself is not used: under PHP-FPM or Apache it is not the command line program.
+     *
+     * @param  string  $family  The operating system family, `Windows` or another.
+     * @param  string  $bindir  The folder PHP was built to install its programs in.
+     * @param  string  $running  The path of the running PHP binary.
+     * @return string Path to `php`, or to `php.exe` on Windows: the first that is executable, otherwise the build folder's.
+     */
+    public static function php_binary(string $family = PHP_OS_FAMILY, string $bindir = PHP_BINDIR, string $running = PHP_BINARY): string
+    {
+        // Windows programs end in .exe, and a path without it cannot start
+        $name = 'php'.($family === 'Windows' ? '.exe' : '');
+        $default = $bindir.'/'.$name;
+        foreach ([$default, \dirname(str_replace('\\', '/', $running)).'/'.$name] as $candidate) {
+            if (is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $default;
+    }
+
+    /**
      * Find an executable on the server's path or the usual install folders.
      *
+     * On Windows a program file ends in `.exe`, and a path without it is not executable.
+     *
      * @param  string  $name  Program name, such as `pdftotext`.
+     * @param  string  $family  The operating system family, `Windows` or another.
+     * @param  string|null  $path  The folders to search, separated as `PATH` is; null reads `PATH`.
      * @return string|null Full path, or null when it is not installed.
      */
-    public static function binary(string $name): ?string
+    public static function binary(string $name, string $family = PHP_OS_FAMILY, ?string $path = null): ?string
     {
+        $file = $family === 'Windows' && ! str_ends_with(strtolower($name), '.exe') ? $name.'.exe' : $name;
         // Check each folder on the path, then the usual install folders
-        foreach (array_merge(explode(PATH_SEPARATOR, getenv('PATH') ?: ''), ['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin']) as $dir) {
-            if ($dir !== '' && is_executable($dir.'/'.$name)) {
-                return $dir.'/'.$name;
+        foreach (array_merge(explode(PATH_SEPARATOR, $path ?? (getenv('PATH') ?: '')), ['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin']) as $dir) {
+            if ($dir !== '' && is_executable($dir.'/'.$file)) {
+                return $dir.'/'.$file;
             }
         }
 

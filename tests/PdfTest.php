@@ -55,6 +55,47 @@ final class PdfTest extends TestCase
         }
     }
 
+    public function test_the_default_php_binary_ends_in_exe_on_windows_only(): void
+    {
+        // Nothing is executable at these paths, so the build folder's path comes back
+        self::assertSame('/no/such/dir/php.exe', Pdf::php_binary('Windows', '/no/such/dir', '/also/missing/php-cgi.exe'));
+        self::assertSame('/no/such/dir/php', Pdf::php_binary('Linux', '/no/such/dir', '/also/missing/php-fpm'));
+    }
+
+    public function test_the_default_php_binary_falls_back_to_the_folder_of_the_running_binary(): void
+    {
+        $dir = str_replace('\\', '/', sys_get_temp_dir()).'/uams-php-binary-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+        $name = PHP_OS_FAMILY === 'Windows' ? 'php.exe' : 'php';
+        try {
+            // The build folder is empty and the running binary is a sibling of the real one, as under php-cgi or PHP-FPM
+            // Windows tests the file's contents as well as its name, so it gets a real program
+            PHP_OS_FAMILY === 'Windows' ? copy(PHP_BINARY, $dir.'/'.$name) : file_put_contents($dir.'/'.$name, '');
+            chmod($dir.'/'.$name, 0755);
+            self::assertSame($dir.'/'.$name, Pdf::php_binary(PHP_OS_FAMILY, '/no/such/dir', str_replace('/', DIRECTORY_SEPARATOR, $dir).DIRECTORY_SEPARATOR.'php-cgi'));
+            // The build folder wins when its program is executable
+            self::assertSame($dir.'/'.$name, Pdf::php_binary(PHP_OS_FAMILY, $dir, '/also/missing/php-fpm'));
+        } finally {
+            unlink($dir.'/'.$name);
+            rmdir($dir);
+        }
+    }
+
+    public function test_the_default_php_binary_of_the_running_install_is_executable(): void
+    {
+        self::assertTrue(is_executable(Pdf::php_binary()), Pdf::php_binary());
+    }
+
+    public function test_the_bundled_parser_runs_through_the_default_php_binary_when_poppler_fails(): void
+    {
+        $GLOBALS['uams_test_options'] = [];
+        // A pdftotext that exits non-zero (the PHP binary, given Poppler's arguments) sends the extraction to the bundled parser, with no php_binary filter set
+        $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): string => PHP_BINARY]];
+        $row = Pdf::extract(new WP_Post, null);
+        self::assertSame('ready', $row['status']);
+        self::assertStringContainsString('Cardiology PDF sentinel', $row['pdf']);
+    }
+
     public function test_a_php_binary_filter_returning_null_does_not_raise_a_type_error(): void
     {
         $GLOBALS['uams_test_options'] = [];
@@ -176,6 +217,31 @@ final class PdfTest extends TestCase
         self::assertNotNull($found);
         self::assertTrue(is_executable($found));
         self::assertNull(Pdf::binary('uams-search-no-such-program'));
+    }
+
+    public function test_binary_looks_for_the_exe_file_on_windows_only(): void
+    {
+        $dir = sys_get_temp_dir().'/uams-search-poppler-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+        $program = $dir.'/pdftotext.exe';
+        // Windows treats only a real executable file as executable; elsewhere the mode decides
+        if (PHP_OS_FAMILY === 'Windows') {
+            copy(PHP_BINARY, $program);
+        } else {
+            file_put_contents($program, '');
+            chmod($program, 0755);
+        }
+
+        try {
+            self::assertSame($program, Pdf::binary('pdftotext', 'Windows', $dir));
+            self::assertSame($program, Pdf::binary('pdftotext.exe', 'Windows', $dir), 'A name that already ends in .exe is not doubled.');
+            self::assertSame($program, Pdf::binary('pdftotext', 'Windows', '/no/such/folder'.PATH_SEPARATOR.$dir), 'Each folder of the path is searched.');
+            self::assertNull(Pdf::binary('pdftotext', 'Linux', $dir), 'Elsewhere the bare name is searched, and only that.');
+            self::assertNull(Pdf::binary('pdftotext', 'Windows', '/no/such/folder'));
+        } finally {
+            unlink($program);
+            rmdir($dir);
+        }
     }
 
     public function test_too_much_error_output_stops_the_command(): void

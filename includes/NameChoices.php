@@ -12,7 +12,8 @@ use Throwable;
  * The lookup asks each site's tables directly, so it answers for every site whatever
  * plugins that site runs. Its result is cached in a network option; the Settings screen
  * reads only the cache, and the lookup runs after a full rebuild or when Refresh Choices
- * is pressed.
+ * is pressed. Each name also carries its label where ACF or WordPress knows it in the request that
+ * refreshes the cache (#160).
  */
 final class NameChoices
 {
@@ -26,7 +27,7 @@ final class NameChoices
     /**
      * The cached choices, or null when none are saved or the saved value is not usable.
      *
-     * @return array{refreshed: string, fields: array<string, list<string>>, taxonomies: array<string, list<string>>}|null
+     * @return array{refreshed: string, fields: array<string, list<string>>, taxonomies: array<string, list<string>>, labels: array{fields: array<string, string>, taxonomies: array<string, string>}}|null The saved lookup; a cache saved before labels existed has none.
      */
     public static function get(): ?array
     {
@@ -35,19 +36,23 @@ final class NameChoices
             return null;
         }
 
-        return ['refreshed' => $saved['refreshed'], 'fields' => self::lists($saved['fields']), 'taxonomies' => self::lists($saved['taxonomies'])];
+        $labels = \is_array($saved['labels'] ?? null) ? $saved['labels'] : [];
+
+        return ['refreshed' => $saved['refreshed'], 'fields' => self::lists($saved['fields']), 'taxonomies' => self::lists($saved['taxonomies']), 'labels' => ['fields' => self::strings($labels['fields'] ?? null), 'taxonomies' => self::strings($labels['taxonomies'] ?? null)]];
     }
 
     /**
      * Run the lookup on every covered site and save the result.
      *
-     * @return array{refreshed: string, fields: array<string, list<string>>, taxonomies: array<string, list<string>>} The saved choices.
+     * @return array{refreshed: string, fields: array<string, list<string>>, taxonomies: array<string, list<string>>, labels: array{fields: array<string, string>, taxonomies: array<string, string>}} The saved choices.
      *
      * @throws RuntimeException When a site's query fails.
      */
     public static function refresh(): array
     {
-        $choices = ['refreshed' => gmdate('Y-m-d H:i:s')] + self::lookup(Config::index_sites(), self::types());
+        $found = self::lookup(Config::index_sites(), self::types());
+        // ACF's function is absent when ACF is not loaded in this request, which leaves the field names without labels
+        $choices = ['refreshed' => gmdate('Y-m-d H:i:s')] + $found + ['labels' => self::labels($found, \function_exists('acf_get_field') ? acf_get_field(...) : null, get_taxonomy(...))];
         update_site_option(self::OPTION, $choices);
 
         return $choices;
@@ -116,6 +121,134 @@ final class NameChoices
         }
 
         return ['fields' => self::lists($found['fields']), 'taxonomies' => self::lists($found['taxonomies'])];
+    }
+
+    /**
+     * The label of each field and taxonomy name that is known in this request.
+     *
+     * A field name that ACF does not define itself is looked up through its parents: a group's
+     * child is `<group>_<child>`, and a repeater or flexible content row is `<parent>_<n>_<child>`.
+     * A name nothing knows is left out, so its suggestion shows the name alone.
+     *
+     * @param  array{fields: array<string, list<string>>, taxonomies: array<string, list<string>>}  $found  The names by post type.
+     * @param  (callable(string): mixed)|null  $field  ACF's `acf_get_field()` (a field name in, a field array or false out), or null when ACF is not loaded.
+     * @param  callable(string): mixed  $taxonomy  WordPress's `get_taxonomy()` (a name in, a taxonomy object or false out).
+     * @return array{fields: array<string, string>, taxonomies: array<string, string>} Labels by name.
+     */
+    public static function labels(
+        array $found,
+        ?callable $field,
+        callable $taxonomy
+    ): array {
+        $labels = ['fields' => [], 'taxonomies' => []];
+        if ($field !== null) {
+            foreach (array_unique(array_merge([], ...array_values($found['fields']))) as $name) {
+                $label = self::field_label($name, $field);
+                if ($label !== '') {
+                    $labels['fields'][$name] = $label;
+                }
+            }
+        }
+
+        foreach (array_unique(array_merge([], ...array_values($found['taxonomies']))) as $name) {
+            $object = $taxonomy($name);
+            $label = \is_object($object) && \is_string($object->label ?? null) ? trim($object->label) : '';
+            if ($label !== '') {
+                $labels['taxonomies'][$name] = $label;
+            }
+        }
+
+        ksort($labels['fields']);
+        ksort($labels['taxonomies']);
+
+        return $labels;
+    }
+
+    /**
+     * Find the label ACF gives a stored field name, directly or through the field that holds it.
+     *
+     * @param  string  $name  The stored meta key.
+     * @param  callable(string): mixed  $field  ACF's `acf_get_field()`.
+     * @return string The label, or an empty string when ACF has no such field.
+     */
+    private static function field_label(
+        string $name,
+        callable $field
+    ): string {
+        $direct = $field($name);
+        if (\is_array($direct) && \is_string($direct['label'] ?? null) && trim($direct['label']) !== '') {
+            return trim($direct['label']);
+        }
+
+        // Try each leading part of the name as the field that holds the rest, shortest first
+        $position = 0;
+        while (($position = strpos($name, '_', $position + 1)) !== false) {
+            $parent = $field(substr($name, 0, $position));
+            if (\is_array($parent)) {
+                $label = self::child_label(substr($name, $position + 1), $parent);
+                if ($label !== '') {
+                    return $label;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Find a stored name among the sub fields of an ACF field, going down through nested ones.
+     *
+     * @param  string  $rest  What follows the parent's name: `<child>`, or `<n>_<child>` for a row.
+     * @param  array<mixed>  $parent  The ACF field array holding the sub fields, directly or in its flexible content layouts.
+     * @return string The label, or an empty string when no sub field matches.
+     */
+    private static function child_label(
+        string $rest,
+        array $parent
+    ): string {
+        $children = \is_array($parent['sub_fields'] ?? null) ? $parent['sub_fields'] : [];
+        foreach (\is_array($parent['layouts'] ?? null) ? $parent['layouts'] : [] as $layout) {
+            $children = array_merge($children, \is_array($layout) && \is_array($layout['sub_fields'] ?? null) ? $layout['sub_fields'] : []);
+        }
+
+        // A repeater or flexible content row's index sits between the parent and the child
+        $rest = preg_replace('/^\d+_/', '', $rest) ?? $rest;
+        foreach ($children as $child) {
+            if (! \is_array($child) || ! \is_string($child['name'] ?? null) || $child['name'] === '') {
+                continue;
+            }
+
+            if ($child['name'] === $rest) {
+                return \is_string($child['label'] ?? null) ? trim($child['label']) : '';
+            }
+
+            if (str_starts_with($rest, $child['name'].'_')) {
+                $label = self::child_label(substr($rest, \strlen($child['name']) + 1), $child);
+                if ($label !== '') {
+                    return $label;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Keep the entries of a saved label list that are non-blank text under a non-blank name.
+     *
+     * @param  mixed  $labels  A saved list of labels keyed by name.
+     * @return array<string, string> The usable labels.
+     */
+    private static function strings(mixed $labels): array
+    {
+        $clean = [];
+        foreach (\is_array($labels) ? $labels : [] as $name => $label) {
+            if (\is_string($label) && trim($label) !== '' && trim((string) $name) !== '') {
+                $clean[(string) $name] = trim($label);
+            }
+        }
+
+        return $clean;
     }
 
     /**

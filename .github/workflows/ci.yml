@@ -40,10 +40,11 @@ permissions:
 jobs:
   # The shared chain. Its checks report as `checks / <job name> (<operating system>)`.
   checks:
-    uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@v0.10.0
+    uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@v0.11.0
     with:
       linux-only: true
       mutate: false
+      mutate-ignore: true
       global-test-symbols: false
       floor-lint: true
       floor-lint-php: '8.2'
