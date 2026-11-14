@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Rector\CodeQuality\Rector\ClassMethod\LocallyCalledStaticMethodToNonStaticRector;
 use Rector\Config\RectorConfig;
-use Rector\DeadCode\Rector\ClassMethod\RemoveDuplicatedReturnSelfDocblockRector;
 use Rector\DeadCode\Rector\Property\RemoveUselessVarTagRector;
 use Rector\Php81\Rector\Array_\ArrayToFirstClassCallableRector;
 use Rector\Php81\Rector\Property\ReadOnlyPropertyRector;
@@ -65,13 +64,11 @@ $sweepOnlyRules = [
     LocallyCalledStaticMethodToNonStaticRector::class,
 
     // Docblock removal conflicts with the PHPDoc conventions these repositories
-    // use. What they reach is past what Pint owns: Pint's docblock fixers already
-    // strip a superfluous `@var` from a typed property, so what is left for these
-    // two is inline `@var` on local variables (pinning a value that arrives
-    // untyped) and `@return $this` beside a `: static`. Those are deliberate
-    // annotations, not leftovers.
+    // use. What it reaches is past what Pint owns: Pint's docblock fixers already
+    // strip a superfluous `@var` from a typed property, so what is left for this
+    // rule is inline `@var` on local variables, pinning a value that arrives
+    // untyped. Those are deliberate annotations, not leftovers.
     RemoveUselessVarTagRector::class,
-    RemoveDuplicatedReturnSelfDocblockRector::class,
 
     // These type-declaration rules infer parameter types from how the body
     // indexes or keys an argument. On untyped public/plugin API that still
