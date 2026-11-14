@@ -16,6 +16,14 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Related;
     use WP_Post;
 
+    /**
+     * Mutation notes for `Related`: the mutants no unit test can tell from the original.
+     *
+     * - `IncrementInteger`, `DecrementInteger` and `RemoveArrayItem` on `VERSION` and `FIELDS`: a coverage driver records no statement on a constant, so they read as uncovered; the constant test pins every value.
+     * - `RemoveIntegerCast` on the positive-ID check: a digit string compares to 0 as its integer does.
+     * - `TrueToFalse` and `FalseToTrue` on the field read: which read runs depends on whether ACF is loaded, and the unit stand-ins ignore the single and format flags; the integration suite pins both calls.
+     * - `DecrementInteger` and `IncrementInteger` on the `array_fill()` start: `implode()` ignores keys.
+     */
     final class RelatedTest extends TestCase
     {
         public function test_relationship_ids_accept_only_positive_flat_integer_ids(): void
@@ -24,6 +32,8 @@ namespace UAMS_Search\Tests {
             self::assertSame([], Related::ids(null));
             self::assertSame([], Related::ids(new stdClass));
             self::assertSame([12], Related::ids('12'));
+            self::assertSame([1], Related::ids(1));
+            self::assertSame([1, 2], Related::ids(['1', 2, '1']));
         }
 
         public function test_the_four_page_types_map_to_their_provider_fields(): void
