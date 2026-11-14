@@ -10,7 +10,14 @@ if (! function_exists('get_post_types')) {
     }
 }
 
-/** Pins for the Name suggestions (#45). A stand-in `$wpdb` answers each site's two lookups from scripted rows. */
+if (! function_exists('get_taxonomy')) {
+    function get_taxonomy($name)
+    {
+        return $GLOBALS['uams_test_taxonomies'][$name] ?? false;
+    }
+}
+
+/** Pins for the Name suggestions (#45) and their labels (#160). A stand-in `$wpdb` answers each site's two lookups from scripted rows. */
 final class NameChoicesTest extends TestCase
 {
     private object $db;
@@ -76,6 +83,104 @@ final class NameChoicesTest extends TestCase
     protected function tearDown(): void
     {
         $GLOBALS['uams_test_options'] = [];
+        unset($GLOBALS['uams_test_taxonomies']);
+    }
+
+    /**
+     * ACF's fields as `acf_get_field()` returns them: a plain field, a group, a repeater and a flexible content field.
+     *
+     * @return callable(string): mixed A stand-in for `acf_get_field()`.
+     */
+    private function acf(): callable
+    {
+        $fields = [
+            'subtitle' => ['name' => 'subtitle', 'label' => 'Subtitle'],
+            'blank_label' => ['name' => 'blank_label', 'label' => ' '],
+            'contact' => ['name' => 'contact', 'label' => 'Contact', 'type' => 'group', 'sub_fields' => [
+                ['name' => 'phone', 'label' => 'Phone Number'],
+                ['name' => 'hours', 'label' => 'Hours', 'type' => 'repeater', 'sub_fields' => [['name' => 'day', 'label' => 'Day Of Week']]],
+            ]],
+            'slides' => ['name' => 'slides', 'label' => 'Slides', 'type' => 'repeater', 'sub_fields' => [['name' => 'caption', 'label' => 'Slide Caption']]],
+            'blocks' => ['name' => 'blocks', 'label' => 'Blocks', 'type' => 'flexible_content', 'layouts' => [
+                ['name' => 'quote', 'sub_fields' => [['name' => 'speaker', 'label' => 'Speaker']]],
+                ['name' => 'cta', 'sub_fields' => [['name' => 'button_text', 'label' => 'Button Text']]],
+            ]],
+        ];
+
+        return static fn (string $name): mixed => $fields[$name] ?? false;
+    }
+
+    public function test_a_field_name_acf_defines_gets_its_label(): void
+    {
+        $labels = NameChoices::labels(['fields' => ['page' => ['subtitle']], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
+        self::assertSame(['subtitle' => 'Subtitle'], $labels['fields']);
+    }
+
+    public function test_group_children_and_repeater_and_flexible_content_rows_get_their_fields_label(): void
+    {
+        $names = ['contact_phone', 'contact_hours_0_day', 'contact_hours_12_day', 'slides_0_caption', 'blocks_1_speaker', 'blocks_0_button_text'];
+        $labels = NameChoices::labels(['fields' => ['page' => $names], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
+        self::assertSame([
+            'blocks_0_button_text' => 'Button Text',
+            'blocks_1_speaker' => 'Speaker',
+            'contact_hours_0_day' => 'Day Of Week',
+            'contact_hours_12_day' => 'Day Of Week',
+            'contact_phone' => 'Phone Number',
+            'slides_0_caption' => 'Slide Caption',
+        ], $labels['fields']);
+    }
+
+    public function test_a_name_acf_does_not_know_has_no_label(): void
+    {
+        $names = ['unknown', 'contact_missing', 'slides_0_missing', 'slides_caption_extra', 'blank_label', 'subtitle_extra'];
+        $labels = NameChoices::labels(['fields' => ['page' => $names], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
+        self::assertSame([], $labels['fields'], 'Each of these keeps its name alone.');
+    }
+
+    public function test_a_name_on_two_types_is_looked_up_once(): void
+    {
+        $asked = [];
+        $field = function (string $name) use (&$asked): mixed {
+            $asked[] = $name;
+
+            return ['name' => $name, 'label' => 'L'];
+        };
+        NameChoices::labels(['fields' => ['page' => ['subtitle'], 'post' => ['subtitle']], 'taxonomies' => []], $field, get_taxonomy(...));
+        self::assertSame(['subtitle'], $asked);
+    }
+
+    public function test_taxonomies_get_the_label_wordpress_knows_and_the_rest_keep_their_name(): void
+    {
+        $GLOBALS['uams_test_taxonomies'] = ['category' => (object) ['label' => 'Categories'], 'blank' => (object) ['label' => ' ']];
+        $labels = NameChoices::labels(['fields' => [], 'taxonomies' => ['post' => ['category', 'blank', 'other_site_only'], 'page' => ['category']]], $this->acf(), get_taxonomy(...));
+        self::assertSame(['category' => 'Categories'], $labels['taxonomies']);
+    }
+
+    public function test_without_acf_field_names_get_no_label_and_taxonomies_still_do(): void
+    {
+        $GLOBALS['uams_test_taxonomies'] = ['category' => (object) ['label' => 'Categories']];
+        $labels = NameChoices::labels(['fields' => ['page' => ['subtitle']], 'taxonomies' => ['page' => ['category']]], null, get_taxonomy(...));
+        self::assertSame(['fields' => [], 'taxonomies' => ['category' => 'Categories']], $labels);
+    }
+
+    public function test_a_refresh_without_acf_loaded_saves_the_names_without_field_labels(): void
+    {
+        self::assertFalse(function_exists('acf_get_field'), 'The unit tests run without ACF.');
+        $GLOBALS['uams_test_taxonomies'] = ['category' => (object) ['label' => 'Categories']];
+        $this->db->rows['wp_postmeta'] = [['type' => 'post', 'name' => 'subtitle']];
+        $this->db->rows['wp_term_relationships'] = [['type' => 'post', 'name' => 'category']];
+        $saved = NameChoices::refresh();
+        self::assertSame(['post' => ['subtitle']], $saved['fields']);
+        self::assertSame(['fields' => [], 'taxonomies' => ['category' => 'Categories']], $saved['labels']);
+        self::assertSame($saved, $GLOBALS['uams_test_options'][NameChoices::OPTION]);
+    }
+
+    public function test_a_cache_saved_before_labels_existed_reads_with_none(): void
+    {
+        $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a']], 'taxonomies' => []];
+        self::assertSame(['fields' => [], 'taxonomies' => []], NameChoices::get()['labels']);
+        $GLOBALS['uams_test_options'][NameChoices::OPTION]['labels'] = ['fields' => ['a' => 'A', 'b' => '', 'c' => ['x'], '' => 'No name'], 'taxonomies' => 'x'];
+        self::assertSame(['fields' => ['a' => 'A'], 'taxonomies' => []], NameChoices::get()['labels'], 'Blank and malformed labels are dropped.');
     }
 
     public function test_each_site_is_asked_for_its_meta_keys_and_taxonomies(): void
@@ -156,6 +261,6 @@ final class NameChoicesTest extends TestCase
         $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => 'x', 'taxonomies' => []];
         self::assertNull(NameChoices::get());
         $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['b', '_hidden', 'a', 'a', ['nested']]], 'taxonomies' => ['' => ['x']]];
-        self::assertSame(['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a', 'b']], 'taxonomies' => []], NameChoices::get());
+        self::assertSame(['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a', 'b']], 'taxonomies' => [], 'labels' => ['fields' => [], 'taxonomies' => []]], NameChoices::get());
     }
 }

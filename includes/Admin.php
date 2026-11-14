@@ -566,6 +566,7 @@ final class Admin
                 $what = $name.' '.$label;
                 // Point the Name boxes at this type's suggestions, when the cache has any
                 $names = $choices[$group][$type] ?? [];
+                $labels = $choices['labels'][$group] ?? [];
                 $list = $names === [] ? null : 'uams-search-names-'.$group.'-'.preg_replace('/[^A-Za-z0-9_-]/', '-', (string) $type);
                 echo '<h3>'.esc_html($label).'</h3><table class="uams-search-rows" data-prefix="'.esc_attr($prefix).'" data-label="'.esc_attr($what).'" data-size="'.$size.'"'.($list ? ' data-list="'.esc_attr($list).'"' : '').'><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>';
                 foreach ($rows as $i => $row) {
@@ -575,7 +576,7 @@ final class Admin
                 // The Add Row paragraph must follow the table directly; assets/admin-settings.js finds it as the next element
                 echo '</tbody></table><p><button type="button" class="button uams-add-row" aria-label="'.esc_attr('Add Row to '.$what).'" hidden>Add Row</button></p>';
                 if ($list) {
-                    echo '<datalist id="'.esc_attr($list).'">'.implode('', array_map(static fn (string $option): string => '<option value="'.esc_attr($option).'"></option>', $names)).'</datalist>';
+                    echo '<datalist id="'.esc_attr($list).'">'.implode('', array_map(static fn (string $option): string => '<option value="'.esc_attr($option).'"'.(isset($labels[$option]) ? ' label="'.esc_attr($labels[$option]).'"' : '').'></option>', $names)).'</datalist>';
                 }
             }
 
