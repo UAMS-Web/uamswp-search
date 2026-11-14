@@ -12,6 +12,8 @@ final class Misses
      * @var int Requests racing at the moment the limit is reached can each add
      *          one more row.
      */
+    // The coverage driver does not count a constant's line as run, so a changed value shows as uncovered, not survived. MissesTest pins the value and the limit's edges.
+    // @pest-mutate-ignore:IncrementInteger,DecrementInteger
     public const DAILY_LIMIT = 1000;
 
     /**
@@ -38,6 +40,8 @@ final class Misses
         }
 
         // Check whether the site reached today's limit. This is a plain read, not INSERT ... SELECT, which would lock the range and make concurrent searches wait on each other.
+        // COUNT(*) comes back as a numeric string, which PHP compares with the limit as a number, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveIntegerCast
         if ((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `$table` WHERE site_id=%d AND day=UTC_DATE()", $site)) >= self::DAILY_LIMIT) {
             return;
         }
