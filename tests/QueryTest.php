@@ -222,6 +222,16 @@ final class QueryTest extends TestCase
         }
     }
 
+    public function test_each_column_score_is_guarded_against_a_non_finite_match_value(): void
+    {
+        Query::run(['s' => 'heart', 'suggest' => false]);
+        $sql = end($GLOBALS['wpdb']->queries);
+        foreach (['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1] as $column => $weight) {
+            $match = "MATCH(i.{$column}_stem) AGAINST('heart*' IN BOOLEAN MODE)";
+            self::assertStringContainsString("(IF($match BETWEEN 0 AND 1000000,$match,0)*$weight)", $sql, $column);
+        }
+    }
+
     public function test_unknown_weight_columns_are_not_queried(): void
     {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'weights' => ['title' => 5, 'bogus' => 9]];
