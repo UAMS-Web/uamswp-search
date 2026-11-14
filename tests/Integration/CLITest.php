@@ -16,6 +16,14 @@ namespace {
             /** @var list<string> */
             public static array $succeeded = [];
 
+            /** @var array<string, string> */
+            public static array $commands = [];
+
+            public static function add_command(string $name, string $class): void
+            {
+                self::$commands[$name] = $class;
+            }
+
             public static function log(string $message): void
             {
                 self::$logged[] = $message;
@@ -182,6 +190,34 @@ namespace UAMS_Search\Tests\Integration {
             $this->assertSame('Post type is not configured', $this->failure(fn () => (new CLI)->index([], ['post-type' => 'uamsnosuchtype'])));
             $this->assertSame('Unknown or excluded site', $this->failure(fn () => (new CLI)->index([], ['site' => '999999'])));
             $this->assertSame([], WP_CLI::$succeeded, 'A refused rebuild reports no success');
+        }
+
+        public function test_a_full_rebuild_refuses_when_no_site_is_eligible(): void
+        {
+            if (! is_multisite()) {
+                $this->markTestSkipped('A single site is always eligible; requires a multisite install (WP_MULTISITE=1).');
+            }
+
+            // Every site discourages search engines, and the settings do not include them (a local environment includes them by default)
+            $settings = get_site_option('uams_search_settings', []);
+            update_site_option('uams_search_settings', array_replace(\is_array($settings) ? $settings : [], ['preview_noindex' => false]));
+            $was = [];
+            foreach (get_sites(['fields' => 'ids', 'number' => 0]) as $id) {
+                $was[(int) $id] = (int) get_site($id)->public;
+                wp_update_site((int) $id, ['public' => 0]);
+            }
+
+            try {
+                $message = $this->failure(fn () => (new CLI)->index([], ['all' => true]));
+            } finally {
+                update_site_option('uams_search_settings', $settings);
+                foreach ($was as $id => $public) {
+                    wp_update_site($id, ['public' => $public]);
+                }
+            }
+
+            $this->assertStringContainsString('No sites are eligible.', $message);
+            $this->assertSame([], WP_CLI::$succeeded);
         }
 
         public function test_a_full_rebuild_refreshes_the_name_suggestions_and_a_partial_one_does_not(): void

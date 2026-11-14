@@ -336,5 +336,107 @@ namespace UAMS_Search\Tests {
                 putenv('PATH='.$path);
             }
         }
+
+        public function test_a_command_that_cannot_start_is_reported(): void
+        {
+            // proc_open warns when the program is missing; the warning is part of what is pinned here
+            $warning = '';
+            set_error_handler(static function (int $no, string $msg) use (&$warning): bool {
+                $warning = $msg;
+
+                return true;
+            });
+            try {
+                Pdf::process(['/no/such/uams-search-program'], 5);
+                self::fail('A program that cannot start must raise.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('Could not start PDF extractor', $runtimeException->getMessage());
+            } finally {
+                restore_error_handler();
+            }
+
+            self::assertNotSame('', $warning);
+        }
+
+        public function test_the_worker_exits_with_1_without_a_readable_file_argument(): void
+        {
+            $worker = __DIR__.'/../scripts/pdf-worker.php';
+            $none = $this->worker([PHP_BINARY, $worker]);
+            self::assertSame(1, $none['exit']);
+            self::assertSame('', $none['out'].$none['err']);
+
+            $missing = $this->worker([PHP_BINARY, $worker, __DIR__.'/../fixtures/does-not-exist.pdf']);
+            self::assertSame(1, $missing['exit']);
+            self::assertSame('', $missing['out'].$missing['err']);
+
+            $empty = $this->worker([PHP_BINARY, $worker, '']);
+            self::assertSame(1, $empty['exit']);
+        }
+
+        public function test_the_worker_reports_a_corrupt_pdf_on_standard_error_and_exits_with_1(): void
+        {
+            $file = sys_get_temp_dir().'/uams-search-corrupt-'.bin2hex(random_bytes(4)).'.pdf';
+            file_put_contents($file, 'this is not a PDF');
+            try {
+                $run = $this->worker([PHP_BINARY, '-d', 'display_errors=stderr', '-d', 'error_reporting='.(E_ALL & ~E_DEPRECATED), __DIR__.'/../scripts/pdf-worker.php', $file]);
+            } finally {
+                unlink($file);
+            }
+
+            self::assertSame(1, $run['exit']);
+            self::assertSame('', $run['out']);
+            self::assertNotSame('', $run['err']);
+        }
+
+        public function test_the_worker_prints_the_text_of_a_pdf_and_exits_with_0(): void
+        {
+            $run = $this->worker([PHP_BINARY, '-d', 'display_errors=stderr', '-d', 'error_reporting='.(E_ALL & ~E_DEPRECATED), __DIR__.'/../scripts/pdf-worker.php', __DIR__.'/../fixtures/text.pdf']);
+            self::assertSame(0, $run['exit']);
+            self::assertStringContainsString('Cardiology PDF sentinel', $run['out']);
+            self::assertSame('', $run['err']);
+        }
+
+        public function test_extraction_refuses_to_run_where_proc_open_is_disabled(): void
+        {
+            // A child PHP with proc_open disabled loads the class and calls it, as a locked-down host would
+            $code = 'require '.var_export(realpath(__DIR__.'/../includes/autoload.php'), true).';'
+                .('try { '.Pdf::class.'::process(["x"], 1); echo "no error"; } catch (RuntimeException $e) { echo $e->getMessage(); }');
+            $run = $this->worker([PHP_BINARY, '-d', 'disable_functions=proc_open', '-r', $code]);
+            self::assertSame(0, $run['exit']);
+            self::assertSame('PDF extraction requires proc_open for enforced time and memory limits', $run['out']);
+        }
+
+        public function test_the_worker_script_prints_the_text_when_included_in_this_process(): void
+        {
+            // Covers the script's own lines, which a child process cannot report back
+            $argv = ['pdf-worker.php', __DIR__.'/../fixtures/text.pdf'];
+            ob_start();
+            try {
+                include __DIR__.'/../scripts/pdf-worker.php';
+            } finally {
+                $text = (string) ob_get_clean();
+            }
+
+            self::assertStringContainsString('Cardiology PDF sentinel', $text);
+        }
+
+        /**
+         * Run a command to the end and return its exit code and both output streams.
+         *
+         * @param  array<int, string>  $command
+         * @return array{exit: int, out: string, err: string}
+         */
+        private function worker(array $command): array
+        {
+            $pipes = [];
+            $proc = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            self::assertIsResource($proc);
+            $out = (string) stream_get_contents($pipes[1]);
+            $err = (string) stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+
+            return ['exit' => proc_close($proc), 'out' => $out, 'err' => $err];
+        }
     }
 }
