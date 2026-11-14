@@ -35,7 +35,8 @@ use UAMS_Search\Plugin;
 defined('ABSPATH') || exit;
 // Define the plugin constants
 define('UAMS_SEARCH_FILE', __FILE__);
-define('UAMS_SEARCH_VERSION', '0.5.1');
+// The header's Version is the only place the release number is written.
+define('UAMS_SEARCH_VERSION', get_file_data(__FILE__, ['Version' => 'Version'])['Version']);
 define('UAMS_SEARCH_SCHEMA_VERSION', '0.1.0');
 // Load the class loader and global helpers
 require_once __DIR__.'/includes/autoload.php';
