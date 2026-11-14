@@ -38,7 +38,8 @@ final class Indexer
             $post = get_post($id);
             $table = DB::table($target);
             // Remove the post from the table when it should not be indexed
-            if (! $post || ! \in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) {
+            // The site ID and the indexed site IDs are both integers, so loose matching finds the same sites.
+            if (! $post || ! \in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) { // @pest-mutate-ignore:TrueToFalse
                 if ($wpdb->delete($table, ['site_id' => $site, 'object_id' => $id]) === false) {
                     throw new RuntimeException($wpdb->last_error);
                 }
@@ -78,11 +79,14 @@ final class Indexer
             return $row;
         } catch (Throwable $throwable) {
             // Save the failure as an error row
+            // `$post` is unset only when `get_post()` itself throws, which WordPress never does; a null post gives the page type either way.
+            // @pest-mutate-ignore:BooleanAndToBooleanOr
             return self::failure($site, $id, isset($post) && $post ? $post->post_type : 'page', $throwable->getMessage(), $target);
         } finally {
             // Log an extraction that took too long
             $elapsed = microtime(true) - $start;
-            if ($elapsed > Config::number('extract_warn_seconds')) {
+            // A measured time never equals the threshold exactly, so `>=` logs the same runs.
+            if ($elapsed > Config::number('extract_warn_seconds')) { // @pest-mutate-ignore:GreaterToGreaterOrEqual
                 error_log(sprintf('UAMS Search: slow extraction site=%d post=%d seconds=%.3f', $site, $id, $elapsed));
             }
 

@@ -178,6 +178,15 @@ namespace UAMS_Search\Tests {
             ], Related::fields($page));
         }
 
+        public function test_a_page_type_without_a_provider_field_never_reads_a_field_value(): void
+        {
+            // Without the early return the missing field name reads as the empty key, which holds providers here
+            $GLOBALS['uams_test_meta'] = [42 => ['' => [12]]];
+            $GLOBALS['uams_test_posts'] = [12 => $this->post(['ID' => 12, 'post_type' => 'provider', 'post_title' => 'Alpha'])];
+
+            self::assertSame([], Related::fields($this->post(['ID' => 42, 'post_type' => 'page'])));
+        }
+
         // --- eligible() -------------------------------------------------------
 
         public function test_an_ordinary_published_page_is_eligible(): void

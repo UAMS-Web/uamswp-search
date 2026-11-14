@@ -2,6 +2,8 @@
 
 /**
  * The indexer's failure paths: a row that cannot be saved, a slow extraction, a failed batch read, a failed swap and the progress callback.
+ *
+ * Mutation notes for `Indexer`: three mutants cannot be told from the original. Loose matching of the site in `in_array()` (both sides are integers). `isset($post) && $post` as `||` in the failure path (`$post` is unset only when `get_post()` throws, which WordPress never does, and a null post gives the page type either way). `>` as `>=` on the slow-extraction threshold (a measured time never equals it exactly).
  */
 
 declare(strict_types=1);
@@ -115,6 +117,35 @@ final class IndexerTest extends IntegrationTestCase
         } finally {
             $wpdb->delete(DB::table(), ['site_id' => $this->site, 'object_id' => 999001]);
         }
+    }
+
+    public function test_an_error_row_carries_an_empty_value_for_every_text_column_and_is_logged_in_full(): void
+    {
+        global $wpdb;
+        $row = Indexer::failure($this->site, 999003, 'page', 'boom', 'index');
+
+        try {
+            $indexed_at = $row['indexed_at'];
+            unset($row['indexed_at']);
+            $expected = ['title' => '', 'title_stem' => '', 'content' => '', 'content_stem' => '', 'fields' => '', 'fields_stem' => '', 'terms' => '', 'terms_stem' => '', 'pdf' => '', 'pdf_stem' => '', 'short_tokens' => '', 'search_stem' => '', 'weighted_data' => '', 'url' => '', 'site_id' => $this->site, 'object_id' => 999003, 'post_type' => 'page', 'status' => 'error', 'error' => 'boom'];
+            $this->assertSame($expected, $row);
+            $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $indexed_at);
+            $this->assertStringContainsString('UAMS Search: site='.$this->site.' post=999003 boom', $this->logged());
+        } finally {
+            $wpdb->delete(DB::table(), ['site_id' => $this->site, 'object_id' => 999003]);
+        }
+    }
+
+    public function test_a_rebuild_reads_posts_in_batches_and_keeps_going_past_the_first_hundred(): void
+    {
+        for ($n = 0; $n < 101; $n++) {
+            $this->make_page(['post_title' => $this->token.' batch '.$n]);
+        }
+
+        $stats = Indexer::rebuild($this->site, 'page');
+
+        $this->assertGreaterThanOrEqual(101, $stats['indexed']);
+        $this->assertSame(0, $stats['errors']);
     }
 
     public function test_the_progress_callback_sees_each_saved_row_and_failures_are_counted(): void
