@@ -2,14 +2,19 @@
 
 namespace {
 
-    function get_attached_file($id)
-    {
-        return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
+    // Guarded because `ExtractorTest` declares the same stand-ins and loads first.
+    if (! function_exists('get_attached_file')) {
+        function get_attached_file($id)
+        {
+            return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
+        }
     }
 
-    function wp_get_upload_dir()
-    {
-        return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
+    if (! function_exists('wp_get_upload_dir')) {
+        function wp_get_upload_dir()
+        {
+            return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
+        }
     }
 }
 
