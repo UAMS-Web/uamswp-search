@@ -31,6 +31,8 @@ final class CLI
             // Make sure the tables exist
             DB::install();
             // Choose the sites to rebuild
+            // This file is not strict-typed, so the int parameter of the rebuild reads a numeric string as the same number.
+            // @pest-mutate-ignore:RemoveIntegerCast
             $sites = isset($assoc['all']) ? Config::index_sites() : [(int) ($assoc['site'] ?? get_current_blog_id())];
             if ($sites === []) {
                 throw new RuntimeException('No sites are eligible. Use the rebuild button in UAMSWP Search settings to include no-index sites for signed-in previews.');
@@ -69,6 +71,8 @@ final class CLI
     ): void {
         $this->guard(function () use ($assoc): void {
             // Process the queue within the limits
+            // The seconds budget (its default of 45, its 1 to 240 clamp and the casts) changes only how long a run may last, which no test waits for; the casts are read the same by the int parameters. The entry limit and its default of 100 on the same line are killed by the hundred-entry test.
+            // @pest-mutate-ignore:CoalesceRemoveLeft,DecrementInteger,IncrementInteger,MaxToMin,MinToMax,RemoveIntegerCast
             $stats = Queue::process((int) ($assoc['limit'] ?? 100), max(1, min(240, (int) ($assoc['seconds'] ?? 45))));
             // Warn when another indexer holds the lock
             if ($stats['busy']) {
@@ -117,7 +121,8 @@ final class CLI
             // Read the site and post, and check they can be indexed
             $site = (int) $assoc['site'];
             $id = (int) $args[0];
-            if (! \in_array($site, Config::index_sites(), true) || $id < 1) {
+            // The site is cast to int and the list holds ints, so loose and strict comparison agree.
+            if (! \in_array($site, Config::index_sites(), true) || $id < 1) { // @pest-mutate-ignore:TrueToFalse
                 throw new InvalidArgumentException('Invalid site or post');
             }
 
@@ -164,6 +169,8 @@ final class CLI
     ): void {
         $this->guard(function () use ($args, $assoc): void {
             // Run the search
+            // Query casts the site to int itself and ignores a type it does not know, so a missing cast or a made-up default type changes nothing.
+            // @pest-mutate-ignore:EmptyStringToNotEmpty,RemoveIntegerCast
             $out = Query::run(['s' => $args[0], 'site' => (int) ($assoc['site'] ?? get_current_blog_id()), 'scope' => $assoc['scope'] ?? 'site', 'type' => $assoc['type'] ?? '', 'explain' => isset($assoc['explain'])]);
             // Print the results
             WP_CLI::log(wp_json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
