@@ -94,6 +94,15 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Plugin;
     use UAMS_Search\Queue;
 
+    /**
+     * The scheduling rules, the hook wiring and the queue job's failure log, against stand-ins. The real hook priorities and accepted arguments, the
+     * queue limits and the activation path are pinned in `tests/Integration/PluginWiringTest.php`.
+     *
+     * Mutants no test can tell apart, each annotated in `includes/Plugin.php` with its reason: the queue job's 15 second budget as 14 or 16 (it differs
+     * only in runs longer than fourteen seconds), the `(int)` cast after the numeric guard of the ACF hook, and loose against strict `in_array()` on meta
+     * keys, which are never numeric. This class closes on a macOS hand-mutation record over the unit and integration suites together, because most of the
+     * class runs only under real WordPress; the Linux follow-up is #208.
+     */
     final class PluginTest extends TestCase
     {
         protected function setUp(): void
@@ -132,14 +141,17 @@ namespace UAMS_Search\Tests {
         {
             $before = time();
             Plugin::schedule();
+            $after = time();
 
             self::assertCount(2, $GLOBALS['uams_test_scheduled']);
             [$queue, $retention] = $GLOBALS['uams_test_scheduled'];
             self::assertSame(['uams_search_queue', 'uams_search_five_minutes'], [$queue[0], $queue[1]]);
             self::assertGreaterThanOrEqual($before + 300, $queue[2]);
+            self::assertLessThanOrEqual($after + 300, $queue[2], 'The queue job starts five minutes out, not later.');
             self::assertLessThan($before + 3600, $queue[2]);
             self::assertSame(['uams_search_retention', 'daily'], [$retention[0], $retention[1]]);
             self::assertGreaterThanOrEqual($before + 3600, $retention[2]);
+            self::assertLessThanOrEqual($after + 3600, $retention[2], 'The retention job starts an hour out, not later.');
         }
 
         public function test_schedule_adds_only_the_job_that_is_missing(): void
@@ -182,7 +194,7 @@ namespace UAMS_Search\Tests {
         public function test_activation_failure_stops_with_the_reason(): void
         {
             // Without a database object DB::install throws, and activation reports it.
-            $this->expectExceptionMessage('wp_die: UAMS Search setup failed: ');
+            $this->expectExceptionMessageMatches('/^wp_die: UAMS Search setup failed: .+$/');
             Plugin::activate();
         }
 
@@ -314,6 +326,45 @@ namespace UAMS_Search\Tests {
             $db->queries = [];
             $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, null);
             self::assertSame([], $db->queries);
+        }
+
+        public function test_the_queue_job_logs_a_failure_with_its_reason_and_does_not_stop(): void
+        {
+            $log = (string) tempnam(sys_get_temp_dir(), 'uamslog');
+            $previous = ini_set('error_log', $log);
+            $this->database();
+            // A database object with no methods makes the queue's first query fail
+            $GLOBALS['wpdb'] = new \stdClass;
+            try {
+                Plugin::boot();
+                $GLOBALS['uams_test_hooks']['uams_search_queue'][0]();
+                $logged = (string) file_get_contents($log);
+            } finally {
+                ini_set('error_log', (string) $previous);
+                unlink($log);
+            }
+
+            self::assertMatchesRegularExpression('/UAMS Search: \S.*\R$/', $logged, 'The reason follows the prefix.');
+            self::assertStringNotContainsString('UAMS Search: UAMS Search', $logged);
+            self::assertStringContainsString('UAMS Search: ', $logged);
+        }
+
+        public function test_the_hooks_queue_the_number_at_the_start_of_a_loose_id(): void
+        {
+            Plugin::boot();
+            $db = $this->database();
+
+            foreach (['save_post', 'before_delete_post', 'deleted_post', 'delete_attachment', 'add_attachment', 'edit_attachment', 'set_object_terms', 'added_term_relationship', 'deleted_term_relationships'] as $n => $hook) {
+                $GLOBALS['uams_test_hooks'][$hook][0]((70 + $n).'x');
+            }
+
+            foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $n => $hook) {
+                $GLOBALS['uams_test_hooks'][$hook][0](1, (80 + $n).'x', 'title');
+            }
+
+            $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, ['90x']);
+
+            self::assertSame([70, 71, 72, 73, 74, 75, 76, 77, 78, 80, 81, 82, 90], array_values(array_unique($this->queuedIds($db))));
         }
 
         /** @return array<int, int> The object IDs of the recorded queue inserts. */

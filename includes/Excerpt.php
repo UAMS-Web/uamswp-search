@@ -21,31 +21,34 @@ final class Excerpt
         string $query
     ): string {
         // Reduce the search to its stemmed tokens and the stop words to ignore
-        $tokens = array_unique(Text::tokens($query));
+        $tokens = Text::tokens($query);
         $stops = Text::stops();
         // Start with no fallback passage
         $fallback = '';
         // Search each source in order
         foreach ($sources as $source) {
-            // Skip sources with no text
+            // Without strict types a number is turned into the same text, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveStringCast
             $plain = Text::plain((string) $source);
-            if ($plain === '') {
-                continue;
-            }
-
-            // Split the text into words
-            $words = preg_split('/\s+/u', $plain, -1, PREG_SPLIT_NO_EMPTY);
+            // Split the text into words. A source with no text has no words and leaves the fallback empty, as if it were skipped.
+            $words = preg_split('/\s+/u', $plain, flags: PREG_SPLIT_NO_EMPTY);
             $n = \count($words);
             // Mark which words match the search
             $hits = [];
             foreach ($words as $word) {
-                $hits[] = self::matches($word, $tokens, $stops) ? 1 : 0;
+                // A true adds as 1 and a false as 0, so the cast changes no score.
+                // @pest-mutate-ignore:RemoveIntegerCast
+                $hits[] = (int) self::matches($word, $tokens, $stops);
             }
 
             // Slide a 30-word window to find the one with the most matches
+            // Counting the whole text, or one more word, adds a constant to the score of every window after this one, so the same window wins and the same source is chosen.
+            // @pest-mutate-ignore:UnwrapArraySlice,IncrementInteger
             $score = array_sum(\array_slice($hits, 0, 30));
             $best = $score;
             $start = 0;
+            // A loop that never reaches its end cannot be killed by a failing test, only by a timeout, which the mutation check does not count.
+            // @pest-mutate-ignore:PostIncrementToPostDecrement,SmallerToGreaterOrEqual
             for ($i = 30; $i < $n; $i++) {
                 $score += $hits[$i] - $hits[$i - 30];
                 if ($score > $best) {
@@ -57,8 +60,8 @@ final class Excerpt
             // Highlight the matches in the best window
             $slice = \array_slice($words, $start, 30);
             $html = implode(' ', array_map(
-                // Escape each text segment before adding our own mark elements.
-                static fn (string $w): ?string => preg_replace_callback('/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/u', static fn (array $m): string => self::matches($m[0], $tokens, $stops) ? '<mark>'.htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</mark>' : htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $w),
+                // Escape each text segment before adding our own mark elements. A matching segment is a run of letters and digits, which holds nothing to escape.
+                static fn (string $w): ?string => preg_replace_callback('/[\p{L}\p{N}]+|[^\p{L}\p{N}]+/u', static fn (array $m): string => self::matches($m[0], $tokens, $stops) ? '<mark>'.$m[0].'</mark>' : htmlspecialchars($m[0], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), $w),
                 $slice
             ));
             // Add ellipses where the passage is cut

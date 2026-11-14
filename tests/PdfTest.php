@@ -2,14 +2,19 @@
 
 namespace {
 
-    function get_attached_file($id)
-    {
-        return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
+    // Guarded because `ExtractorTest` declares the same stand-ins and loads first.
+    if (! function_exists('get_attached_file')) {
+        function get_attached_file($id)
+        {
+            return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
+        }
     }
 
-    function wp_get_upload_dir()
-    {
-        return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
+    if (! function_exists('wp_get_upload_dir')) {
+        function wp_get_upload_dir()
+        {
+            return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
+        }
     }
 }
 
@@ -24,6 +29,17 @@ namespace UAMS_Search\Tests {
         protected function tearDown(): void
         {
             unset($GLOBALS['uams_test_attached'], $GLOBALS['uams_test_uploads']);
+            if ($this->path !== null) {
+                putenv('PATH='.$this->path);
+                $this->path = null;
+            }
+
+            foreach ($this->dirs as $dir) {
+                array_map(unlink(...), glob($dir.'/*') ?: []);
+                rmdir($dir);
+            }
+
+            $this->dirs = [];
             $GLOBALS['uams_test_options'] = [];
             $GLOBALS['uams_test_filters'] = [];
         }
@@ -418,6 +434,255 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertStringContainsString('Cardiology PDF sentinel', $text);
+        }
+
+        // --- pins added for the Linux mutation record (#192) ------------------
+
+        /** @var list<string> */
+        private array $dirs = [];
+
+        private ?string $path = null;
+
+        /** A scratch folder for stand-in programs, which are shell scripts and so run only where there is a shell. */
+        private function posix_dir(): string
+        {
+            if (PHP_OS_FAMILY === 'Windows') {
+                self::markTestSkipped('Stand-in programs are shell scripts; the Linux run covers this.');
+            }
+
+            $dir = sys_get_temp_dir().'/uams-search-fake-'.bin2hex(random_bytes(4));
+            mkdir($dir);
+            $this->dirs[] = $dir;
+
+            return $dir;
+        }
+
+        private function program(string $dir, string $name, string $body): string
+        {
+            file_put_contents($dir.'/'.$name, "#!/bin/sh\n".$body."\n");
+            chmod($dir.'/'.$name, 0755);
+
+            return $dir.'/'.$name;
+        }
+
+        /** Put a folder first on the path the plugin searches. */
+        private function on_path(string $dir): void
+        {
+            $this->path ??= (string) getenv('PATH');
+            putenv('PATH='.$dir.PATH_SEPARATOR.$this->path);
+        }
+
+        /** @return list<string> The lines a stand-in program wrote to its log. */
+        private function logged(string $file): array
+        {
+            return explode("\n", rtrim((string) file_get_contents($file), "\n"));
+        }
+
+        /** The shell text that logs a program's arguments, one per line, to a file. */
+        private function log_args(string $file): string
+        {
+            return 'printf "%s\n" "$@" > '.escapeshellarg($file);
+        }
+
+        /**
+         * Extract with a Poppler stand-in that fails and a PHP stand-in that logs its arguments and prints text.
+         *
+         * @return array{list<string>, array<string, mixed>} The PHP stand-in's arguments and the row.
+         */
+        private function fallback_run(int|float $timeout): array
+        {
+            $dir = $this->posix_dir();
+            $this->program($dir, 'pdftotext', 'exit 1');
+            $php = $this->program($dir, 'php', $this->log_args($dir.'/php-args')."\necho 'fallback text'");
+            $this->on_path($dir);
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => $timeout];
+            $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => $php]];
+            $row = Pdf::extract(new WP_Post, null);
+
+            return [$this->logged($dir.'/php-args'), $row];
+        }
+
+        public function test_poppler_is_given_the_documented_arguments_and_its_text_is_the_whole_result(): void
+        {
+            $dir = $this->posix_dir();
+            $this->program($dir, 'pdftotext', $this->log_args($dir.'/args')."\necho 'poppler text'");
+            $this->on_path($dir);
+            $row = Pdf::extract(new WP_Post, null);
+            $real = (string) realpath(__DIR__.'/../fixtures/text.pdf');
+
+            self::assertSame(['-enc', 'UTF-8', '-nopgbrk', $real, '-'], $this->logged($dir.'/args'));
+            self::assertSame([
+                'pdf' => 'poppler text',
+                'file_signature' => hash('sha256', $real.'|'.filesize($real).'|'.filemtime($real)),
+                'file_size' => filesize($real),
+                'status' => 'ready',
+                'error' => '',
+                'fields' => 'text',
+            ], $row);
+        }
+
+        public function test_the_filter_is_offered_the_pdftotext_found_on_the_path(): void
+        {
+            $dir = $this->posix_dir();
+            $this->program($dir, 'pdftotext', 'exit 1');
+            $php = $this->program($dir, 'php', "echo 'fallback text'");
+            $this->on_path($dir);
+            $offered = null;
+            $GLOBALS['uams_test_filters'] = [
+                'uams_search_pdftotext' => [static function (string $found) use (&$offered): string {
+                    $offered = $found;
+
+                    return '';
+                }],
+                'uams_search_php_binary' => [static fn (): string => $php],
+            ];
+            Pdf::extract(new WP_Post, null);
+
+            self::assertSame($dir.'/pdftotext', $offered);
+        }
+
+        public function test_the_bundled_parser_gets_its_limits_script_and_file_in_order(): void
+        {
+            [$args, $row] = $this->fallback_run(1000);
+
+            self::assertSame([
+                '-d', 'memory_limit=128M',
+                '-d', 'display_errors=stderr',
+                '-d', 'error_reporting='.(E_ALL & ~E_DEPRECATED),
+                '-d', 'max_execution_time=119',
+                realpath(__DIR__.'/../includes').'/../scripts/pdf-worker.php',
+                (string) realpath(__DIR__.'/../fixtures/text.pdf'),
+            ], $args);
+            self::assertSame('fallback text', $row['pdf']);
+        }
+
+        public function test_the_time_limit_is_whole_seconds_and_the_fallback_gets_what_is_left(): void
+        {
+            // The limit is cut to whole seconds before the time Poppler took is taken off
+            self::assertContains('max_execution_time=1', $this->fallback_run(2.5)[0]);
+            // Two seconds leave one whole second, which is enough to run the fallback
+            self::assertContains('max_execution_time=1', $this->fallback_run(2)[0]);
+            self::assertContains('max_execution_time=2', $this->fallback_run(3)[0]);
+        }
+
+        public function test_running_out_of_time_after_poppler_fails_names_the_failure_that_came_first(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 1];
+            $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): string => PHP_BINARY]];
+            try {
+                Pdf::extract(new WP_Post, null);
+                self::fail('No time was left, so the extraction must stop.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('PDF extraction timed out', $runtimeException->getMessage());
+                self::assertSame(0, $runtimeException->getCode());
+                self::assertStringStartsWith('PDF extractor failed', (string) $runtimeException->getPrevious()?->getMessage());
+            }
+        }
+
+        public function test_a_file_one_byte_over_the_limit_is_refused(): void
+        {
+            $size = filesize(__DIR__.'/../fixtures/text.pdf');
+            // The limit is a fraction of a byte under the size, so only an exact comparison refuses it
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_max_mb' => ($size - 0.3) / 1048576];
+            $this->expectExceptionMessage('PDF exceeds size limit');
+            Pdf::extract(new WP_Post, null);
+        }
+
+        public function test_the_build_folder_wins_when_both_candidate_programs_are_executable(): void
+        {
+            $build = $this->posix_dir();
+            $running = $this->posix_dir();
+            $this->program($build, 'php', '');
+            $this->program($running, 'php', '');
+
+            self::assertSame($build.'/php', Pdf::php_binary('Linux', $build, $running.'/php-fpm'));
+            // A running binary written with backslashes, as on Windows, still names its folder
+            self::assertSame($running.'/php', Pdf::php_binary('Linux', '/no/such/dir', $running.'\\php-fpm'));
+        }
+
+        public function test_a_program_name_already_ending_in_exe_in_capitals_is_not_doubled(): void
+        {
+            $dir = $this->posix_dir();
+            $this->program($dir, 'PDFTOTEXT.EXE', '');
+
+            self::assertSame($dir.'/PDFTOTEXT.EXE', Pdf::binary('PDFTOTEXT.EXE', 'Windows', $dir));
+        }
+
+        public function test_the_usual_install_folders_are_searched_after_the_path(): void
+        {
+            if (PHP_OS_FAMILY === 'Windows') {
+                self::markTestSkipped('The folders searched after the path are POSIX folders.');
+            }
+
+            // `env` is in /usr/bin on Linux and macOS, and the path given here has nothing in it
+            self::assertSame('/usr/bin/env', Pdf::binary('env', 'Linux', '/no/such/folder'));
+        }
+
+        public function test_the_path_of_the_server_is_searched_when_none_is_given(): void
+        {
+            $dir = $this->posix_dir();
+            $this->program($dir, 'uams-search-fake-program', '');
+            $this->on_path($dir);
+
+            self::assertSame($dir.'/uams-search-fake-program', Pdf::binary('uams-search-fake-program'));
+        }
+
+        public function test_the_command_gets_no_input_and_sees_the_end_of_it(): void
+        {
+            // A program that reads its input to the end only finishes when the pipe to it is closed
+            self::assertSame('done', Pdf::process([PHP_BINARY, '-r', 'stream_get_contents(STDIN); echo "done";'], 5));
+        }
+
+        public function test_a_failure_reports_the_first_500_characters_of_the_error_output(): void
+        {
+            try {
+                Pdf::process([PHP_BINARY, '-r', 'fwrite(STDERR, "A".str_repeat("b", 599)); usleep(200000); exit(1);'], 5);
+                self::fail('A non-zero exit must raise.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('PDF extractor failed: A'.str_repeat('b', 499), $runtimeException->getMessage());
+            }
+        }
+
+        public function test_error_output_from_several_reads_adds_up_to_the_limit(): void
+        {
+            try {
+                Pdf::process([PHP_BINARY, '-r', 'fwrite(STDERR, str_repeat("x", 40000)); usleep(300000); fwrite(STDERR, str_repeat("x", 40000)); usleep(3000000);'], 4);
+                self::fail('80000 bytes of error output is over the limit.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('PDF extraction output limit exceeded', $runtimeException->getMessage());
+            }
+        }
+
+        public function test_error_output_is_limited_to_65536_bytes_exactly(): void
+        {
+            self::assertSame('ok', Pdf::process([PHP_BINARY, '-r', 'fwrite(STDERR, str_repeat("x", 65536)); usleep(300000); echo "ok";'], 5));
+
+            $this->expectExceptionMessage('PDF extraction output limit exceeded');
+            Pdf::process([PHP_BINARY, '-r', 'fwrite(STDERR, str_repeat("x", 65537)); usleep(300000); echo "ok";'], 5);
+        }
+
+        public function test_output_is_limited_to_16_mebibytes_exactly(): void
+        {
+            $limit = 16 * 1024 * 1024;
+            self::assertSame($limit, \strlen(Pdf::process([PHP_BINARY, '-r', 'echo str_repeat("x", 16 * 1024 * 1024); usleep(300000);'], 20)));
+
+            $this->expectExceptionMessage('PDF extraction output limit exceeded');
+            Pdf::process([PHP_BINARY, '-r', 'echo str_repeat("x", 16 * 1024 * 1024 + 1); usleep(300000);'], 20);
+        }
+
+        public function test_a_command_that_ignores_the_gentle_signals_is_still_stopped_at_the_limit(): void
+        {
+            $this->posix_dir();
+            $start = microtime(true);
+            try {
+                // The shell ignores the signals a lower or higher number than 9 would send, so only a kill ends it
+                Pdf::process(['/bin/sh', '-c', 'trap "" 8 10 15; sleep 4'], 1);
+                self::fail('The command must be stopped.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('PDF extraction timed out', $runtimeException->getMessage());
+            }
+
+            self::assertLessThan(2.5, microtime(true) - $start);
         }
 
         /**

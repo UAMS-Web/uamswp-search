@@ -15,6 +15,8 @@ final class CardFields
      */
     public static function text(mixed $value): string
     {
+        // `Text::plain()` takes text and turns a number into the same text without the cast.
+        // @pest-mutate-ignore:RemoveStringCast
         return \is_string($value) || \is_int($value) || \is_float($value) ? Text::plain((string) $value) : '';
     }
 
@@ -46,6 +48,8 @@ final class CardFields
      */
     public static function id(mixed $value): int
     {
+        // A digit string compares to 0 like its integer, and the return type turns it into one; `>= 0` and `> -1` also let a zero through, which returns the same 0.
+        // @pest-mutate-ignore:RemoveIntegerCast,GreaterToGreaterOrEqual,DecrementInteger
         return (\is_int($value) || (\is_string($value) && ctype_digit($value))) && (int) $value > 0 ? (int) $value : 0;
     }
 

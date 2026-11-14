@@ -164,6 +164,30 @@ final class PluginWiringTest extends IntegrationTestCase
         $this->assertSame(get_file_data($file, ['Version' => 'Version'])['Version'], UAMS_SEARCH_VERSION, 'The constant follows the version in the plugin header');
     }
 
+    public function test_each_content_hook_keeps_its_priority_and_the_arguments_it_accepts(): void
+    {
+        global $wp_filter;
+        $expected = [
+            'save_post' => [[100, 1]], 'acf/save_post' => [[30, 1]],
+            'added_post_meta' => [[10, 3]], 'updated_post_meta' => [[10, 3]], 'deleted_post_meta' => [[10, 3]],
+            'edited_term' => [[10, 3]], 'delete_term' => [[10, 5]],
+        ];
+        foreach ($expected as $hook => $wanted) {
+            $mine = [];
+            foreach ($wp_filter[$hook]->callbacks as $priority => $callbacks) {
+                foreach ($callbacks as $callback) {
+                    $function = $callback['function'];
+                    $from = $function instanceof \Closure ? (string) (new \ReflectionFunction($function))->getFileName() : '';
+                    if (str_ends_with($from, 'Plugin.php') || $function === [Queue::class, 'term']) {
+                        $mine[] = [$priority, $callback['accepted_args']];
+                    }
+                }
+            }
+
+            $this->assertSame($wanted, array_values(array_unique($mine, SORT_REGULAR)), $hook);
+        }
+    }
+
     /**
      * Last in the file, because WP_CLI is defined for the rest of the process once set.
      */

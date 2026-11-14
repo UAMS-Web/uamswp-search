@@ -12,9 +12,13 @@ final class Config
      */
     public static function defaults(): array
     {
+        // An environment type is plain text, so a loose comparison with these names matches only when the strict one does.
+        // @pest-mutate-ignore:TrueToFalse
+        $preview = \function_exists('wp_get_environment_type') && \in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true);
+
         return [
             'enabled' => false, 'live' => true, 'logging' => true,
-            'preview_noindex' => \function_exists('wp_get_environment_type') && \in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
+            'preview_noindex' => $preview,
             'results_per_page' => 20,
             'sites' => null, 'related_provider_weight' => 0.25,
             'weights' => ['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1],
@@ -75,6 +79,8 @@ final class Config
     ): bool {
         $value = get_option($name, $default);
 
+        // The return type turns a scalar into the same boolean, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveBooleanCast
         return \is_scalar($value) ? (bool) $value : $default;
     }
 
@@ -108,6 +114,8 @@ final class Config
      */
     public static function weight(mixed $value): float
     {
+        // The casts only repeat what the numeric check and the return type already do for a number or numeric text.
+        // @pest-mutate-ignore:RemoveDoubleCast
         return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(0, min(100, (float) $value)) : 0;
     }
 
@@ -169,6 +177,8 @@ final class Config
             } elseif (\is_bool($default)) {
                 $config[$key] = \is_scalar($value) ? (bool) $value : $default;
             } elseif (\is_int($default) || \is_float($default)) {
+                // Adding zero turns numeric text into a number; subtracting zero does the same.
+                // @pest-mutate-ignore:PlusToMinus
                 $config[$key] = is_numeric($value) ? $value + 0 : $default;
             } else {
                 $config[$key] = \is_array($value) ? $value : $default;
@@ -189,6 +199,8 @@ final class Config
         // Fall back to the configured size
         $value ??= self::number('results_per_page') ?: 20;
 
+        // The finite check converts numeric text the same way without its cast, and the return type truncates a number the same way as the integer cast.
+        // @pest-mutate-ignore:RemoveDoubleCast,RemoveIntegerCast
         return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
     }
 
@@ -200,11 +212,6 @@ final class Config
      */
     public static function public_sites(): array
     {
-        // Use the current site on a single site
-        if (! is_multisite()) {
-            return [get_current_blog_id()];
-        }
-
         // Include sites that discourage indexing when previewing
         $preview = self::flag('preview_noindex') && ((\defined('WP_CLI') && WP_CLI) || is_user_logged_in());
 
@@ -218,11 +225,6 @@ final class Config
      */
     public static function index_sites(): array
     {
-        // Use the current site on a single site
-        if (! is_multisite()) {
-            return [get_current_blog_id()];
-        }
-
         return self::site_ids(self::flag('preview_noindex'));
     }
 
@@ -262,6 +264,8 @@ final class Config
         // Search the current site alone when it is public
         $public = self::public_sites();
         if ($scope === 'site') {
+            // Both sides are integers (`site_ids()` casts each ID), so the strict comparison reads the same as a loose one.
+            // @pest-mutate-ignore:TrueToFalse
             return \in_array($site, $public, true) ? [$site] : [];
         }
 
@@ -339,6 +343,8 @@ final class Config
     {
         // Use the requested scope when offered
         $options = array_keys(self::scope_options());
+        // The option keys are plain words, which a string matches loosely only when it matches strictly.
+        // @pest-mutate-ignore:TrueToFalse
         if (\is_string($value) && \in_array($value, $options, true)) {
             return $value;
         }
@@ -346,6 +352,8 @@ final class Config
         // Use the site's default scope when offered, otherwise the first option
         $default = self::option_string('uams_search_scope', 'site');
 
+        // The same holds for the saved default.
+        // @pest-mutate-ignore:TrueToFalse
         return \is_string($default) && \in_array($default, $options, true) ? $default : $options[0];
     }
 

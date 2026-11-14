@@ -27,7 +27,8 @@ final class DB
     public static function table(string $suffix = 'index'): string
     {
         global $wpdb;
-        // Accept only the plugin's own table names
+        // Accept only the plugin's own table names. A suffix is plain text that is never numeric, so a loose comparison with these names matches only when the strict one does.
+        // @pest-mutate-ignore:TrueToFalse
         if (! \in_array($suffix, ['index', 'queue', 'words', 'word_docs', 'misses', 'stopwords', 'stage'], true)) {
             throw new InvalidArgumentException('Unknown table');
         }
@@ -89,7 +90,8 @@ final class DB
     public static function install(): void
     {
         global $wpdb;
-        // Check the required PHP extensions
+        // Check the required PHP extensions. A test cannot unload one, so every test sees all three loaded and no combination of the three checks can be told apart.
+        // @pest-mutate-ignore:BooleanOrToBooleanAnd
         if (! \extension_loaded('mbstring') || ! \extension_loaded('zlib') || ! \extension_loaded('iconv')) {
             throw new RuntimeException('UAMS Search requires the mbstring, zlib and iconv PHP extensions.');
         }

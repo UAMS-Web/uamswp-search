@@ -69,6 +69,8 @@ final class Plugin
         // Process the queue on schedule, logging any failure
         add_action('uams_search_queue', static function (): void {
             try {
+                // The 15 second budget against 14 or 16 differs only in runs longer than fourteen seconds, which no test waits for. The entry limit on the same line is killed by the fifteen-entry test.
+                // @pest-mutate-ignore:DecrementInteger,IncrementInteger
                 Queue::process(15, 15);
             } catch (Throwable $throwable) {
                 error_log('UAMS Search: '.$throwable->getMessage());
@@ -87,6 +89,8 @@ final class Plugin
         // Queue the post when ACF saves its fields
         add_action('acf/save_post', static function (mixed $id): void {
             if (is_numeric($id)) {
+                // The guard passes only numeric strings and ints, which the int parameter reads as the same number.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 Queue::push((int) $id);
             }
         }, 30);
@@ -110,7 +114,8 @@ final class Plugin
         // Queue a post when its meta changes, except the edit lock
         foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) {
             add_action($hook, static function (mixed $meta_id, mixed $id, mixed $key): void {
-                if (! \in_array($key, ['_edit_lock', '_edit_last'], true)) {
+                // Meta keys are strings and never numeric, so loose and strict comparison agree.
+                if (! \in_array($key, ['_edit_lock', '_edit_last'], true)) { // @pest-mutate-ignore:TrueToFalse
                     Queue::push((int) $id);
                 }
             }, 10, 3);

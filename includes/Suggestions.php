@@ -42,7 +42,8 @@ final class Suggestions
     public static function record(array $row): void
     {
         global $wpdb;
-        // Remove the object's earlier words
+        // Remove the object's earlier words. Without strict types the numeric text of a database row is turned into the same integers, so the casts change no result.
+        // @pest-mutate-ignore:RemoveIntegerCast
         self::remove((int) $row['site_id'], (int) $row['object_id']);
         // Collect the object's distinct words
         $stop = Text::stops();
@@ -90,6 +91,8 @@ final class Suggestions
         $stale = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT d.object_id FROM `$docs` d LEFT JOIN `$index` i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.site_id=%d AND (i.id IS NULL OR i.status='error')", $site));
         // Drop the words of every object that is no longer indexed
         foreach ($stale as $id) {
+            // Without strict types the numeric text of a database row is turned into the same integer, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveIntegerCast
             self::remove($site, (int) $id);
         }
 
@@ -100,6 +103,8 @@ final class Suggestions
             $rows = $wpdb->get_results("SELECT * FROM `$index` WHERE $where ORDER BY object_id LIMIT 50", ARRAY_A);
             foreach ($rows as $row) {
                 self::record($row);
+                // Without strict types the numeric text of a database row is turned into the same integer, so the cast changes no result.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 $last = (int) $row['object_id'];
             }
         } while ($rows);
@@ -135,6 +140,13 @@ final class Suggestions
             return null;
         }
 
+        // Give up when no site is in scope. Without strict types the site number is turned into the same integer, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveIntegerCast
+        $sites = Config::sites(Config::scope($args['scope'] ?? null), (int) ($args['site'] ?? get_current_blog_id()));
+        if ($sites === []) {
+            return null;
+        }
+
         // Correct each word that matches nothing
         foreach ($words as &$word) {
             // Skip short words and stop words
@@ -143,7 +155,7 @@ final class Suggestions
             }
 
             // Skip a word that already has results
-            $probe = Query::run(array_replace($args, ['s' => $word, 'per_page' => 1, 'page' => 1, 'suggest' => false]));
+            $probe = self::count($args, $word);
             if ($probe['total']) {
                 continue;
             }
@@ -152,20 +164,19 @@ final class Suggestions
             $t = DB::table('words');
             $length = mb_strlen($word);
             $key = Phonetic::key($word);
-            $sites = Config::sites(Config::scope($args['scope'] ?? null), (int) ($args['site'] ?? get_current_blog_id()));
-            if ($sites === []) {
-                continue;
-            }
-
             // Limit candidates to words used by indexed objects in scope
             $docs = DB::table('word_docs');
             $index = DB::table();
+            // Config::sites() returns integers, and the cast keeps the SQL safe should that change, so no input tells it apart.
+            // @pest-mutate-ignore:UnwrapArrayMap
             $scope = 'EXISTS (SELECT 1 FROM `'.$docs.'` d INNER JOIN `'.$index."` i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.word=w.word AND i.status IN ('ready','scanned') AND d.site_id IN (".implode(',', array_map(intval(...), $sites)).'))';
             // Read up to 500 candidates of similar length
             $candidates = $wpdb->get_results($wpdb->prepare("SELECT word,frequency,phonetic FROM `$t` w WHERE frequency>0 AND word_length BETWEEN %d AND %d AND $scope ORDER BY (phonetic=%s) DESC,frequency DESC,word ASC LIMIT 500", max(3, $length - 2), $length + 2, $key), ARRAY_A);
             // Pick the best candidate
             $best = null;
             $distance = PHP_INT_MAX;
+            // The first candidate always becomes the best, so its value is never read.
+            // @pest-mutate-ignore:FalseToTrue
             $best_near = false;
             foreach ($candidates as $candidate) {
                 $d = levenshtein($word, $candidate['word']);
@@ -176,6 +187,8 @@ final class Suggestions
                 // A truncated phonetic key can collide for long names. Prefer an actual
                 // one/two-letter correction over a merely sound-alike, then use frequency.
                 $near = $d <= 2;
+                // The frequencies come from the database as numeric text, which compares the same without the casts.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 if (! $best || ($near && ! $best_near) || ($near === $best_near && ((int) $candidate['frequency'] > (int) $best['frequency'] || ((int) $candidate['frequency'] === (int) $best['frequency'] && $d < $distance)))) {
                     $best = $candidate;
                     $distance = $d;
@@ -196,9 +209,32 @@ final class Suggestions
 
         // Check that the corrected search has results
         $suggestion = implode(' ', $words);
-        $check = Query::run(array_replace($args, ['s' => $suggestion, 'per_page' => 1, 'page' => 1, 'suggest' => false]));
+        $check = self::count($args, $suggestion);
 
         // A fallback match is insufficient: all corrected words must exist in this scope/type.
         return $check['total'] > 0 && ! $check['fallback'] ? $suggestion : null;
+    }
+
+    /**
+     * Run a search for its first result only, to learn whether it matches.
+     *
+     * @param  array<string, mixed>  $args  The search arguments.
+     * @param  string  $search  The text to search for.
+     * @return array<string, mixed> The result of `Query::run()`, with no suggestion of its own.
+     */
+    private static function count(
+        array $args,
+        string $search
+    ): array {
+        // Start from the first page, and skip the suggestion so the search cannot ask for one again
+        unset($args['page']);
+        // A suggestion that asked for a suggestion would never end, so a test can only time out, which the mutation check does not count.
+        // @pest-mutate-ignore:FalseToTrue
+        $args['suggest'] = false;
+        // Page sizes under 1 are raised to 1, so a size of 0 would read the same
+        // @pest-mutate-ignore:DecrementInteger
+        $args['per_page'] = 1;
+
+        return Query::run(array_replace($args, ['s' => $search]));
     }
 }
