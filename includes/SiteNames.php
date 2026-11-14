@@ -56,20 +56,13 @@ final class SiteNames
     }
 
     /**
-     * Read a site's title from WordPress: the site option on a single site, the site's details on multisite.
+     * Read a site's title from WordPress.
      *
      * @param  int  $site_id  Site ID.
      * @return string The title, or `NOT_FOUND` when it is missing or empty.
      */
     private static function lookup(int $site_id): string
     {
-        // Read the one site's title from its option, because get_blog_details() exists only on multisite
-        if (! is_multisite()) {
-            $title = $site_id === get_current_blog_id() ? get_option('blogname', '') : '';
-
-            return \is_string($title) && $title !== '' ? $title : self::NOT_FOUND;
-        }
-
         // Look up the site's details
         $details = get_blog_details($site_id);
 
