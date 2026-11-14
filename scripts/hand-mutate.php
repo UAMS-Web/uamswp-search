@@ -71,7 +71,7 @@ const SURVIVE_CONTROL = "\n// hand-mutation control: a comment changes no behavi
  * Each mutant is `['operator' => string, 'line' => int, 'line_text' => string, 'from' => string, 'to' => string, 'source' => string]`
  * where `source` is the whole mutated file.
  *
- * @return list<array{operator: string, line: int, line_text: string, from: string, to: string, source: string}>
+ * @return list<array{operator: string, line: int, ordinal: int, line_text: string, from: string, to: string, source: string}>
  */
 function mutants(string $source): array
 {
@@ -158,7 +158,7 @@ function mutants(string $source): array
  *
  * @param  list<array{int|null, string, int}>  $tokens
  * @param  list<string>  $lines
- * @return array{operator: string, line: int, line_text: string, from: string, to: string, source: string}
+ * @return array{operator: string, line: int, ordinal: int, line_text: string, from: string, to: string, source: string}
  */
 function build(string $source, array $tokens, array $lines, int $index, string $operator, string $replacement): array
 {
@@ -174,9 +174,18 @@ function build(string $source, array $tokens, array $lines, int $index, string $
 
     $line = $tokens[$index][2];
 
+    // Which of the identical tokens on this line it is, counted from the left, so a line with three `||` names the one mutated.
+    $ordinal = 1;
+    foreach (array_slice($tokens, 0, $index) as $earlier) {
+        if ($earlier[2] === $line && $earlier[1] === $tokens[$index][1]) {
+            $ordinal++;
+        }
+    }
+
     return [
         'operator' => $operator,
         'line' => $line,
+        'ordinal' => $ordinal,
         'line_text' => trim($lines[$line - 1] ?? ''),
         'from' => $tokens[$index][1],
         'to' => $replacement,
@@ -389,7 +398,7 @@ function report(array $results, array $controls, string $environment): string
         $md .= "\n### `{$class}`: mutants that were not killed\n\n| Mutant | Line | Change | Result |\n| --- | --- | --- | --- |\n";
         foreach ($rows as $row) {
             $change = '`'.str_replace('|', '\\|', $row['from']).'` to `'.str_replace('|', '\\|', $row['to']).'`';
-            $md .= "| {$row['operator']} | {$row['line']} | {$change} | {$row['result']}".($row['reason'] !== '' ? ': '.$row['reason'] : '')." |\n";
+            $md .= "| {$row['operator']} (`{$row['from']}` number {$row['ordinal']} on the line) | {$row['line']} | {$change} | {$row['result']}".($row['reason'] !== '' ? ': '.$row['reason'] : '')." |\n";
         }
     }
 
@@ -453,7 +462,7 @@ function main(array $argv): int
     if (isset($options['list'])) {
         foreach ($plan as $name => $list) {
             foreach ($list as $mutant) {
-                echo "{$name}:{$mutant['line']}:{$mutant['operator']}  {$mutant['from']} -> {$mutant['to']}  {$mutant['line_text']}\n";
+                echo "{$name}:{$mutant['line']}:{$mutant['operator']}#{$mutant['ordinal']}  {$mutant['from']} -> {$mutant['to']}  {$mutant['line_text']}\n";
             }
             echo "{$name}: ".\count($list)." mutants\n";
         }
@@ -529,7 +538,7 @@ function main(array $argv): int
             $path = CLASSES[$name];
             $data = ['total' => \count($list), 'killed' => 0, 'killed_unit' => 0, 'equivalent' => 0, 'survived' => 0, 'invalid' => 0, 'rows' => []];
             foreach ($list as $number => $mutant) {
-                $row = ['operator' => $mutant['operator'], 'line' => $mutant['line'], 'from' => $mutant['from'], 'to' => $mutant['to'], 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => ''];
+                $row = ['operator' => $mutant['operator'], 'line' => $mutant['line'], 'ordinal' => $mutant['ordinal'], 'from' => $mutant['from'], 'to' => $mutant['to'], 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => ''];
                 $outcome = $withSource($path, $mutant['source'], static function () use ($path, $command, $timeout): ?array {
                     return lints($path) ? runSuite($command, $timeout, finishedPattern($command)) : null;
                 });
@@ -548,7 +557,7 @@ function main(array $argv): int
                 } else {
                     $reason = '';
                     foreach ($equivalents as $entry) {
-                        if (($entry['class'] ?? '') === $name && ($entry['operator'] ?? '') === $mutant['operator'] && ($entry['line_text'] ?? '') === $mutant['line_text']) {
+                        if (($entry['class'] ?? '') === $name && ($entry['operator'] ?? '') === $mutant['operator'] && ($entry['line_text'] ?? '') === $mutant['line_text'] && ($entry['ordinal'] ?? $mutant['ordinal']) === $mutant['ordinal']) {
                             $reason = (string) ($entry['reason'] ?? '');
                         }
                     }

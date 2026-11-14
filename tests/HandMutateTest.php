@@ -158,6 +158,16 @@ Tests: 3, Assertions: 4, Failures: 1.
         self::assertSame('', finishedPattern('php -r "exit(0);"'));
     }
 
+    public function test_identical_tokens_on_one_line_are_numbered_from_the_left(): void
+    {
+        $ordinals = [];
+        foreach (mutants("<?php\n\$x = \$a || \$b || \$c;\n") as $mutant) {
+            $ordinals[] = $mutant['operator'].'#'.$mutant['ordinal'];
+        }
+
+        self::assertSame(['BooleanOrToBooleanAnd#1', 'BooleanOrToBooleanAnd#2'], $ordinals);
+    }
+
     public function test_shards_partition_the_mutants_with_none_dropped_or_repeated(): void
     {
         $items = range(1, 10);
@@ -171,9 +181,9 @@ Tests: 3, Assertions: 4, Failures: 1.
     public function test_the_record_names_each_unkilled_mutant_and_the_controls(): void
     {
         $rows = [
-            ['operator' => 'RemoveNot', 'line' => 8, 'from' => '!', 'to' => '', 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => 'survived'],
-            ['operator' => 'PlusToMinus', 'line' => 9, 'from' => '+', 'to' => '-', 'killer' => '', 'suite' => 'integration', 'reason' => 'The sum is only logged.', 'result' => 'equivalent'],
-            ['operator' => 'TrueToFalse', 'line' => 12, 'from' => 'true', 'to' => 'false', 'killer' => 'Foo::test_a|b', 'suite' => 'unit', 'reason' => '', 'result' => 'killed'],
+            ['operator' => 'RemoveNot', 'line' => 8, 'ordinal' => 1, 'from' => '!', 'to' => '', 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => 'survived'],
+            ['operator' => 'PlusToMinus', 'line' => 9, 'ordinal' => 1, 'from' => '+', 'to' => '-', 'killer' => '', 'suite' => 'integration', 'reason' => 'The sum is only logged.', 'result' => 'equivalent'],
+            ['operator' => 'TrueToFalse', 'line' => 12, 'ordinal' => 1, 'from' => 'true', 'to' => 'false', 'killer' => 'Foo::test_a|b', 'suite' => 'unit', 'reason' => '', 'result' => 'killed'],
         ];
         $md = report(
             ['Demo' => ['total' => 3, 'killed' => 1, 'killed_unit' => 0, 'equivalent' => 1, 'survived' => 1, 'invalid' => 0, 'rows' => $rows]],
@@ -184,8 +194,8 @@ Tests: 3, Assertions: 4, Failures: 1.
         self::assertStringContainsString('| Planted survivor | survived | survived | n/a |', $md);
         self::assertStringContainsString('| Planted kill (throws on load) | killed | killed | `Foo::test_a` |', $md);
         self::assertStringContainsString('| `Demo` | 3 | 1 | 0 | 1 | 1 | 0 |', $md);
-        self::assertStringContainsString('| RemoveNot | 8 | `!` to `` | survived |', $md);
-        self::assertStringContainsString('| PlusToMinus | 9 | `+` to `-` | equivalent: The sum is only logged. |', $md);
+        self::assertStringContainsString('| RemoveNot (`!` number 1 on the line) | 8 | `!` to `` | survived |', $md);
+        self::assertStringContainsString('| PlusToMinus (`+` number 1 on the line) | 9 | `+` to `-` | equivalent: The sum is only logged. |', $md);
         self::assertStringContainsString('| `Demo` | TrueToFalse | 12 | unit | `Foo::test_a\\|b` |', $md);
         self::assertStringNotContainsString('| TrueToFalse | 12 | `true` to `false` |', $md);
     }
