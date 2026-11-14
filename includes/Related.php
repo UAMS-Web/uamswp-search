@@ -12,6 +12,8 @@ final class Related
      *
      * @var int Part of the settings fingerprint, so a change forces a rebuild.
      */
+    // The line holds no statement a coverage driver records, so the mutants read as uncovered; `RelatedTest` pins the value.
+    // @pest-mutate-ignore:IncrementInteger,DecrementInteger
     public const VERSION = 1;
 
     /**
@@ -19,6 +21,8 @@ final class Related
      *
      * @var array<string, string> ACF field names keyed by post type.
      */
+    // The array items hold no statement a coverage driver records, so the mutants read as uncovered; `RelatedTest` pins every entry.
+    // @pest-mutate-ignore:RemoveArrayItem
     public const FIELDS = [
         'location' => 'physician_locations',
         'expertise' => 'physician_expertise',
@@ -37,6 +41,8 @@ final class Related
         $ids = [];
         // Keep each value that is a positive whole number
         foreach (\is_array($value) ? $value : [$value] as $id) {
+            // A digit string compares to 0 as its integer does, so the cast changes nothing.
+            // @pest-mutate-ignore:RemoveIntegerCast
             if ((\is_int($id) || (\is_string($id) && ctype_digit($id))) && (int) $id > 0) {
                 $ids[] = (int) $id;
             }
@@ -65,6 +71,8 @@ final class Related
 
         // Raw ACF values also support Find-a-Doc installations using ACF custom tables.
         // Read the provider IDs
+        // Which of the two reads runs depends on whether ACF is loaded, and the unit stand-ins ignore the format and single flags; the integration suite pins both calls.
+        // @pest-mutate-ignore:TrueToFalse,FalseToTrue
         $value = \function_exists('get_field') ? get_field($field, $post->ID, false) : get_post_meta($post->ID, $field, true);
         $fields = [];
         $weight = Config::number('related_provider_weight');
@@ -111,6 +119,8 @@ final class Related
         $marker = '%'.$wpdb->esc_like('"provider_id":'.$id.',').'%';
         // List the page types that carry provider names
         $types = array_keys(self::FIELDS);
+        // `implode()` ignores the keys of the placeholder list, so its first key is irrelevant.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         $marks = implode(',', array_fill(0, \count($types), '%s'));
         // Queue the indexed pages that hold the marker
         DB::exec($wpdb->prepare(
