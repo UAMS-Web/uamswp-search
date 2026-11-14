@@ -349,5 +349,109 @@ namespace UAMS_Search\Tests {
             self::assertEquals(['post' => ['subtitle' => 3]], $saved['fields']);
             self::assertSame(['post' => []], $saved['taxonomies']);
         }
+
+        public function test_each_switch_is_saved_on_its_own_and_defaults_off(): void
+        {
+            $keys = ['live', 'logging', 'pdf', 'pdf_parent'];
+            $off = $this->save(['live' => '', 'logging' => '', 'pdf' => '', 'pdf_parent' => '']);
+            foreach ($keys as $key) {
+                self::assertFalse($off[$key], $key);
+            }
+
+            foreach ($keys as $on) {
+                $saved = $this->save([$on => '1']);
+                foreach ($keys as $key) {
+                    self::assertSame($key === $on, $saved[$key], $on.' / '.$key);
+                }
+            }
+
+            // A value that is not empty switches it on, whatever it says
+            self::assertTrue($this->save(['pdf' => 'on'])['pdf']);
+            // A switch missing from the form is off, not left at its earlier value
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['live' => true, 'logging' => true, 'pdf' => true, 'pdf_parent' => true];
+            $saved = $this->save([]);
+            foreach ($keys as $key) {
+                self::assertFalse($saved[$key], $key);
+            }
+        }
+
+        public function test_the_page_size_and_pdf_limits_default_and_clamp_at_each_edge(): void
+        {
+            $saved = $this->save([]);
+            self::assertSame(20, $saved['results_per_page']);
+            self::assertEquals(20.0, $saved['pdf_max_mb']);
+            self::assertSame(30, $saved['pdf_timeout']);
+
+            foreach (['0' => 1, '-5' => 1, '1' => 1, '2' => 2, '99' => 99, '100' => 100, '101' => 100, 'abc' => 20] as $input => $expected) {
+                self::assertSame($expected, $this->save(['results_per_page' => (string) $input])['results_per_page'], 'page size '.$input);
+            }
+
+            foreach (['0' => 1.0, '1' => 1.0, '1.5' => 1.5, '2' => 2.0, '99.5' => 99.5, '100' => 100.0, '100.5' => 100.0, '101' => 100.0] as $input => $expected) {
+                self::assertSame($expected, (float) $this->save(['pdf_max_mb' => (string) $input])['pdf_max_mb'], 'size limit '.$input);
+            }
+
+            foreach (['0' => 1, '-4' => 1, '1' => 1, '2' => 2, '119' => 119, '120' => 120, '121' => 120, '45.9' => 45] as $input => $expected) {
+                self::assertSame($expected, $this->save(['pdf_timeout' => (string) $input])['pdf_timeout'], 'timeout '.$input);
+            }
+        }
+
+        public function test_chosen_sites_accept_a_single_value_and_repeat_nothing(): void
+        {
+            self::assertSame([1], $this->save(['sites' => '1'])['sites']);
+            self::assertSame([1], $this->save(['sites' => ['1', '1', 1]])['sites']);
+            self::assertSame([], $this->save(['sites' => ['2', '3']])['sites']);
+            self::assertSame([], $this->save(['sites' => 'abc'])['sites']);
+            self::assertSame([], $this->save([])['sites']);
+        }
+
+        public function test_weights_default_to_zero_and_keep_only_the_known_sources(): void
+        {
+            $saved = $this->save(['weights' => ['title' => '7', 'bogus' => '9']]);
+
+            self::assertSame(['title' => 7.0, 'terms' => 0.0, 'fields' => 0.0, 'content' => 0.0, 'pdf' => 0.0], $saved['weights']);
+            self::assertSame(['title' => 0.0, 'terms' => 0.0, 'fields' => 0.0, 'content' => 0.0, 'pdf' => 0.0], $this->save([])['weights']);
+        }
+
+        public function test_chosen_types_keep_their_boosts_and_ignore_what_is_not_a_chosen_type(): void
+        {
+            $saved = $this->save(['types' => [
+                'Post Type' => ['include' => '1', 'boost' => '2.5'],
+                'page' => ['include' => '1'],
+                'skipped' => ['boost' => '3'],
+                'text' => 'include',
+                '!!!' => ['include' => '1'],
+            ]]);
+
+            self::assertSame(['posttype' => 2.5, 'page' => 1.0], $saved['types']);
+            self::assertSame(['posttype', 'page'], array_keys($saved['fields']));
+            self::assertSame(['posttype', 'page'], array_keys($saved['taxonomies']));
+        }
+
+        public function test_fields_and_taxonomies_are_read_from_their_own_rows(): void
+        {
+            $saved = $this->save(['types' => ['post' => ['include' => '1',
+                'fields' => [['name' => 'Subtitle', 'weight' => '4'], 'text', ['name' => ['a'], 'weight' => '2'], ['name' => 'Nick Name']],
+                'taxonomies' => [['name' => 'Category', 'weight' => '1.5'], ['name' => 'tag']],
+            ]]]);
+
+            self::assertSame(['subtitle' => 4.0, 'nickname' => 1.0], $saved['fields']['post']);
+            self::assertSame(['category' => 1.5, 'tag' => 1.0], $saved['taxonomies']['post']);
+        }
+
+        public function test_stop_words_and_synonyms_accept_text_only(): void
+        {
+            self::assertSame([], $this->save(['stopwords' => ['a', 'b']])['stopwords']);
+            self::assertSame(['a', 'b'], $this->save(['stopwords' => 'a b'])['stopwords']);
+            self::assertSame(['heart' => ['cardiac']], $this->save(['synonyms' => "heart=cardiac\r\nbad\r\n"])['synonyms']);
+            self::assertSame(['a' => ['b'], 'c' => ['d']], $this->save(['synonyms' => "a=b\nc=d"])['synonyms']);
+            self::assertSame(['a' => ['b', 'c']], $this->save(['synonyms' => 'a=b,b,c'])['synonyms']);
+        }
+
+        public function test_the_save_keeps_the_settings_the_form_does_not_carry(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['related_provider_weight' => 0.5];
+
+            self::assertSame(0.5, $this->save([])['related_provider_weight']);
+        }
     }
 }
