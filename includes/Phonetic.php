@@ -259,7 +259,11 @@ final class Phonetic
                     $add('', 'R');
                 } else {
                     $add('R');
-                } $i += $next === 'R' ? 2 : 1;
+                }
+
+                    // A step of 0 or a step back stays on a letter whose key is empty in one of the two, and the loop never ends.
+                    // @pest-mutate-ignore:DecrementInteger,PlusEqualToMinusEqual
+                    $i += $next === 'R' ? 2 : 1;
                     break;
                 case 'S':
                     if ($at($i - 1, ['ISL', 'YSL'])) {
