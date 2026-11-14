@@ -89,6 +89,27 @@ final class HandMutateTest extends TestCase
         self::assertStringContainsString("declare(strict_types=1);\nthrow new \\RuntimeException('hand-mutation control');\n", $planted);
         self::assertNotSame(self::SOURCE, $planted);
 
+        // The throw follows `declare` and `namespace`, which PHP requires first, so the planted file compiles.
+        $namespaced = killControl("<?php
+
+declare(strict_types=1);
+
+namespace Demo\Part;
+
+use Foo\Bar;
+
+function g() {}
+");
+        self::assertStringContainsString("namespace Demo\Part;
+throw new \RuntimeException('hand-mutation control');
+
+
+use Foo\Bar;", $namespaced);
+        $path = tempnam(sys_get_temp_dir(), 'hm');
+        file_put_contents($path, $namespaced);
+        self::assertTrue(lints($path));
+        unlink($path);
+
         $withoutDeclare = killControl("<?php\n\nfunction g() {}\n");
         self::assertStringStartsWith("<?php\nthrow new \\RuntimeException('hand-mutation control');", $withoutDeclare);
 

@@ -233,15 +233,19 @@ function nextSignificant(array $tokens, int $index): int|string|null
 
 /**
  * The source with the kill control planted: a throw that runs as soon as the file is loaded.
+ *
+ * It goes after the `declare` and `namespace` statements, which PHP requires to come first, so the file still compiles and the
+ * suite fails by running the throw rather than by a compile error.
  */
 function killControl(string $source): string
 {
-    $throw = "\nthrow new \\RuntimeException('hand-mutation control');\n";
-    $declare = 'declare(strict_types=1);';
-    $at = strpos($source, $declare);
-    if ($at !== false) {
-        $at += \strlen($declare);
-    } else {
+    $at = 0;
+    foreach (['/declare\(strict_types=1\);/', '/^namespace [^;{]+;/m'] as $statement) {
+        if (preg_match($statement, $source, $match, PREG_OFFSET_CAPTURE, $at) === 1) {
+            $at = $match[0][1] + \strlen($match[0][0]);
+        }
+    }
+    if ($at === 0) {
         $at = strpos($source, '<?php');
         if ($at === false) {
             throw new \LogicException('The file has no PHP open tag.');
@@ -249,7 +253,9 @@ function killControl(string $source): string
         $at += 5;
     }
 
-    return substr($source, 0, $at).$throw.substr($source, $at);
+    return substr($source, 0, $at)."
+throw new \RuntimeException('hand-mutation control');
+".substr($source, $at);
 }
 
 /**
