@@ -12,9 +12,13 @@ final class Config
      */
     public static function defaults(): array
     {
+        // An environment type is plain text, so a loose comparison with these names matches only when the strict one does.
+        // @pest-mutate-ignore:TrueToFalse
+        $preview = \function_exists('wp_get_environment_type') && \in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true);
+
         return [
             'enabled' => false, 'live' => true, 'logging' => true,
-            'preview_noindex' => \function_exists('wp_get_environment_type') && \in_array(wp_get_environment_type(), ['local', 'development', 'staging'], true),
+            'preview_noindex' => $preview,
             'results_per_page' => 20,
             'sites' => null, 'related_provider_weight' => 0.25,
             'weights' => ['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1],
@@ -173,6 +177,8 @@ final class Config
             } elseif (\is_bool($default)) {
                 $config[$key] = \is_scalar($value) ? (bool) $value : $default;
             } elseif (\is_int($default) || \is_float($default)) {
+                // Adding zero turns numeric text into a number; subtracting zero does the same.
+                // @pest-mutate-ignore:PlusToMinus
                 $config[$key] = is_numeric($value) ? $value + 0 : $default;
             } else {
                 $config[$key] = \is_array($value) ? $value : $default;
@@ -193,8 +199,8 @@ final class Config
         // Fall back to the configured size
         $value ??= self::number('results_per_page') ?: 20;
 
-        // The finite check converts numeric text the same way without its cast.
-        // @pest-mutate-ignore:RemoveDoubleCast
+        // The finite check converts numeric text the same way without its cast, and the return type truncates a number the same way as the integer cast.
+        // @pest-mutate-ignore:RemoveDoubleCast,RemoveIntegerCast
         return \is_scalar($value) && is_numeric($value) && is_finite((float) $value) ? max(1, min(100, (int) $value)) : 20;
     }
 
