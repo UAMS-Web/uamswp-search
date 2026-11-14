@@ -25,8 +25,15 @@ final class SiteNamesTest extends TestCase
     protected function setUp(): void
     {
         SiteNames::reset();
+        // The lookups below are the multisite ones
+        $GLOBALS['uams_test_multisite'] = true;
         $GLOBALS['uams_test_blog_lookups'] = [];
         $GLOBALS['uams_test_sites'] = [1 => 'Main Site', 4 => 'Clinics <b>&</b> "Care"'];
+    }
+
+    protected function tearDown(): void
+    {
+        unset($GLOBALS['uams_test_multisite']);
     }
 
     public function test_known_site_and_missing_site(): void
@@ -52,6 +59,22 @@ final class SiteNamesTest extends TestCase
     {
         $rows = SiteNames::prefix([['1', 'post', 'indexed', '5'], ['4', 'page', 'error', '2'], ['99', 'post', 'indexed', '1']]);
         self::assertSame([['Main Site', 1, 'post', 'indexed', '5'], [$GLOBALS['uams_test_sites'][4], 4, 'page', 'error', '2'], ['(site not found)', 99, 'post', 'indexed', '1']], $rows);
+    }
+
+    public function test_a_single_site_reads_its_title_from_the_option_and_never_calls_get_blog_details(): void
+    {
+        $GLOBALS['uams_test_multisite'] = false;
+        try {
+            $GLOBALS['uams_test_options'] = ['blogname' => 'Only Site'];
+            self::assertSame('Only Site', SiteNames::name(1));
+            self::assertSame('(site not found)', SiteNames::name(2), 'A single site has no other site');
+            SiteNames::reset();
+            $GLOBALS['uams_test_options'] = ['blogname' => ''];
+            self::assertSame('(site not found)', SiteNames::name(1), 'An empty title reads as missing');
+            self::assertSame([], $GLOBALS['uams_test_blog_lookups']);
+        } finally {
+            $GLOBALS['uams_test_options'] = [];
+        }
     }
 
     public function test_each_site_is_looked_up_once(): void
