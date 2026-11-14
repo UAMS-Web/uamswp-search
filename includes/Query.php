@@ -94,9 +94,7 @@ final class Query
                 continue;
             }
 
-            // MariaDB can return an infinite score for a row that was re-indexed, and multiplying it raises "DOUBLE value is out of range" (#114), so a score outside 0 to 1,000,000 counts as 0
-            $match = $wpdb->prepare("MATCH(i.{$column}_stem) AGAINST(%s IN BOOLEAN MODE)", $scoring);
-            $expression = "IF($match BETWEEN 0 AND 1000000,$match,0)";
+            $expression = $wpdb->prepare("MATCH(i.{$column}_stem) AGAINST(%s IN BOOLEAN MODE)", $scoring);
             $parts[] = '('.$expression.'*'.self::sql_weight($weight).')';
             $explain[] = $expression.' AS '.$column.'_score';
         }
