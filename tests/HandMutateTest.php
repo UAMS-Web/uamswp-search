@@ -150,22 +150,22 @@ use Foo\Bar;", $namespaced);
     public function test_the_record_names_each_unkilled_mutant_and_the_controls(): void
     {
         $rows = [
-            ['operator' => 'RemoveNot', 'line' => 8, 'from' => '!', 'to' => '', 'killer' => '', 'reason' => '', 'result' => 'survived'],
-            ['operator' => 'PlusToMinus', 'line' => 9, 'from' => '+', 'to' => '-', 'killer' => '', 'reason' => 'The sum is only logged.', 'result' => 'equivalent'],
-            ['operator' => 'TrueToFalse', 'line' => 12, 'from' => 'true', 'to' => 'false', 'killer' => 'Foo::test_a|b', 'reason' => '', 'result' => 'killed'],
+            ['operator' => 'RemoveNot', 'line' => 8, 'from' => '!', 'to' => '', 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => 'survived'],
+            ['operator' => 'PlusToMinus', 'line' => 9, 'from' => '+', 'to' => '-', 'killer' => '', 'suite' => 'integration', 'reason' => 'The sum is only logged.', 'result' => 'equivalent'],
+            ['operator' => 'TrueToFalse', 'line' => 12, 'from' => 'true', 'to' => 'false', 'killer' => 'Foo::test_a|b', 'suite' => 'unit', 'reason' => '', 'result' => 'killed'],
         ];
         $md = report(
-            ['Demo' => ['total' => 3, 'killed' => 1, 'equivalent' => 1, 'survived' => 1, 'invalid' => 0, 'rows' => $rows]],
+            ['Demo' => ['total' => 3, 'killed' => 1, 'killed_unit' => 0, 'equivalent' => 1, 'survived' => 1, 'invalid' => 0, 'rows' => $rows]],
             ['Planted survivor' => ['result' => 'survived', 'killer' => ''], 'Planted kill (throws on load)' => ['result' => 'killed', 'killer' => 'Foo::test_a']],
             'PHP test on Linux.'
         );
 
         self::assertStringContainsString('| Planted survivor | survived | survived | n/a |', $md);
         self::assertStringContainsString('| Planted kill (throws on load) | killed | killed | `Foo::test_a` |', $md);
-        self::assertStringContainsString('| `Demo` | 3 | 1 | 1 | 1 | 0 |', $md);
+        self::assertStringContainsString('| `Demo` | 3 | 1 | 0 | 1 | 1 | 0 |', $md);
         self::assertStringContainsString('| RemoveNot | 8 | `!` to `` | survived |', $md);
         self::assertStringContainsString('| PlusToMinus | 9 | `+` to `-` | equivalent: The sum is only logged. |', $md);
-        self::assertStringContainsString('| `Demo` | TrueToFalse | 12 | `Foo::test_a\\|b` |', $md);
+        self::assertStringContainsString('| `Demo` | TrueToFalse | 12 | unit | `Foo::test_a\\|b` |', $md);
         self::assertStringNotContainsString('| TrueToFalse | 12 | `true` to `false` |', $md);
     }
 }

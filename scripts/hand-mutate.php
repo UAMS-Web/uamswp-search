@@ -19,6 +19,8 @@
  *   --list          Print the mutants and exit; runs nothing.
  *   --shard=I/N     Run every Nth mutant, starting at the Ith (1-based), so one class can be split across jobs.
  *   --phpunit=CMD   The command that runs the suite (default below). A non-zero exit means the mutant was killed.
+ *   --unit=CMD      The command for the Pest unit suite, run on a mutant the integration suite did not kill (default below);
+ *                   `--unit=none` skips it. A mutant that suite kills is recorded as killed by the unit suite.
  *   --timeout=SEC   Seconds before a mutant's run is stopped and counted as killed (default: four times the
  *                   baseline run, at least 60).
  *   --report=PATH   Write the Markdown record here (also appended to GITHUB_STEP_SUMMARY when it is set).
@@ -48,6 +50,9 @@ const CLASSES = [
     'ProviderCard' => 'includes/ProviderCard.php',
     'Rebuild' => 'includes/Rebuild.php',
 ];
+
+/** The Pest unit suite, run against a mutant the integration suite did not kill: most of these classes are also covered there. */
+const UNIT_COMMAND = 'php -d pcov.enabled=0 vendor/bin/pest --bail --colors=never';
 
 const DEFAULT_COMMAND = 'php -d pcov.enabled=0 tests/Integration/vendor/bin/phpunit --configuration tests/Integration/phpunit.xml --stop-on-failure --colors=never';
 
@@ -345,9 +350,9 @@ function report(array $results, array $controls, string $environment): string
         $md .= "| {$name} | ".($name === 'Planted survivor' ? 'survived' : 'killed')." | {$control['result']} | ".($control['killer'] === '' ? 'n/a' : '`'.$control['killer'].'`')." |\n";
     }
 
-    $md .= "\n### Classes\n\n| Class | Mutants | Killed | Survived (equivalent) | Survived (unexplained) | Invalid |\n| --- | --- | --- | --- | --- | --- |\n";
+    $md .= "\n### Classes\n\n| Class | Mutants | Killed by the integration suite | Killed by the unit suite | Survived (equivalent) | Survived (unexplained) | Invalid |\n| --- | --- | --- | --- | --- | --- | --- |\n";
     foreach ($results as $class => $data) {
-        $md .= "| `{$class}` | {$data['total']} | {$data['killed']} | {$data['equivalent']} | {$data['survived']} | {$data['invalid']} |\n";
+        $md .= "| `{$class}` | {$data['total']} | {$data['killed']} | {$data['killed_unit']} | {$data['equivalent']} | {$data['survived']} | {$data['invalid']} |\n";
     }
 
     foreach ($results as $class => $data) {
@@ -362,11 +367,11 @@ function report(array $results, array $controls, string $environment): string
         }
     }
 
-    $md .= "\n### Every mutant\n\n<details><summary>Killed mutants, with the first failing test</summary>\n\n| Class | Mutant | Line | Killed by |\n| --- | --- | --- | --- |\n";
+    $md .= "\n### Every mutant\n\n<details><summary>Killed mutants, with the suite and the first failing test</summary>\n\n| Class | Mutant | Line | Suite | Killed by |\n| --- | --- | --- | --- | --- |\n";
     foreach ($results as $class => $data) {
         foreach ($data['rows'] as $row) {
             if ($row['result'] === 'killed') {
-                $md .= "| `{$class}` | {$row['operator']} | {$row['line']} | ".($row['killer'] === '' ? 'n/a' : '`'.str_replace('|', '\\|', $row['killer']).'`')." |\n";
+                $md .= "| `{$class}` | {$row['operator']} | {$row['line']} | {$row['suite']} | ".($row['killer'] === '' ? 'n/a' : '`'.str_replace('|', '\\|', $row['killer']).'`')." |\n";
             }
         }
     }
@@ -431,6 +436,7 @@ function main(array $argv): int
     }
 
     $command = $options['phpunit'] ?? DEFAULT_COMMAND;
+    $unitCommand = ($options['unit'] ?? UNIT_COMMAND) === 'none' ? null : ($options['unit'] ?? UNIT_COMMAND);
 
     // The unmutated suite must pass: otherwise every mutant reads as killed.
     $baseline = runSuite($command, 3600);
@@ -495,9 +501,9 @@ function main(array $argv): int
     if ($controlsOk) {
         foreach ($plan as $name => $list) {
             $path = CLASSES[$name];
-            $data = ['total' => \count($list), 'killed' => 0, 'equivalent' => 0, 'survived' => 0, 'invalid' => 0, 'rows' => []];
+            $data = ['total' => \count($list), 'killed' => 0, 'killed_unit' => 0, 'equivalent' => 0, 'survived' => 0, 'invalid' => 0, 'rows' => []];
             foreach ($list as $number => $mutant) {
-                $row = ['operator' => $mutant['operator'], 'line' => $mutant['line'], 'from' => $mutant['from'], 'to' => $mutant['to'], 'killer' => '', 'reason' => '', 'result' => ''];
+                $row = ['operator' => $mutant['operator'], 'line' => $mutant['line'], 'from' => $mutant['from'], 'to' => $mutant['to'], 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => ''];
                 $outcome = $withSource($path, $mutant['source'], static function () use ($path, $command, $timeout): ?array {
                     return lints($path) ? runSuite($command, $timeout) : null;
                 });
@@ -508,6 +514,11 @@ function main(array $argv): int
                     $row['result'] = 'killed';
                     $row['killer'] = $outcome['timed_out'] ? 'timeout' : $outcome['killer'];
                     $data['killed']++;
+                } elseif ($unitCommand !== null && ($unit = $withSource($path, $mutant['source'], static fn (): array => runSuite($unitCommand, $timeout)))['code'] !== 0) {
+                    $row['result'] = 'killed';
+                    $row['suite'] = 'unit';
+                    $row['killer'] = $unit['timed_out'] ? 'timeout' : $unit['killer'];
+                    $data['killed_unit']++;
                 } else {
                     $reason = '';
                     foreach ($equivalents as $entry) {
