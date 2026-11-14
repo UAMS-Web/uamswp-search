@@ -30,6 +30,8 @@ final class Stemmer
     {
         // Mark each letter
         $shape = '';
+        // A loop that never reaches its end cannot be killed by a failing test, only by a timeout, which the mutation check does not count.
+        // @pest-mutate-ignore:PostIncrementToPostDecrement,SmallerToGreaterOrEqual
         for ($i = 0, $n = \strlen($s); $i < $n; $i++) {
             $v = str_contains('aeiou', $s[$i]) || ($s[$i] === 'y' && $i > 0 && $shape[$i - 1] === 'c');
             $shape .= $v ? 'v' : 'c';
