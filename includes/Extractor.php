@@ -43,6 +43,8 @@ final class Extractor
 
         // Accept only public PDFs, with a viewable parent when they have one
         if ($post->post_type === 'attachment') {
+            // A status is a non-numeric word, so a loose comparison with these two matches only when the strict one does.
+            // @pest-mutate-ignore:TrueToFalse
             if (! Config::flag('pdf') || $post->post_mime_type !== 'application/pdf' || ! \in_array($post->post_status, ['inherit', 'publish'], true)) {
                 return false;
             }
@@ -83,8 +85,6 @@ final class Extractor
         $terms = [];
         $field_list = Filters::array('uams_search_fields', Config::entry('fields', $post->post_type), $post->post_type);
         foreach ($field_list as $name => $weight) {
-            // `get_field()` exists only where ACF is active, and a test cannot undefine a function once an earlier test has defined it, so the meta branch never runs in the full run; both branches read one value.
-            // @pest-mutate-ignore:TrueToFalse
             $value = \function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             // Index the labels, titles and names ACF stores as keys and IDs, then let a site change the value last
             $key = get_post_meta($post->ID, '_'.$name, true);

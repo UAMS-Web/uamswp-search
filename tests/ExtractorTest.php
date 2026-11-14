@@ -159,7 +159,7 @@ namespace UAMS_Search\Tests {
     /**
      * Pins for what the indexer reads from a post (#5). WordPress functions are stood in; a PDF is read from the cache of an unchanged file, so the worker itself is covered by `PdfTest`.
      *
-     * Accepted equivalents, annotated in `Extractor.php` with their reasons: the meta branch of the field read (a test cannot undefine `get_field()` once an earlier test has defined it), the key of a field that does not start with `field_`, and the string casts of integer keys.
+     * Accepted equivalents, annotated in `Extractor.php` with their reasons: the strict comparison of an attachment's status (a status is a non-numeric word), the key of a field that does not start with `field_`, and the string casts of integer keys.
      */
     final class ExtractorTest extends TestCase
     {
@@ -683,8 +683,15 @@ namespace UAMS_Search\Tests {
 
         public function test_a_field_is_read_through_acf_unformatted_when_acf_is_active(): void
         {
+            // One stand-in with `CardFieldsTest`, whose test defines it at run time: a function cannot be undefined, so the meta branch of the field read runs in the tests before this one and the ACF branch after it.
             if (! function_exists('get_field')) {
-                self::markTestSkipped('`CardFieldsTest` defines the get_field stand-in; without it the field is read from post meta.');
+                eval('function get_field($name, $object, $format = true) {
+            if (empty($GLOBALS["uams_test_acf"])) {
+                return $object instanceof WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
+            }
+
+            return [$name, $object instanceof WP_Term ? "term" : $object, $format];
+        }');
             }
 
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['note' => 1]]];
