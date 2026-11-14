@@ -86,6 +86,11 @@ function number_format_i18n($n)
     return number_format($n);
 }
 
+function _n($single, $plural, $number, $domain = 'default')
+{
+    return $number === 1 ? $single : $plural;
+}
+
 function wp_kses($s, $allow)
 {
     return strip_tags($s, '<mark>');
