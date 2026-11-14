@@ -38,6 +38,9 @@ final class LocationCardTest extends IntegrationTestCase
 
     private int $remote = 0;
 
+    /** @var list<int> Terms created by a test, deleted afterwards. */
+    private array $terms = [];
+
     private mixed $old_query = null;
 
     private mixed $old_post = null;
@@ -75,6 +78,11 @@ final class LocationCardTest extends IntegrationTestCase
     public function tear_down(): void
     {
         global $wpdb;
+        foreach ($this->terms as $term) {
+            wp_delete_term($term, 'building');
+        }
+
+        $this->terms = [];
         $GLOBALS['wp_query'] = $this->old_query;
         $GLOBALS['post'] = $this->old_post;
         update_option('timezone_string', $this->old_timezone);
@@ -264,12 +272,132 @@ final class LocationCardTest extends IntegrationTestCase
         $this->assertTrue(get_current_blog_id() === $this->site && $GLOBALS['post'] === $caller && get_post($this->child)->post_title === 'Child Clinic', 'Remote cards restore caller state and preserve the local post cache');
     }
 
+    public function test_values_that_cannot_be_phone_numbers_are_dropped_and_the_length_limits_hold(): void
+    {
+        $child = $this->child;
+        $accepted = ['5015264020' => '501-526-4020', '1234567' => '1234567', '123456789012345' => '123456789012345', '1-501-526-4020' => '501-526-4020', '(501)'.str_repeat(' ', 87).'526-4020' => '501-526-4020'];
+        $this->assertSame(100, strlen(array_key_last($accepted)), 'The longest accepted value is exactly 100 characters');
+        foreach ($accepted as $value => $text) {
+            update_post_meta($child, 'location_phone', (string) $value);
+            $this->assertSame($text, LocationCard::data($this->snapshot($child))['phones']['numbers'][0]['text'], 'Accepted: '.trim((string) $value));
+        }
+
+        $rejected = ['not a number', '123456', '1234567890123456', '(501)'.str_repeat(' ', 88).'526-4020', str_repeat('5', 101)];
+        foreach ($rejected as $value) {
+            update_post_meta($child, 'location_phone', $value);
+            $this->assertSame([], LocationCard::data($this->snapshot($child))['phones']['numbers'], 'Rejected: '.substr($value, 0, 20));
+        }
+
+        update_post_meta($child, 'location_phone', ['5015264020']);
+        $this->assertSame([], LocationCard::data($this->snapshot($child))['phones']['numbers'], 'A list is not a phone number');
+    }
+
+    public function test_an_address_line_that_is_not_text_is_left_out(): void
+    {
+        $this->set($this->child, ['location_parent' => '0', 'location_address_1' => ['100 Main Street']]);
+
+        $this->assertSame(['Child city'], LocationCard::data($this->snapshot($this->child))['address']);
+    }
+
+    public function test_dates_are_read_in_each_stored_format_and_nothing_else(): void
+    {
+        $date = new ReflectionMethod(LocationCard::class, 'date');
+        foreach (['20261030', '2026-10-30', 'October 30, 2026'] as $value) {
+            $this->assertSame('2026-10-30', $date->invoke(null, $value)?->format('Y-m-d'), $value);
+        }
+
+        foreach ([['20261030'], '', str_repeat('2', 41), "2026\0", '20261340', '2026-02-30', 'Octember 30, 2026', 20261030] as $value) {
+            $this->assertNull($date->invoke(null, $value), is_string($value) ? substr($value, 0, 20) : gettype($value));
+        }
+    }
+
+    public function test_the_address_names_the_building_the_floor_and_the_suite(): void
+    {
+        if (function_exists('get_field_object')) {
+            $this->markTestSkipped('A floor-choice function is already defined in this process.');
+        }
+
+        $child = $this->child;
+        update_post_meta($child, 'location_parent', '0');
+        $building = $this->track_term(wp_insert_term('Tower '.$this->token, 'building')['term_id']);
+        $this->set($child, ['location_building' => $building, 'location_building_floor' => 'B', 'location_suite' => 'Suite 5', 'location_address_2' => 'Ignored second line']);
+        $city = 'Child city';
+
+        $this->assertSame(['Child address', 'Tower '.$this->token, 'Level B, Suite 5', $city], LocationCard::data($this->snapshot($child))['address'], 'A building and level replace the second address line');
+        foreach (['G' => 'Ground Floor, Suite 5', '3' => 'Floor 3, Suite 5', '20' => 'Floor 20, Suite 5', '21' => 'Suite 5', '0' => 'Suite 5', '' => 'Suite 5', 'penthouse' => 'Suite 5'] as $floor => $level) {
+            update_post_meta($child, 'location_building_floor', $floor);
+            $this->assertSame($level, LocationCard::data($this->snapshot($child))['address'][2], 'Floor value "'.$floor.'"');
+        }
+
+        $this->set($child, ['location_suite' => '', 'location_building_floor' => '3']);
+        $this->assertSame(['Child address', 'Tower '.$this->token, 'Floor 3', $city], LocationCard::data($this->snapshot($child))['address']);
+        $this->set($child, ['location_suite' => 'Suite 5', 'location_building' => 0]);
+        $this->assertSame(['Child address', 'Floor 3, Suite 5', $city], LocationCard::data($this->snapshot($child))['address'], 'A level alone still replaces the second address line');
+        $this->set($child, ['location_suite' => '', 'location_building_floor' => '']);
+        $this->assertSame(['Child address', 'Ignored second line', $city], LocationCard::data($this->snapshot($child))['address'], 'With no building or level the second address line is used');
+    }
+
+    public function test_a_building_with_the_placeholder_slug_is_not_named(): void
+    {
+        $child = $this->child;
+        update_post_meta($child, 'location_parent', '0');
+        $none = wp_insert_term('None '.$this->token, 'building', ['slug' => '_none']);
+        $this->assertIsArray($none);
+        $this->track_term($none['term_id']);
+        $this->set($child, ['location_building' => $none['term_id'], 'location_address_2' => 'Second line']);
+
+        $this->assertSame(['Child address', 'Second line', 'Child city'], LocationCard::data($this->snapshot($child))['address']);
+    }
+
+    /** Declares the ACF function for the rest of the process, so it runs after the tests that need it absent. */
+    public function test_the_floor_is_named_from_the_field_choices_when_acf_is_active(): void
+    {
+        if (! function_exists('get_field_object')) {
+            eval('function get_field_object($selector, $post_id = false, $format = true) { return $GLOBALS["uams_floor_object"] ?? false; }');
+        }
+
+        $child = $this->child;
+        update_post_meta($child, 'location_parent', '0');
+        $this->set($child, ['location_building_floor' => '2', 'location_suite' => '']);
+
+        $GLOBALS['uams_floor_object'] = ['choices' => ['2' => 'Second Floor']];
+        $this->assertSame('Second Floor', LocationCard::data($this->snapshot($child))['address'][1]);
+        $GLOBALS['uams_floor_object'] = ['choices' => ['9' => 'Ninth Floor']];
+        $this->assertSame('Child city', LocationCard::data($this->snapshot($child))['address'][1], 'A value with no choice names no floor');
+        $GLOBALS['uams_floor_object'] = ['choices' => 'none'];
+        $this->assertSame('Child city', LocationCard::data($this->snapshot($child))['address'][1], 'Choices that are not a list name no floor');
+        $GLOBALS['uams_floor_object'] = false;
+        $this->assertSame('Child city', LocationCard::data($this->snapshot($child))['address'][1], 'A missing field object names no floor');
+        unset($GLOBALS['uams_floor_object']);
+    }
+
+    /** Defines the placeholder constant for the rest of the process, so it runs last. */
+    public function test_a_location_with_no_photo_shows_the_directory_placeholder_when_it_is_known(): void
+    {
+        $bare = $this->make_page(['post_type' => 'location', 'post_title' => 'Bare '.$this->token]);
+        if (! defined('UAMS_FAD_ROOT_URL')) {
+            $this->assertSame('', LocationCard::data($this->snapshot($bare))['image'], 'Without the directory there is no placeholder');
+            define('UAMS_FAD_ROOT_URL', 'https://directory.example.test/fad/');
+        }
+
+        $image = LocationCard::data($this->snapshot($bare))['image'];
+        $this->assertStringContainsString('src="'.esc_url(rtrim(UAMS_FAD_ROOT_URL, '/').'/assets/svg/no-image_16-9.svg').'"', $image);
+        $this->assertStringContainsString('alt="" loading="lazy" width="512" height="288"', $image);
+    }
+
     /** @param array<string, mixed> $values */
     private function set(int $id, array $values): void
     {
         foreach ($values as $key => $value) {
             update_post_meta($id, $key, $value);
         }
+    }
+
+    private function track_term(int $id): int
+    {
+        $this->terms[] = $id;
+
+        return $id;
     }
 
     private function image(int $owner, string $label): void
