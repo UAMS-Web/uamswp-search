@@ -8,9 +8,13 @@ use DateTimeImmutable;
 final class FieldText
 {
     /** Bump when the text this class produces changes, so the settings fingerprint asks for a rebuild. */
+    // The line holds no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins the value.
+    // @pest-mutate-ignore:IncrementInteger,DecrementInteger
     public const VERSION = 1;
 
     /** Types whose stored value is a choice key. */
+    // The array items hold no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins every type.
+    // @pest-mutate-ignore:RemoveArrayItem
     private const CHOICES = ['select', 'radio', 'button_group', 'checkbox'];
 
     /**
@@ -19,6 +23,8 @@ final class FieldText
      * copied in, because nothing reindexes a page when the linked post or term
      * changes, so an unpublished or renamed title would stay searchable.
      */
+    // The array items hold no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins every type.
+    // @pest-mutate-ignore:RemoveArrayItem
     private const SKIPPED = ['image', 'file', 'gallery', 'true_false', 'link', 'google_map', 'relationship', 'post_object', 'taxonomy', 'acfe_taxonomy_terms'];
 
     /**
@@ -26,9 +32,13 @@ final class FieldText
      * key; stored on their own (block data, or no ACF) they are a row count or
      * a layout list.
      */
+    // The array items hold no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins every type.
+    // @pest-mutate-ignore:RemoveArrayItem
     private const CONTAINERS = ['repeater', 'flexible_content', 'group'];
 
     /** How deep sub-fields are followed, matching `Text::flatten()`. */
+    // The line holds no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins the depth.
+    // @pest-mutate-ignore:IncrementInteger,DecrementInteger
     private const MAX_DEPTH = 12;
 
     /**
@@ -60,14 +70,18 @@ final class FieldText
 
         // Turn the value into text by the field's type
         $type = $field['type'];
+        // A type is a non-numeric word, so a loose comparison with these words matches only when the strict one does.
+        // @pest-mutate-ignore:TrueToFalse
         if (\in_array($type, self::SKIPPED, true)) {
             return '';
         }
 
+        // @pest-mutate-ignore:TrueToFalse
         if (\in_array($type, self::CONTAINERS, true)) {
             return \is_array($value) && $depth < self::MAX_DEPTH ? self::rows($value, $depth + 1) : '';
         }
 
+        // @pest-mutate-ignore:TrueToFalse
         if (\in_array($type, self::CHOICES, true)) {
             $labels = self::labels(\is_array($field['choices'] ?? null) ? $field['choices'] : []);
 
@@ -96,11 +110,15 @@ final class FieldText
         string $key,
         string $name
     ): ?array {
+        // A test cannot undefine `acf_get_field()` once its stand-in exists, so the branch for a site without ACF is never run; `uams-search.php` loads on sites with and without ACF.
+        // @pest-mutate-ignore:RemoveEarlyReturn
         if (! \function_exists('acf_get_field')) {
             return null;
         }
 
         // Look the field up by its key, then by its name
+        // Anything that is not an array sends the lookup on to the name, so `true` in place of `false` reads the same.
+        // @pest-mutate-ignore:FalseToTrue
         $field = str_starts_with($key, 'field_') ? acf_get_field($key) : false;
         if (! \is_array($field) && $name !== '') {
             $field = acf_get_field($name);
@@ -147,6 +165,8 @@ final class FieldText
         foreach ($choices as $key => $label) {
             foreach (\is_array($label) ? $label : [$key => $label] as $item => $text) {
                 if (\is_scalar($text)) {
+                    // Array keys that look like integers become integers, and the closure's string return type turns a label into text, so the casts change no result.
+                    // @pest-mutate-ignore:RemoveStringCast
                     $labels[(string) $item] = (string) $text;
                 }
             }
@@ -165,6 +185,8 @@ final class FieldText
     {
         $items = \is_array($value) ? $value : [$value];
 
+        // `trim()` turns a number into the same text without the cast.
+        // @pest-mutate-ignore:RemoveStringCast
         return array_values(array_filter(array_map(static fn (mixed $item): string => \is_scalar($item) ? trim((string) $item) : '', $items), static fn (string $item): bool => $item !== ''));
     }
 
@@ -176,6 +198,8 @@ final class FieldText
      */
     private static function date(mixed $value): string
     {
+        // `trim()` turns a number into the same text without the cast, and text that is not a date fails to parse whatever it says.
+        // @pest-mutate-ignore:RemoveStringCast,EmptyStringToNotEmpty
         $text = \is_scalar($value) ? trim((string) $value) : '';
         $date = DateTimeImmutable::createFromFormat('!Ymd', $text);
 

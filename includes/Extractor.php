@@ -43,6 +43,8 @@ final class Extractor
 
         // Accept only public PDFs, with a viewable parent when they have one
         if ($post->post_type === 'attachment') {
+            // A status is a non-numeric word, so a loose comparison with these two matches only when the strict one does.
+            // @pest-mutate-ignore:TrueToFalse
             if (! Config::flag('pdf') || $post->post_mime_type !== 'application/pdf' || ! \in_array($post->post_status, ['inherit', 'publish'], true)) {
                 return false;
             }
@@ -86,6 +88,8 @@ final class Extractor
             $value = \function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             // Index the labels, titles and names ACF stores as keys and IDs, then let a site change the value last
             $key = get_post_meta($post->ID, '_'.$name, true);
+            // `FieldText` reads a key only when it starts with `field_`, so any other text in place of an empty key reads the same.
+            // @pest-mutate-ignore:EmptyStringToNotEmpty
             $value = FieldText::readable($value, \is_string($key) ? $key : '', $name);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
             self::log_skips($value, $post->ID, $name);
@@ -181,7 +185,9 @@ final class Extractor
             foreach ($allowed as $name => $weight) {
                 $values = [];
                 foreach ($data as $key => $value) {
+                    // Without strict types an integer key becomes the same text, and a key that does not start with `field_` reads the same as an empty one, so these changes show in no result.
                     // ACF's saved repeater keys are field_0_child; never include _field key references.
+                    // @pest-mutate-ignore:RemoveStringCast,EmptyStringToNotEmpty
                     if ($key === $name || str_starts_with((string) $key, $name.'_')) {
                         // The block saves each field's key beside its value under `_<name>`
                         $field_key = $data['_'.$key] ?? '';

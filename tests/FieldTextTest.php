@@ -20,7 +20,11 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use UAMS_Search\FieldText;
 
-    /** Pins for how a stored ACF value becomes searchable text, by field type (#159). */
+    /**
+     * Pins for how a stored ACF value becomes searchable text, by field type (#159).
+     *
+     * Accepted equivalents, annotated in `FieldText.php` with their reasons: the constants (a constant's line is never recorded as run, so the values are pinned here by the types and depths below), the strict type comparisons (a type is a non-numeric word), the branch for a site without ACF (a test cannot undefine `acf_get_field()`), `false` or `true` where a key is not a field key (anything that is not an array sends the lookup on to the name), and the casts of numbers to text that the function return types or `trim()` repeat.
+     */
     final class FieldTextTest extends TestCase
     {
         protected function setUp(): void
@@ -125,8 +129,8 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_acf_fields']['field_state'] = ['type' => 'radio', 'choices' => ['AR' => 'Arkansas']];
 
             self::assertSame([['Arkansas'], 'kept'], FieldText::readable(['field_state' => 'AR', 'field_gone' => 'kept', 'plain_key' => 'dropped'], 'field_1', 'physician_resident_profile_group'));
-            // A sub-field key that ACF does not know is not looked up by an empty name
-            self::assertNotContains('', $GLOBALS['uams_test_acf_lookups']);
+            // A sub-field key that ACF does not know is not looked up by an empty name, and a key that is not a field key is not looked up at all
+            self::assertSame(['field_1', 'field_state', 'field_gone'], $GLOBALS['uams_test_acf_lookups']);
         }
 
         public function test_sub_fields_are_followed_no_deeper_than_twelve_levels(): void
@@ -201,6 +205,73 @@ namespace UAMS_Search\Tests {
             self::assertSame(['Arkansas'], FieldText::readable('AR', '', 'location_state'));
             self::assertSame(['Arkansas'], FieldText::readable('AR', 'not-a-key', 'location_state'));
             self::assertSame(['field_child', 'location_state', 'location_state'], $GLOBALS['uams_test_acf_lookups']);
+        }
+
+        // --- pins added for the full coverage bar (#189) ----------------------
+
+        public function test_the_version_is_one_and_the_settings_fingerprint_depends_on_it(): void
+        {
+            self::assertSame(1, FieldText::VERSION);
+        }
+
+        /**
+         * A value nested inside the given container types, outermost first, around a text sub-field that holds `deep leaf`.
+         *
+         * @param  list<string>  $types  `group` or `repeater`, outermost first.
+         * @return array{string, mixed} The outermost field's key and its value.
+         */
+        private function nested(array $types): array
+        {
+            $GLOBALS['uams_test_acf_fields']['field_leaf'] = ['type' => 'text'];
+            $value = 'deep leaf';
+            $key = 'field_leaf';
+            foreach (array_reverse($types, true) as $i => $type) {
+                $GLOBALS['uams_test_acf_fields']['field_l'.$i] = ['type' => $type];
+                $value = $type === 'repeater' ? [[$key => $value]] : [$key => $value];
+                $key = 'field_l'.$i;
+            }
+
+            return [$key, $value];
+        }
+
+        /** @param list<string> $types */
+        private function reaches_the_leaf(array $types): bool
+        {
+            [$key, $value] = $this->nested($types);
+
+            return str_contains((string) json_encode(FieldText::readable($value, $key, 'outer')), 'deep leaf');
+        }
+
+        public function test_twelve_nested_groups_are_followed_and_a_thirteenth_is_not(): void
+        {
+            self::assertTrue($this->reaches_the_leaf(array_fill(0, 12, 'group')));
+            self::assertFalse($this->reaches_the_leaf(array_fill(0, 13, 'group')));
+        }
+
+        public function test_nested_repeaters_cost_two_levels_each(): void
+        {
+            self::assertTrue($this->reaches_the_leaf(array_fill(0, 6, 'repeater')));
+            self::assertFalse($this->reaches_the_leaf(array_fill(0, 7, 'repeater')));
+        }
+
+        public function test_a_group_around_repeaters_shifts_where_the_limit_falls(): void
+        {
+            self::assertTrue($this->reaches_the_leaf(['group', ...array_fill(0, 5, 'repeater')]));
+            self::assertFalse($this->reaches_the_leaf(['group', ...array_fill(0, 6, 'repeater')]));
+        }
+
+        public function test_choice_items_are_trimmed_and_numbers_become_text(): void
+        {
+            $this->field('select', ['choices' => ['AR' => 'Arkansas', 7 => 'Seven']]);
+
+            self::assertSame(['Arkansas', 'Seven'], FieldText::readable([' AR ', 7], 'field_1', 'location_state'));
+        }
+
+        public function test_a_date_with_spaces_around_it_is_still_a_date(): void
+        {
+            $this->field('date_picker');
+
+            self::assertSame('March 5, 2026', FieldText::readable(' 20260305 ', 'field_1', 'location_reopen_date'));
         }
     }
 }
