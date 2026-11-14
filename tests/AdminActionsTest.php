@@ -9,6 +9,7 @@ namespace {
         function add_action($hook, $callback, $priority = 10, $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
+            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
         }
     }
 
@@ -16,6 +17,7 @@ namespace {
         function add_filter($hook, $callback, $priority = 10, $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
+            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
         }
     }
 
@@ -489,6 +491,61 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertCount(2, $GLOBALS['uams_test_hooks']['admin_enqueue_scripts']);
+        }
+
+        public function test_the_hooks_register_each_handler_once_with_its_priority_and_argument_count(): void
+        {
+            $GLOBALS['uams_test_hook_args'] = [];
+            Admin::hooks();
+            $registered = $GLOBALS['uams_test_hook_args'];
+            $expected = [
+                'network_admin_menu' => [[[Admin::class, 'network_menu'], 10, 1]],
+                'admin_init' => [[[Admin::class, 'redirect_legacy_network_page'], 10, 1]],
+                'admin_menu' => [[[Admin::class, 'site_menus'], 99, 1]],
+                'admin_post_uams_search_save' => [[[Admin::class, 'save'], 10, 1]],
+                'admin_post_uams_search_site' => [[[Admin::class, 'save_site'], 10, 1]],
+                'admin_post_uams_search_retry' => [[[Admin::class, 'retry'], 10, 1]],
+                'admin_post_uams_search_setup' => [[[Admin::class, 'setup'], 10, 1]],
+                'admin_post_uams_search_refresh_choices' => [[[Admin::class, 'refresh_choices'], 10, 1]],
+                'wp_ajax_uams_search_rebuild' => [[[Admin::class, 'rebuild_ajax'], 10, 1]],
+                'admin_enqueue_scripts' => [[[Admin::class, 'rebuild_assets'], 10, 1], [[Admin::class, 'settings_assets'], 10, 1]],
+                'admin_notices' => [[[Admin::class, 'notice'], 10, 1]],
+                'network_admin_notices' => [[[Admin::class, 'notice'], 10, 1]],
+            ];
+            foreach ($expected as $hook => $entries) {
+                self::assertSame($entries, $registered[$hook], $hook);
+            }
+
+            foreach (['attachment_fields_to_edit', 'attachment_fields_to_save'] as $hook) {
+                self::assertCount(1, $registered[$hook], $hook);
+                self::assertSame([10, 2], [$registered[$hook][0][1], $registered[$hook][0][2]], $hook);
+            }
+
+            self::assertCount(\count($expected) + 2, $registered);
+        }
+
+        public function test_the_pdf_checkbox_html_and_label_are_exact(): void
+        {
+            Admin::hooks();
+            $edit = $GLOBALS['uams_test_hooks']['attachment_fields_to_edit'][0];
+            $pdf = new WP_Post;
+            $pdf->post_mime_type = 'application/pdf';
+
+            self::assertSame([
+                'label' => 'Search Visibility',
+                'input' => 'html',
+                'html' => '<input type="hidden" name="attachments[42][uams_search_present]" value="1"><label><input type="checkbox" name="attachments[42][uams_search_exclude]" value="1" > Exclude From Search</label>',
+            ], $edit([], $pdf)['uams_search_exclude']);
+
+            foreach (['1', 1, true, 'yes'] as $stored) {
+                $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = $stored;
+                self::assertStringContainsString('value="1" checked>', $edit([], $pdf)['uams_search_exclude']['html'], var_export($stored, true));
+            }
+
+            foreach (['0', 0, '', false] as $stored) {
+                $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = $stored;
+                self::assertStringNotContainsString('checked', $edit([], $pdf)['uams_search_exclude']['html'], var_export($stored, true));
+            }
         }
     }
 }

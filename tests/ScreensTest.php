@@ -107,6 +107,7 @@ namespace {
         function wp_enqueue_script($handle, $src = '', $deps = [], $ver = false, $args = []): void
         {
             $GLOBALS['uams_test_enqueued'][] = $handle;
+            $GLOBALS['uams_test_enqueue_args'][] = ['script', $handle, $src, $deps, $ver, $args];
         }
     }
 
@@ -114,12 +115,15 @@ namespace {
         function wp_enqueue_style($handle, $src = '', $deps = [], $ver = false, $media = 'all'): void
         {
             $GLOBALS['uams_test_enqueued'][] = $handle;
+            $GLOBALS['uams_test_enqueue_args'][] = ['style', $handle, $src, $deps, $ver, $media];
         }
     }
 
     if (! function_exists('wp_localize_script')) {
         function wp_localize_script($handle, $object_name, $l10n)
         {
+            $GLOBALS['uams_test_localized'][] = [$handle, $object_name, $l10n];
+
             return true;
         }
     }
@@ -151,6 +155,7 @@ namespace UAMS_Search\Tests {
     use ReflectionProperty;
     use UAMS_Search\Admin;
     use UAMS_Search\DB;
+    use UAMS_Search\Rebuild;
 
     /** Answers the table probe and returns no rows, so the screens render their empty states. */
     final class ScreensFixtureDB
@@ -199,6 +204,8 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION];
             $GLOBALS['uams_test_types'] = ['post' => (object) ['labels' => (object) ['name' => 'Posts']]];
             $GLOBALS['uams_test_enqueued'] = [];
+            $GLOBALS['uams_test_enqueue_args'] = [];
+            $GLOBALS['uams_test_localized'] = [];
             $GLOBALS['wpdb'] = new ScreensFixtureDB;
             $this->tablesReady(true);
         }
@@ -292,6 +299,42 @@ namespace UAMS_Search\Tests {
             $_GET = ['page' => 'uams-search'];
             Admin::rebuild_assets();
             self::assertContains('uams-search-rebuild', $GLOBALS['uams_test_enqueued']);
+        }
+
+        public function test_the_rebuild_assets_are_loaded_with_exact_arguments(): void
+        {
+            $_GET = ['page' => 'uams-search'];
+            Admin::rebuild_assets();
+            $version = UAMS_SEARCH_VERSION;
+
+            self::assertSame([
+                ['script', 'uams-search-rebuild', 'https://example.test/assets/admin-rebuild.js', [], $version, true],
+                ['style', 'uams-search-rebuild', 'https://example.test/assets/admin-rebuild.css', [], $version, 'all'],
+            ], $GLOBALS['uams_test_enqueue_args']);
+            self::assertSame([['uams-search-rebuild', 'UAMSRebuild', [
+                'url' => 'https://example.test/wp-admin/admin-ajax.php',
+                'nonce' => 'nonce',
+                'job' => Rebuild::state(),
+            ]]], $GLOBALS['uams_test_localized']);
+        }
+
+        public function test_the_rebuild_assets_need_the_capability_even_on_the_index_screen(): void
+        {
+            $GLOBALS['uams_test_caps'] = [];
+            $_GET = ['page' => 'uams-search'];
+            Admin::rebuild_assets();
+            Admin::settings_assets();
+
+            self::assertSame([], $GLOBALS['uams_test_enqueued']);
+        }
+
+        public function test_the_settings_script_is_loaded_with_exact_arguments(): void
+        {
+            $_GET = ['page' => 'uams-search-settings'];
+            Admin::settings_assets();
+
+            self::assertSame([['script', 'uams-search-settings', 'https://example.test/assets/admin-settings.js', [], UAMS_SEARCH_VERSION, true]], $GLOBALS['uams_test_enqueue_args']);
+            self::assertSame([], $GLOBALS['uams_test_localized']);
         }
 
         public function test_headings_and_field_labels_follow_ap_style(): void
