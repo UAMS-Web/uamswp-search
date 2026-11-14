@@ -24,6 +24,15 @@ namespace {
         }
     }
 
+    if (! function_exists('wp_safe_redirect')) {
+        function wp_safe_redirect($url): never
+        {
+            $GLOBALS['uams_test_redirect'] = $url;
+
+            throw new RuntimeException('redirect');
+        }
+    }
+
     if (! function_exists('is_network_admin')) {
         function is_network_admin()
         {
@@ -69,6 +78,7 @@ namespace {
 
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
+    use RuntimeException;
     use UAMS_Search\Admin;
 
     final class AdminMenuTest extends TestCase
@@ -129,6 +139,52 @@ namespace UAMS_Search\Tests {
             self::assertSame(['add_options_page', 'UAMSWP Search Index', 'UAMSWP Search Index', 'manage_options', 'uams-search', [Admin::class, 'page']], $GLOBALS['uams_test_menu'][1]);
             self::assertSame(['add_options_page', 'UAMSWP Search Reports', 'UAMSWP Search Reports', 'manage_options', 'uams-search-reports', [Admin::class, 'reports_page']], $GLOBALS['uams_test_menu'][2]);
             self::assertSame(['add_options_page', 'UAMSWP Search Settings', 'UAMSWP Search Settings', 'manage_options', 'uams-search-settings', [Admin::class, 'settings_page']], $GLOBALS['uams_test_menu'][3]);
+        }
+
+        public function test_the_site_page_joins_the_uams_settings_menu_when_it_is_there(): void
+        {
+            $GLOBALS['menu'] = [
+                ['Dashboard', 'read', 'index.php'],
+                ['UAMS Settings Plus', 'manage_options', 'not-this-one'],
+                ['<span class="x">UAMS Settings</span>', 'manage_options', 'uams-settings'],
+                ['UAMS Settings', 'manage_options', 'second-copy'],
+            ];
+            Admin::site_menus();
+
+            self::assertSame([
+                ['add_options_page', 'UAMSWP Search', 'UAMSWP Search', 'manage_options', 'uams-search-site', [Admin::class, 'site_page']],
+                ['add_submenu_page', 'uams-settings', 'Search', 'Search', 'manage_options', 'uams-search-site', [Admin::class, 'site_page']],
+            ], $GLOBALS['uams_test_menu'], 'Only the first match gets the entry, whatever the markup around its name.');
+        }
+
+        public function test_the_site_page_stays_under_settings_when_no_menu_is_named_uams_settings(): void
+        {
+            $GLOBALS['menu'] = [['Dashboard', 'read', 'index.php'], ['Tools', 'read', 'tools.php']];
+            Admin::site_menus();
+
+            self::assertCount(1, $GLOBALS['uams_test_menu']);
+        }
+
+        public function test_the_old_network_address_is_redirected_to_the_new_one(): void
+        {
+            $GLOBALS['uams_test_redirect'] = null;
+            try {
+                Admin::redirect_legacy_network_page();
+                self::fail('The old address must redirect.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('redirect', $runtimeException->getMessage());
+            }
+
+            self::assertSame('https://example.test/wp-admin/network/admin.php?page=uams-search', $GLOBALS['uams_test_redirect']);
+        }
+
+        public function test_any_other_address_is_left_alone(): void
+        {
+            $GLOBALS['uams_test_redirect'] = null;
+            $GLOBALS['pagenow'] = 'admin.php';
+            Admin::redirect_legacy_network_page();
+
+            self::assertNull($GLOBALS['uams_test_redirect']);
         }
 
         public function test_old_network_address_points_to_the_new_one(): void

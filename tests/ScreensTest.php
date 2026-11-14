@@ -59,7 +59,7 @@ namespace {
     if (! function_exists('wp_nonce_field')) {
         function wp_nonce_field($action = -1, $name = '_wpnonce', $referer = true, $display = true)
         {
-            $field = '<input type="hidden" name="_wpnonce" value="nonce">';
+            $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
             if ($display) {
                 echo $field;
             }
@@ -78,7 +78,13 @@ namespace {
     if (! function_exists('checked')) {
         function checked($checked, $current = true, $display = true)
         {
-            return $checked == $current ? 'checked' : '';
+            // The same comparison, output and return as WordPress's helper
+            $result = (string) $checked === (string) $current ? " checked='checked'" : '';
+            if ($display) {
+                echo $result;
+            }
+
+            return $result;
         }
     }
 
@@ -107,6 +113,7 @@ namespace {
         function wp_enqueue_script($handle, $src = '', $deps = [], $ver = false, $args = []): void
         {
             $GLOBALS['uams_test_enqueued'][] = $handle;
+            $GLOBALS['uams_test_enqueue_args'][] = ['script', $handle, $src, $deps, $ver, $args];
         }
     }
 
@@ -114,12 +121,15 @@ namespace {
         function wp_enqueue_style($handle, $src = '', $deps = [], $ver = false, $media = 'all'): void
         {
             $GLOBALS['uams_test_enqueued'][] = $handle;
+            $GLOBALS['uams_test_enqueue_args'][] = ['style', $handle, $src, $deps, $ver, $media];
         }
     }
 
     if (! function_exists('wp_localize_script')) {
         function wp_localize_script($handle, $object_name, $l10n)
         {
+            $GLOBALS['uams_test_localized'][] = [$handle, $object_name, $l10n];
+
             return true;
         }
     }
@@ -138,6 +148,13 @@ namespace {
         }
     }
 
+    if (! function_exists('wp_nonce_url')) {
+        function wp_nonce_url($url, $action = -1)
+        {
+            return $url.'&_wpnonce=nonce-for-'.$action;
+        }
+    }
+
     if (! function_exists('wp_create_nonce')) {
         function wp_create_nonce($action = '')
         {
@@ -151,9 +168,12 @@ namespace UAMS_Search\Tests {
     use ReflectionProperty;
     use UAMS_Search\Admin;
     use UAMS_Search\DB;
+    use UAMS_Search\Rebuild;
+    use UAMS_Search\SiteNames;
+    use UAMS_Search\Time;
 
     /** Answers the table probe and returns no rows, so the screens render their empty states. */
-    final class ScreensFixtureDB
+    class ScreensFixtureDB
     {
         public string $base_prefix = 'wp_';
 
@@ -199,6 +219,8 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION];
             $GLOBALS['uams_test_types'] = ['post' => (object) ['labels' => (object) ['name' => 'Posts']]];
             $GLOBALS['uams_test_enqueued'] = [];
+            $GLOBALS['uams_test_enqueue_args'] = [];
+            $GLOBALS['uams_test_localized'] = [];
             $GLOBALS['wpdb'] = new ScreensFixtureDB;
             $this->tablesReady(true);
         }
@@ -230,7 +252,7 @@ namespace UAMS_Search\Tests {
 
         public function test_each_screen_has_its_own_heading(): void
         {
-            self::assertStringContainsString('<h1>UAMSWP Search Index</h1>', $this->render('page'));
+            self::assertStringStartsWith('<div class="wrap"><h1>UAMSWP Search Index</h1><p>Build and compare the index before enabling it.', $this->render('page'));
             self::assertStringContainsString('<h1>UAMSWP Search Reports</h1>', $this->render('reports_page'));
             self::assertStringContainsString('<h1>UAMSWP Search Settings</h1>', $this->render('settings_page'));
         }
@@ -292,6 +314,245 @@ namespace UAMS_Search\Tests {
             $_GET = ['page' => 'uams-search'];
             Admin::rebuild_assets();
             self::assertContains('uams-search-rebuild', $GLOBALS['uams_test_enqueued']);
+        }
+
+        public function test_the_rebuild_assets_are_loaded_with_exact_arguments(): void
+        {
+            $_GET = ['page' => 'uams-search'];
+            Admin::rebuild_assets();
+            $version = UAMS_SEARCH_VERSION;
+
+            self::assertSame([
+                ['script', 'uams-search-rebuild', 'https://example.test/assets/admin-rebuild.js', [], $version, true],
+                ['style', 'uams-search-rebuild', 'https://example.test/assets/admin-rebuild.css', [], $version, 'all'],
+            ], $GLOBALS['uams_test_enqueue_args']);
+            self::assertSame([['uams-search-rebuild', 'UAMSRebuild', [
+                'url' => 'https://example.test/wp-admin/admin-ajax.php',
+                'nonce' => 'nonce',
+                'job' => Rebuild::state(),
+            ]]], $GLOBALS['uams_test_localized']);
+        }
+
+        public function test_the_rebuild_assets_need_the_capability_even_on_the_index_screen(): void
+        {
+            $GLOBALS['uams_test_caps'] = [];
+            $_GET = ['page' => 'uams-search'];
+            Admin::rebuild_assets();
+            Admin::settings_assets();
+
+            self::assertSame([], $GLOBALS['uams_test_enqueued']);
+        }
+
+        public function test_the_settings_script_is_loaded_with_exact_arguments(): void
+        {
+            $_GET = ['page' => 'uams-search-settings'];
+            Admin::settings_assets();
+
+            self::assertSame([['script', 'uams-search-settings', 'https://example.test/assets/admin-settings.js', [], UAMS_SEARCH_VERSION, true]], $GLOBALS['uams_test_enqueue_args']);
+            self::assertSame([], $GLOBALS['uams_test_localized']);
+        }
+
+        public function test_the_site_page_marks_the_saved_scope_and_the_google_switch(): void
+        {
+            $html = $this->render('site_page');
+            self::assertStringContainsString('<h1>Search Settings</h1>', $html);
+            self::assertStringContainsString('<input type="hidden" name="action" value="uams_search_site">', $html);
+            self::assertStringContainsString('<p><label><input type="radio" name="scope" value="site"  checked=\'checked\'> This site</label></p>', $html);
+            self::assertStringContainsString('<p><label><input type="radio" name="scope" value="all" > All UAMS websites</label></p>', $html);
+            self::assertStringContainsString('<input type="checkbox" name="google" value="1"  checked=\'checked\'> Show the Existing All of UAMS Google Search', $html, 'The Google results are on until the site turns them off.');
+            self::assertStringContainsString('action="https://example.test/wp-admin/admin-post.php"', $html);
+            self::assertStringContainsString('<input type="hidden" name="_wpnonce" value="nonce-for-uams_search_site">', $html);
+            self::assertSame(2, substr_count($html, "checked='checked'"), 'One scope and the Google switch.');
+            self::assertStringContainsString('<input type="submit" value="Save search settings"></form></div>', $html);
+
+            $GLOBALS['uams_test_options']['uams_search_scope'] = 'all';
+            $GLOBALS['uams_test_options']['uams_search_google'] = false;
+            $html = $this->render('site_page');
+            self::assertStringContainsString('value="site" > This site', $html);
+            self::assertStringContainsString('value="all"  checked=\'checked\'> All UAMS websites', $html);
+            self::assertStringContainsString('name="google" value="1" > Show', $html);
+
+            foreach (['bogus', 5, ['all']] as $saved) {
+                $GLOBALS['uams_test_options']['uams_search_scope'] = $saved;
+                self::assertStringContainsString('value="site"  checked=\'checked\'> This site', $this->render('site_page'), var_export($saved, true));
+            }
+        }
+
+        public function test_the_status_and_reports_tables_print_each_row_with_its_site_name(): void
+        {
+            $GLOBALS['uams_test_options']['blogname'] = 'Main Site';
+            SiteNames::reset();
+            $GLOBALS['wpdb'] = new class extends ScreensFixtureDB
+            {
+                public ?int $count = 7;
+
+                public function get_var($sql)
+                {
+                    $this->queries[] = (string) $sql;
+
+                    return str_starts_with($sql, 'SHOW TABLES') ? 'wp_uams_search_index' : $this->count;
+                }
+
+                public function get_results($sql = '')
+                {
+                    $this->queries[] = (string) $sql;
+                    if (str_contains($sql, 'GROUP BY site_id,post_type,status')) {
+                        return [['site_id' => '1', 'post_type' => 'post', 'status' => 'ready', 'total' => '12']];
+                    }
+
+                    if (str_contains($sql, "status IN ('error','scanned')")) {
+                        return [['site_id' => '1', 'object_id' => '42', 'status' => 'error', 'error' => 'Timed out']];
+                    }
+
+                    return [['site_id' => '1', 'search_text' => 'cardio', 'total' => '3']];
+                }
+            };
+            $status = $this->render('page');
+            self::assertStringContainsString('<p>Queue length: 7. Last queue run: Never.</p>', $status);
+            self::assertStringContainsString('<th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Post type</th><th scope="col">Status</th><th scope="col">Count</th>', $status);
+            self::assertStringContainsString('<tr><td>Main Site</td><td>1</td><td>post</td><td>ready</td><td>12</td></tr>', $status);
+
+            self::assertContains('SELECT COUNT(*) FROM `wp_uams_search_queue`', $GLOBALS['wpdb']->queries);
+            self::assertContains('SELECT site_id,post_type,status,COUNT(*) AS total FROM `wp_uams_search_index` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', $GLOBALS['wpdb']->queries);
+            $GLOBALS['wpdb']->count = null;
+            self::assertStringContainsString('<p>Queue length: 0. Last queue run: Never.</p>', $this->render('page'), 'A count the database did not give reads as zero.');
+            $GLOBALS['wpdb']->count = 7;
+
+            $reports = $this->render('reports_page');
+            self::assertStringContainsString('<h1>UAMSWP Search Reports</h1><section id="failed-items">', $reports);
+            self::assertContains("SELECT site_id,object_id,status,error FROM `wp_uams_search_index` WHERE status IN ('error','scanned') ORDER BY indexed_at DESC LIMIT 100", $GLOBALS['wpdb']->queries);
+            self::assertContains('SELECT site_id,search_text,SUM(count) AS total FROM `wp_uams_search_misses` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', $GLOBALS['wpdb']->queries);
+            self::assertStringContainsString('<tr><td>Main Site</td><td>1</td><td>42</td><td>error</td><td>Timed out</td><td><a href="', $reports);
+            self::assertStringContainsString('admin-post.php?action=uams_search_retry&site=1&object=42&_wpnonce=nonce-for-uams_search_retry', $reports);
+            self::assertStringContainsString('>Retry item 42 on site 1</a></td></tr>', $reports);
+            self::assertStringContainsString('<th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Search</th><th scope="col">Count</th>', $reports);
+            self::assertStringContainsString('<tr><td>Main Site</td><td>1</td><td>cardio</td><td>3</td></tr>', $reports);
+        }
+
+        public function test_the_settings_screen_prints_the_saved_values_and_their_limits(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = [
+                'enabled' => true, 'live' => false, 'logging' => true, 'pdf' => false, 'pdf_parent' => true,
+                'results_per_page' => 33, 'pdf_max_mb' => 12, 'pdf_timeout' => 45,
+                'sites' => [1],
+                'types' => ['post' => 2.5, 'page' => 1.0],
+                'fields' => ['post' => ['a_name_of_twenty_six_ch' => 2.0, 'physical_name_thirty_chars_xx' => 1.5]],
+                'taxonomies' => ['post' => ['category' => 3.0]],
+                'stopwords' => ['of', 'the'],
+                'synonyms' => ['heart' => ['cardiac', 'cardiology']],
+            ];
+            $GLOBALS['uams_test_types'] = ['post' => (object) ['labels' => (object) ['name' => 'Posts']], 'page' => (object) ['labels' => (object) ['name' => 'Pages']]];
+            $html = $this->render('settings_page');
+
+            $labels = ['enabled' => 'Use UAMSWP Search for Visitors', 'live' => 'Show Live Search Suggestions', 'logging' => 'Keep Search Text With No Results for up to 90 Days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to Their Parent Page When Available'];
+            foreach (['enabled' => true, 'live' => false, 'logging' => true, 'pdf' => false, 'pdf_parent' => true] as $key => $on) {
+                self::assertStringContainsString('<p><label><input type="checkbox" name="settings['.$key.']" value="1" '.($on ? " checked='checked'" : '').'> '.$labels[$key].'</label></p>', $html, $key);
+            }
+
+            self::assertSame(6, substr_count($html, "checked='checked'"), 'Three switches, one site and two types.');
+            self::assertStringContainsString('<form method="post" action="https://example.test/wp-admin/admin-post.php"><input type="hidden" name="action" value="uams_search_save">', $html);
+            self::assertStringContainsString('<form id="uams-search-refresh-choices" method="post" action="https://example.test/wp-admin/admin-post.php"><input type="hidden" name="action" value="uams_search_refresh_choices">', $html);
+            self::assertStringContainsString('<p><label><input type="checkbox" name="settings[sites][]" value="1"  checked=\'checked\'> Main Site</label></p>', $html);
+            self::assertStringContainsString('<h3>ACF Fields</h3><table class="uams-search-rows" data-prefix="settings[types][post][fields]" data-label="Posts ACF Fields" data-size="31"><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>', $html);
+            self::assertStringContainsString('<tr><td><input size="31" aria-label="Posts ACF Fields name 1" name="settings[types][post][fields][0][name]" value="a_name_of_twenty_six_ch"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="Posts ACF Fields weight 1" name="settings[types][post][fields][0][weight]" value="2"></td><td><button type="button" class="button uams-remove-row" aria-label="Remove Posts ACF Fields row 1" hidden>Remove</button></td></tr>', $html);
+            self::assertStringContainsString('<tr><td><input size="31" aria-label="Posts ACF Fields name 3" name="settings[types][post][fields][2][name]" value=""></td><td><input type="number" min="0" max="100" step="0.1" aria-label="Posts ACF Fields weight 3" name="settings[types][post][fields][2][weight]" value="1"></td><td><button type="button" class="button uams-remove-row" aria-label="Remove Posts ACF Fields row 3" hidden>Remove</button></td></tr>', $html);
+            self::assertSame(3, substr_count($html, 'aria-label="Posts ACF Fields name '), 'Rows are numbered from 1.');
+            self::assertSame(3, substr_count($html, 'aria-label="Posts ACF Fields weight '));
+            self::assertSame(3, substr_count($html, 'aria-label="Remove Posts ACF Fields row '));
+            self::assertStringNotContainsString('name 0"', $html);
+            self::assertStringNotContainsString('name -1"', $html);
+
+            self::assertStringContainsString('name="settings[results_per_page]" min="1" max="100" step="1" value="33">', $html);
+            self::assertStringContainsString('name="settings[sites][]" value="1"  checked=\'checked\'> Main Site', $html);
+            self::assertStringContainsString('id="uams-settings-pdf-max-mb" type="number" min="0" max="100" step="0.1" style="width:6em" name="settings[pdf_max_mb]" value="12"', $html);
+            self::assertStringContainsString('id="uams-settings-pdf-timeout" type="number" min="0" max="120" step="0.1" style="width:6em" name="settings[pdf_timeout]" value="45"', $html);
+            self::assertStringContainsString('name="settings[types][post][include]" value="1"  checked=\'checked\'> Include This Content Type', $html);
+            self::assertStringContainsString('name="settings[types][post][boost]" value="2.5"', $html);
+            self::assertStringContainsString('name="settings[types][page][boost]" value="1"', $html);
+            self::assertStringContainsString('<textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">of the</textarea>', $html);
+            self::assertStringContainsString('name="settings[synonyms]" rows="5" cols="70">heart = cardiac, cardiology</textarea>', $html);
+            // A name of 23 characters gets the minimum width, and one of 29 gets its length plus 2
+            self::assertStringContainsString('data-prefix="settings[types][post][fields]" data-label="Posts ACF Fields" data-size="31"', $html);
+            self::assertStringContainsString('data-prefix="settings[types][post][taxonomies]" data-label="Posts Taxonomies" data-size="28"', $html);
+            // The blank row after the saved ones carries a weight of 1
+            self::assertStringContainsString('name="settings[types][post][fields][2][weight]" value="1"', $html);
+            self::assertStringContainsString('name="settings[types][post][taxonomies][1][weight]" value="1"', $html);
+            self::assertStringContainsString('name="settings[types][post][fields][0][weight]" value="2"', $html);
+            self::assertStringContainsString('aria-label="Posts ACF Fields name 1"', $html);
+            self::assertStringContainsString('aria-label="Posts ACF Fields weight 2"', $html);
+            self::assertStringContainsString('aria-label="Remove Posts ACF Fields row 3"', $html);
+            self::assertStringContainsString('data-size="31"><thead>', $html, 'A table with no suggestions has no list attribute.');
+            self::assertStringContainsString('<input type="hidden" name="_wpnonce" value="nonce-for-uams_search_save">', $html);
+            self::assertStringContainsString('<input type="submit" value="Save network settings"></form>', $html);
+            self::assertStringContainsString('<input type="hidden" name="uams_search_choices_nonce" value="nonce-for-uams_search_refresh_choices"></form>', $html);
+        }
+
+        public function test_a_type_that_is_not_included_prints_unchecked_with_the_default_boost(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['page' => 1.0, 'zebra' => 1.0]];
+            $GLOBALS['uams_test_types'] = ['post' => (object) ['labels' => (object) ['name' => 'Posts']], 'page' => (object) ['labels' => (object) ['name' => 'Pages']]];
+            $html = $this->render('settings_page');
+
+            self::assertStringContainsString('name="settings[types][post][include]" value="1" > Include This Content Type', $html);
+            self::assertStringContainsString('name="settings[types][post][boost]" value="1"', $html);
+            self::assertStringContainsString('<strong>Zebra (zebra)</strong>', $html, 'A type WordPress has no label for is named from its handle.');
+        }
+
+        public function test_the_rebuild_controls_check_the_no_index_box_only_when_the_setting_says_so_or_only_no_index_sites_exist(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true];
+            $html = $this->render('page');
+            self::assertStringContainsString('<input id="uams-rebuild-noindex" type="checkbox"  checked=\'checked\'>', $html);
+            self::assertSame(1, substr_count($html, "checked='checked'"));
+
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => false];
+            self::assertStringContainsString('<input id="uams-rebuild-noindex" type="checkbox" > Include', $this->render('page'));
+        }
+
+        public function test_the_rebuild_controls_offer_no_index_sites_when_only_they_exist(): void
+        {
+            $GLOBALS['uams_test_multisite'] = true;
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => false];
+            try {
+                foreach ([[['public' => [], 'all' => [3]], true], [['public' => [2], 'all' => [2, 3]], false], [['public' => [], 'all' => []], false]] as [$sites, $checked]) {
+                    $GLOBALS['uams_test_site_ids'] = $sites;
+                    $html = $this->render('rebuild_controls');
+                    self::assertSame($checked, str_contains($html, 'type="checkbox"  checked=\'checked\'>'), json_encode($sites));
+                }
+            } finally {
+                unset($GLOBALS['uams_test_site_ids']);
+                $GLOBALS['uams_test_multisite'] = false;
+            }
+        }
+
+        public function test_each_site_on_a_network_is_listed_by_name_and_number(): void
+        {
+            $GLOBALS['uams_test_multisite'] = true;
+            $GLOBALS['uams_test_caps'] = ['manage_network_options'];
+            $GLOBALS['uams_test_blog_names'] = [1 => 'Main Site', 5 => 'Cardiology'];
+            $GLOBALS['uams_test_site_ids'] = ['public' => [1, 5], 'all' => [1, 5]];
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['sites' => [5]];
+            SiteNames::reset();
+            try {
+                $html = $this->render('settings_page');
+            } finally {
+                unset($GLOBALS['uams_test_blog_names'], $GLOBALS['uams_test_site_ids']);
+                $GLOBALS['uams_test_multisite'] = false;
+                $GLOBALS['uams_test_caps'] = ['manage_options'];
+                SiteNames::reset();
+            }
+
+            self::assertStringContainsString('name="settings[sites][]" value="1" > Main Site (#1)', $html);
+            self::assertStringContainsString('name="settings[sites][]" value="5"  checked=\'checked\'> Cardiology (#5)', $html);
+        }
+
+        public function test_the_setup_form_replaces_a_screen_whose_tables_are_missing(): void
+        {
+            $GLOBALS['uams_test_options'] = [];
+            $this->tablesReady(false);
+            $html = $this->render('reports_page');
+
+            self::assertSame('<div class="wrap"><h1>UAMSWP Search Reports</h1><form method="post" action="https://example.test/wp-admin/admin-post.php"><input type="hidden" name="action" value="uams_search_setup"><input type="hidden" name="_wpnonce" value="nonce-for-uams_search_setup"><input type="submit" value="Create index tables"></form></div>', $html);
         }
 
         public function test_headings_and_field_labels_follow_ap_style(): void
@@ -356,7 +617,9 @@ namespace UAMS_Search\Tests {
             self::assertSame(2, substr_count($html, 'list="uams-search-names-fields-post" aria-label="Posts ACF Fields name'), 'The saved row and the blank row both suggest.');
             self::assertStringContainsString('data-list="uams-search-names-fields-post"', $html, 'Rows added with Add Row read the list from the table.');
             self::assertMatchesRegularExpression('/Add Row<\/button><\/p><datalist id="uams-search-names-fields-post">/', $html, 'The Add Row paragraph stays right after its table.');
-            self::assertStringContainsString('last refreshed', $html);
+            self::assertStringContainsString('<p id="uams-search-choices-status">The Name boxes suggest the field and taxonomy names in use on each content type across every site, last refreshed '.Time::local('2026-11-12 18:00:00').'. Any other name can still be typed. Refreshing asks every site and leaves this page, so save your changes first. <button type="submit" class="button" form="uams-search-refresh-choices" aria-describedby="uams-search-choices-status">Refresh Choices</button></p>', $html);
+            self::assertStringContainsString('<tr><td><input size="28" list="uams-search-names-fields-post" aria-label="Posts ACF Fields name 1" name="settings[types][post][fields][0][name]" value="subtitle"></td>', $html);
+            self::assertStringContainsString('data-size="28" data-list="uams-search-names-fields-post"><thead>', $html);
             self::assertStringContainsString('form="uams-search-refresh-choices"', $html);
             $lookups = array_filter($GLOBALS['wpdb']->queries, static fn (string $sql): bool => str_contains($sql, 'postmeta') || str_contains($sql, 'term_relationships'));
             self::assertSame([], $lookups, 'The screen reads the cache only.');

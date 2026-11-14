@@ -9,6 +9,7 @@ namespace {
         function add_action($hook, $callback, $priority = 10, $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
+            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
         }
     }
 
@@ -16,6 +17,7 @@ namespace {
         function add_filter($hook, $callback, $priority = 10, $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
+            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
         }
     }
 
