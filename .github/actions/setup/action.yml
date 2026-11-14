@@ -24,6 +24,7 @@ runs:
       with:
         php-version: ${{ inputs.php-version }}
         coverage: ${{ inputs.coverage }}
+        ini-values: pcov.directory=${{ github.workspace }}
         tools: composer:v2
 
     - name: Determine Composer cache directory
