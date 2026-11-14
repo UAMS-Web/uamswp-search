@@ -24,8 +24,6 @@ runs:
       with:
         php-version: ${{ inputs.php-version }}
         coverage: ${{ inputs.coverage }}
-        # PCOV watches src, lib or app when one exists; includes/ is outside them, so name the checkout.
-        ini-values: pcov.directory=${{ github.workspace }}
         tools: composer:v2
 
     - name: Determine Composer cache directory
