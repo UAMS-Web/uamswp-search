@@ -219,6 +219,31 @@ final class PdfTest extends TestCase
         self::assertNull(Pdf::binary('uams-search-no-such-program'));
     }
 
+    public function test_binary_looks_for_the_exe_file_on_windows_only(): void
+    {
+        $dir = sys_get_temp_dir().'/uams-search-poppler-'.bin2hex(random_bytes(4));
+        mkdir($dir);
+        $program = $dir.'/pdftotext.exe';
+        // Windows treats only a real executable file as executable; elsewhere the mode decides
+        if (PHP_OS_FAMILY === 'Windows') {
+            copy(PHP_BINARY, $program);
+        } else {
+            file_put_contents($program, '');
+            chmod($program, 0755);
+        }
+
+        try {
+            self::assertSame($program, Pdf::binary('pdftotext', 'Windows', $dir));
+            self::assertSame($program, Pdf::binary('pdftotext.exe', 'Windows', $dir), 'A name that already ends in .exe is not doubled.');
+            self::assertSame($program, Pdf::binary('pdftotext', 'Windows', '/no/such/folder'.PATH_SEPARATOR.$dir), 'Each folder of the path is searched.');
+            self::assertNull(Pdf::binary('pdftotext', 'Linux', $dir), 'Elsewhere the bare name is searched, and only that.');
+            self::assertNull(Pdf::binary('pdftotext', 'Windows', '/no/such/folder'));
+        } finally {
+            unlink($program);
+            rmdir($dir);
+        }
+    }
+
     public function test_too_much_error_output_stops_the_command(): void
     {
         $this->expectExceptionMessage('PDF extraction output limit exceeded');
