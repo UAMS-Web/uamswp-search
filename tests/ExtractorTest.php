@@ -1,5 +1,17 @@
 <?php
 
+namespace UAMS_Search {
+    // Records whether each post meta read asks for one value, then reads through the plain stand-in. A test turns the record on with `uams_test_meta_record`.
+    function get_post_meta($id, $key, $single = false)
+    {
+        if (! empty($GLOBALS['uams_test_meta_record'])) {
+            $GLOBALS['uams_test_meta_reads'][] = [$key, $single];
+        }
+
+        return \get_post_meta($id, $key, $single);
+    }
+}
+
 namespace {
 
     if (! class_exists('WP_Error')) {
@@ -81,6 +93,8 @@ namespace {
     if (! function_exists('wp_get_object_terms')) {
         function wp_get_object_terms($id, $taxonomy, $args = [])
         {
+            $GLOBALS['uams_test_term_args'][] = [$taxonomy, $args];
+
             return $GLOBALS['uams_test_terms'][$taxonomy] ?? [];
         }
     }
@@ -105,7 +119,29 @@ namespace {
     if (! function_exists('get_permalink')) {
         function get_permalink($post)
         {
-            return 'https://example.test/?p='.$post->ID;
+            return 'https://example.test/?p='.(is_object($post) ? $post->ID : $post);
+        }
+    }
+
+    if (! function_exists('wp_get_attachment_url')) {
+        function wp_get_attachment_url($id)
+        {
+            return 'https://example.test/files/'.$id.'.pdf';
+        }
+    }
+
+    // The same stand-ins `PdfTest` declares; whichever file loads first defines them.
+    if (! function_exists('get_attached_file')) {
+        function get_attached_file($id)
+        {
+            return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
+        }
+    }
+
+    if (! function_exists('wp_get_upload_dir')) {
+        function wp_get_upload_dir()
+        {
+            return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
         }
     }
 }
@@ -120,7 +156,11 @@ namespace UAMS_Search\Tests {
     use WP_Error;
     use WP_Post;
 
-    /** Pins for what the indexer reads from a post (#5). WordPress functions are stood in; attachments (the PDF worker) are not covered here. */
+    /**
+     * Pins for what the indexer reads from a post (#5). WordPress functions are stood in; a PDF is read from the cache of an unchanged file, so the worker itself is covered by `PdfTest`.
+     *
+     * Accepted equivalents, annotated in `Extractor.php` with their reasons: the meta branch of the field read (a test cannot undefine `get_field()` once an earlier test has defined it), the key of a field that does not start with `field_`, and the string casts of integer keys.
+     */
     final class ExtractorTest extends TestCase
     {
         protected function setUp(): void
@@ -133,7 +173,9 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_viewable_statuses'] = ['publish'];
             $GLOBALS['uams_test_hidden_types'] = [];
             $GLOBALS['uams_test_acf_fields'] = [];
-            unset($GLOBALS['uams_test_blocks']);
+            $GLOBALS['uams_test_meta_reads'] = [];
+            $GLOBALS['uams_test_term_args'] = [];
+            unset($GLOBALS['uams_test_blocks'], $GLOBALS['uams_test_meta_record'], $GLOBALS['uams_test_acf']);
         }
 
         protected function tearDown(): void
@@ -144,7 +186,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_meta'] = [];
             $GLOBALS['uams_test_posts'] = [];
             $GLOBALS['uams_test_terms'] = [];
-            unset($GLOBALS['uams_test_blocks']);
+            unset($GLOBALS['uams_test_blocks'], $GLOBALS['uams_test_meta_record'], $GLOBALS['uams_test_acf']);
         }
 
         /** @param array<string, mixed> $props */
@@ -618,6 +660,197 @@ namespace UAMS_Search\Tests {
             $log = $this->captureLog(fn (): array => Extractor::extract($this->post()));
 
             self::assertStringContainsString('UAMS Search: skipped deeply nested field site=1 post=42 field=gallery', $log);
+        }
+
+        // --- pins added for the full coverage bar (#189) ----------------------
+
+        public function test_every_post_meta_read_asks_for_a_single_value(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['note' => 1]]];
+            $GLOBALS['uams_test_meta_record'] = true;
+            Extractor::eligible($this->post(['post_type' => 'provider']));
+            Extractor::eligible($this->post(['post_type' => 'location']));
+            Extractor::extract($this->post());
+
+            $reads = $GLOBALS['uams_test_meta_reads'];
+            $keys = array_column($reads, 0);
+            foreach (['_uams_search_exclude', 'physician_hidden', 'physician_searchable', 'location_hidden', '_note'] as $key) {
+                self::assertContains($key, $keys);
+            }
+
+            self::assertSame([true], array_values(array_unique(array_column($reads, 1))));
+        }
+
+        public function test_a_field_is_read_through_acf_unformatted_when_acf_is_active(): void
+        {
+            if (! function_exists('get_field')) {
+                self::markTestSkipped('`CardFieldsTest` defines the get_field stand-in; without it the field is read from post meta.');
+            }
+
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['note' => 1]]];
+            $GLOBALS['uams_test_acf'] = true;
+            $seen = null;
+            $GLOBALS['uams_test_filters']['uams_search_field_value'][] = static function ($value) use (&$seen): string {
+                $seen = $value;
+
+                return '';
+            };
+            Extractor::extract($this->post());
+
+            self::assertSame(['note', 42, false], $seen);
+        }
+
+        public function test_extract_returns_exactly_this_row_for_a_plain_page(): void
+        {
+            $row = Extractor::extract($this->post());
+
+            self::assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $row['indexed_at']);
+            unset($row['indexed_at']);
+            self::assertSame([
+                'site_id' => 1,
+                'object_id' => 42,
+                'object_type' => 'post',
+                'post_type' => 'page',
+                'title' => 'Orthopaedics',
+                'content' => 'Knee care',
+                'fields' => '',
+                'terms' => '',
+                'pdf' => '',
+                'url' => 'https://example.test/?p=42',
+                'published_at' => '2026-01-02 03:04:05',
+                'modified_at' => '2026-02-03 04:05:06',
+                'status' => 'ready',
+                'error' => '',
+                'file_signature' => '',
+                'file_size' => 0,
+                'weighted_data' => '[]',
+                'title_stem' => 'orthopaed',
+                'content_stem' => 'knee care',
+                'fields_stem' => '',
+                'terms_stem' => '',
+                'pdf_stem' => '',
+                'search_stem' => 'orthopaed uamsboundaryzz knee care uamsboundaryzz  uamsboundaryzz  uamsboundaryzz ',
+                'short_tokens' => '',
+            ], $row);
+        }
+
+        public function test_the_weighted_data_is_a_list_whether_it_holds_fields_terms_or_both(): void
+        {
+            $GLOBALS['uams_test_terms'] = ['category' => ['Sports']];
+            $GLOBALS['uams_test_meta'][42] = ['note' => 'Knee'];
+
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['taxonomies' => ['page' => ['category' => 2]]];
+            self::assertStringStartsWith('[{', Extractor::extract($this->post())['weighted_data']);
+
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['note' => 1]], 'taxonomies' => ['page' => ['category' => 2]]];
+            $weighted = Extractor::extract($this->post())['weighted_data'];
+            self::assertStringStartsWith('[{', $weighted);
+            self::assertSame(['fields', 'terms'], array_column(json_decode($weighted, true), 'source'));
+        }
+
+        public function test_weights_are_stored_as_floats_and_never_below_zero(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['hero' => '3', 'dim' => '0.5', 'neg' => '-2']], 'taxonomies' => ['page' => ['category' => '2']]];
+            $GLOBALS['uams_test_terms'] = ['category' => ['Sports']];
+            $GLOBALS['uams_test_blocks'] = [
+                ['blockName' => 'acf/hero', 'attrs' => ['data' => ['hero' => 'A', 'dim' => 'B', 'neg' => 'C']], 'innerBlocks' => [], 'innerHTML' => ''],
+            ];
+            $weighted = json_decode(Extractor::extract($this->post())['weighted_data'], true);
+
+            // Saved text becomes a number (JSON drops the fraction of a whole one), a weight under zero is zero, and the order is the three fields, the three block entries, then the term
+            self::assertSame([3, 0.5, 0, 3, 0.5, 0, 2], array_column($weighted, 'weight'));
+            self::assertSame(['fields', 'fields', 'fields', 'fields', 'fields', 'fields', 'terms'], array_column($weighted, 'source'));
+        }
+
+        public function test_a_block_field_text_starts_with_one_space_before_its_values(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['hero' => 1]]];
+            $GLOBALS['uams_test_blocks'] = [
+                ['blockName' => 'acf/hero', 'attrs' => ['data' => ['hero' => 'Welcome', 'hero_0_caption' => 'Spine']], 'innerBlocks' => [], 'innerHTML' => ''],
+            ];
+
+            // The field itself holds no text, so its empty text comes first
+            self::assertSame('  Welcome Spine', Extractor::extract($this->post())['fields']);
+        }
+
+        public function test_blocks_nested_up_to_twenty_levels_are_read_and_no_deeper(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['hero' => 1]]];
+            $found = function (int $levels): bool {
+                $block = ['blockName' => 'acf/hero', 'attrs' => ['data' => ['hero' => 'Deepest']], 'innerBlocks' => [], 'innerHTML' => ''];
+                for ($i = 0; $i < $levels; $i++) {
+                    $block = ['blockName' => 'core/group', 'attrs' => [], 'innerBlocks' => [$block], 'innerHTML' => ''];
+                }
+
+                $GLOBALS['uams_test_blocks'] = [$block];
+
+                return str_contains(Extractor::extract($this->post())['fields'], 'Deepest');
+            };
+
+            self::assertTrue($found(0));
+            self::assertTrue($found(15));
+            self::assertTrue($found(20));
+            self::assertFalse($found(21));
+        }
+
+        public function test_a_taxonomy_that_does_not_exist_does_not_end_the_list_and_terms_are_asked_for_by_name(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['taxonomies' => ['page' => ['ghost' => 1, 'category' => 2]]];
+            $GLOBALS['uams_test_terms'] = ['category' => ['Sports']];
+
+            self::assertSame('Sports', Extractor::extract($this->post())['terms']);
+            self::assertSame([['category', ['fields' => 'names']]], $GLOBALS['uams_test_term_args']);
+        }
+
+        // --- attachments ------------------------------------------------------
+
+        /** @return array<string, mixed> The earlier row of the fixture PDF, as the cache of an unchanged file reads it. */
+        private function cachedPdfRow(): array
+        {
+            $path = realpath(get_attached_file(42));
+
+            return ['file_signature' => hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path)), 'status' => 'ready', 'pdf' => 'cached text', 'error' => ''];
+        }
+
+        public function test_an_attachment_row_carries_the_pdf_text_signature_and_file_name(): void
+        {
+            $old = $this->cachedPdfRow();
+            $row = Extractor::extract($this->pdf(['post_title' => 'Flyer']), $old);
+
+            self::assertSame('attachment', $row['object_type']);
+            self::assertSame('attachment', $row['post_type']);
+            self::assertSame('Flyer', $row['title']);
+            self::assertSame('cached text', $row['pdf']);
+            self::assertSame('cach text', $row['pdf_stem']);
+            self::assertSame($old['file_signature'], $row['file_signature']);
+            self::assertSame(filesize((string) realpath(get_attached_file(42))), $row['file_size']);
+            self::assertSame('ready', $row['status']);
+            self::assertSame('', $row['error']);
+            // With no fields configured, the file name stands alone
+            self::assertSame('text', $row['fields']);
+            self::assertSame('https://example.test/files/42.pdf', $row['url']);
+        }
+
+        public function test_an_attachment_puts_its_configured_fields_before_its_file_name(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['attachment' => ['caption' => 1]]];
+            $GLOBALS['uams_test_meta'][42] = ['caption' => 'Spring flyer'];
+            $row = Extractor::extract($this->pdf(), $this->cachedPdfRow());
+
+            self::assertSame('Spring flyer text', $row['fields']);
+            self::assertSame('spring flyer text', $row['fields_stem']);
+        }
+
+        public function test_an_attachment_links_to_its_parent_only_when_the_setting_asks_for_it_and_it_has_one(): void
+        {
+            $old = $this->cachedPdfRow();
+
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_parent' => true];
+            self::assertSame('https://example.test/?p=7', Extractor::extract($this->pdf(['post_parent' => 7]), $old)['url']);
+            self::assertSame('https://example.test/files/42.pdf', Extractor::extract($this->pdf(['post_parent' => 0]), $old)['url']);
+
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_parent' => false];
+            self::assertSame('https://example.test/files/42.pdf', Extractor::extract($this->pdf(['post_parent' => 7]), $old)['url']);
         }
     }
 }
