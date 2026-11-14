@@ -199,7 +199,7 @@ namespace UAMS_Search\Tests {
         public function test_the_types_are_the_configured_ones_then_the_public_ones_without_repeats(): void
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['page' => 1.0, 'post' => 2.0]];
-            $GLOBALS['uams_test_post_types'] = ['post' => 'post', 'event' => 'event'];
+            $GLOBALS['uams_test_post_types'] = ['post' => 'post', 'event' => 'An event'];
             self::assertSame(['page', 'post', 'event'], NameChoices::types());
             self::assertSame(['public' => true], $GLOBALS['uams_test_post_types_args']);
         }
