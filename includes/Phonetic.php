@@ -29,12 +29,8 @@ final class Phonetic
         $s = strtoupper(\function_exists('remove_accents') ? remove_accents($word) : $word);
         $s = preg_replace('/[^A-Z]/', '', $s);
 
-        // Return empty keys for a word with no letters
+        // A word with no letters never enters the loop below and returns empty keys
         $n = \strlen($s);
-        if (! $n) {
-            return ['', ''];
-        }
-
         // Pad the word so look-ahead reads never run past its end
         $s .= '     ';
         $primary = '';
@@ -42,7 +38,11 @@ final class Phonetic
         $i = 0;
         $slavo = str_contains($s, 'W') || str_contains($s, 'K') || str_contains($s, 'CZ') || str_contains($s, 'WITZ');
         // Define the helpers: match at a position, test for a vowel, and append to both keys
-        $at = static fn (int $p, array $values): bool => $p >= 0 && (bool) array_filter($values, static fn (string $v): bool => substr($s, $p, \strlen($v)) === $v);
+        // A position before the word never matches. The padding is spaces, which no value matches, so a position just past the start would read the same.
+        // @pest-mutate-ignore:DecrementInteger
+        $at = static fn (int $p, array $values): bool => $p >= 0 && array_filter($values, static fn (string $v): bool => substr($s, $p, \strlen($v)) === $v) !== [];
+        // The same holds for a vowel test: a position just before the word would read the padding space, which is not a vowel.
+        // @pest-mutate-ignore:DecrementInteger
         $vowel = static fn (int $p): bool => $p >= 0 && str_contains('AEIOUY', $s[$p] ?? ' ');
         $add = static function (string $p, ?string $a = null) use (&$primary, &$alternate): void {
             $primary .= $p;
@@ -59,8 +59,11 @@ final class Phonetic
             $i++;
         }
 
+        // A key longer than 8 characters is cut at the end, so a pass after both keys reach 8 changes nothing, and a pass at the first padding character adds nothing. Turning the `&&` into `||` never ends the loop.
+        // @pest-mutate-ignore:SmallerToSmallerOrEqual,IncrementInteger,BooleanAndToBooleanOr
+        $more = static fn (int $pos, string $a, string $b): bool => $pos < $n && (\strlen($a) < 8 || \strlen($b) < 8);
         // Encode each letter until both keys are 8 characters
-        while ($i < $n && (\strlen($primary) < 8 || \strlen($alternate) < 8)) {
+        while ($more($i, $primary, $alternate)) {
             $ch = $s[$i];
             $next = $s[$i + 1];
             $prev = $i ? $s[$i - 1] : ' ';
@@ -79,16 +82,20 @@ final class Phonetic
                     $i += $next === 'B' ? 2 : 1;
                     break;
                 case 'C':
-                    if ($at($i, ['CHIA']) || ($i > 1 && ! $vowel($i - 2) && $at($i - 1, ['ACH']) && ! \in_array($s[$i + 2], ['I', 'E'], true))) {
+                    if ($at($i, ['CHIA']) || ($i > 1 && ! $vowel($i - 2) && $at($i - 1, ['ACH']) && ! $at($i + 2, ['I', 'E']))) {
                         $add('K');
+                        // The letter a shorter skip stops on is an H after a consonant, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 2;
                     } elseif ($i === 0 && $at(0, ['CAESAR'])) {
                         $add('S');
+                        // Every letter a shorter or longer skip stops on or passes is a vowel, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
                         $i += 2;
                     } elseif ($at($i, ['CH'])) {
                         if (($i > 0 && $at($i, ['CHAE']))) {
                             $add('K', 'X');
-                        } elseif (($i === 0 && ($at($i + 1, ['HARAC', 'HARIS', 'HOR', 'HYM', 'HIA', 'HEM']) && ! $at(0, ['CHORE']))) || $at(0, ['VAN', 'VON', 'SCH']) || $at($i - 2, ['ORCHES', 'ARCHIT', 'ORCHID']) || $at($i + 2, ['T', 'S']) || (($i === 0 || $at($i - 1, ['A', 'O', 'U', 'E'])) && $at($i + 2, ['L', 'R', 'N', 'M', 'B', 'H', 'F', 'V', 'W', ' ']))) {
+                        } elseif (($i === 0 && ($at($i + 1, ['HARAC', 'HARIS', 'HOR', 'HYM', 'HEM']) && ! $at(0, ['CHORE']))) || $at(0, ['VAN', 'VON', 'SCH']) || $at($i - 2, ['ORCHES', 'ARCHIT', 'ORCHID']) || $at($i + 2, ['T', 'S']) || (($i === 0 || $at($i - 1, ['A', 'O', 'U', 'E'])) && $at($i + 2, ['L', 'R', 'N', 'M', 'B', 'H', 'F', 'V', 'W', ' ']))) {
                             $add('K');
                         } elseif ($i > 0) {
                             $add($at(0, ['MC']) ? 'K' : 'X', 'K');
@@ -96,16 +103,22 @@ final class Phonetic
                             $add('X');
                         }
 
+                        // The letter a shorter skip stops on is an H after a consonant, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 2;
                     } elseif ($at($i, ['CZ']) && ! $at($i - 2, ['WICZ'])) {
                         $add('S', 'X');
                         $i += 2;
                     } elseif ($at($i + 1, ['CIA'])) {
                         $add('X');
+                        // Every letter a shorter or longer skip stops on or passes is a vowel, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
                         $i += 3;
                     } elseif ($at($i, ['CC']) && ($i !== 1 || $s[0] !== 'M')) {
                         if ($at($i + 2, ['I', 'E', 'H']) && ! $at($i + 2, ['HU'])) {
                             $add(($i === 1 && $s[0] === 'A') || $at($i - 1, ['UCCEE', 'UCCES']) ? 'KS' : 'X');
+                            // The letter a shorter skip stops on is an I, an E or an H after a C, which the loop passes over without a key.
+                            // @pest-mutate-ignore:DecrementInteger
                             $i += 3;
                         } else {
                             $add('K');
@@ -116,10 +129,12 @@ final class Phonetic
                         $i += 2;
                     } elseif ($at($i, ['CI', 'CE', 'CY'])) {
                         $add('S', $at($i, ['CIO', 'CIE', 'CIA']) ? 'X' : 'S');
+                        // The letter a shorter skip stops on is a vowel, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 2;
                     } else {
                         $add('K');
-                        $i += $at($i + 1, ['C', 'K', 'Q']) && ! $at($i + 1, ['CE', 'CI']) ? 2 : 1;
+                        $i += $next === 'C' && ! $at($i + 1, ['CE', 'CI']) ? 2 : 1;
                     }
 
                     break;
@@ -127,6 +142,8 @@ final class Phonetic
                     if ($at($i, ['DG'])) {
                         if ($at($i + 2, ['I', 'E', 'Y'])) {
                             $add('J');
+                            // The letter a shorter skip stops on is a vowel, which the loop passes over without a key.
+                            // @pest-mutate-ignore:DecrementInteger
                             $i += 3;
                         } else {
                             $add('TK');
@@ -141,17 +158,19 @@ final class Phonetic
                     break;
                 case 'G':
                     if ($next === 'H') {
-                        if ($i > 0 && ! $vowel($i - 1)) {
-                            $add('K');
-                        } elseif ($i === 0) {
+                        if ($i === 0) {
                             $add($s[$i + 2] === 'I' ? 'J' : 'K');
-                        } elseif (($i > 1 && $at($i - 2, ['B', 'H', 'D'])) || ($i > 2 && $at($i - 3, ['B', 'H', 'D'])) || ($i > 3 && $at($i - 4, ['B', 'H']))) { /* silent */
-                        } elseif ($i > 2 && $prev === 'U' && $at($i - 3, ['C', 'G', 'L', 'R', 'T'])) {
+                        } elseif (! $vowel($i - 1)) {
+                            $add('K');
+                        } elseif ($at($i - 2, ['B', 'H', 'D']) || $at($i - 3, ['B', 'H', 'D']) || $at($i - 4, ['B', 'H'])) { /* silent */
+                        } elseif ($prev === 'U' && $at($i - 3, ['C', 'G', 'L', 'R', 'T'])) {
                             $add('F');
-                        } elseif ($i > 0 && $prev !== 'I') {
+                        } elseif ($prev !== 'I') {
                             $add('K');
                         }
 
+                        // The letter a shorter skip stops on is an H after a consonant, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 2;
                     } elseif ($next === 'N') {
                         if ($i === 1 && $vowel(0) && ! $slavo) {
@@ -163,9 +182,13 @@ final class Phonetic
                         } $i += 2;
                     } elseif ($at($i + 1, ['LI']) && ! $slavo) {
                         $add('KL', 'L');
+                        // The letter a longer skip also passes is a vowel, which the loop passes over without a key.
+                        // @pest-mutate-ignore:IncrementInteger
                         $i += 2;
-                    } elseif (($i === 0 && ($next === 'Y' || $at($i + 1, ['ES', 'EP', 'EB', 'EL', 'EY', 'IB', 'IL', 'IN', 'IE', 'EI', 'ER']))) || (($at($i + 1, ['ER']) || $next === 'Y') && ! $at(0, ['DANGER', 'RANGER', 'MANGER']) && ! $at($i - 1, ['E', 'I']) && ! $at($i - 1, ['RGY', 'OGY']))) {
+                    } elseif (($i === 0 && ($next === 'Y' || $at($i + 1, ['ES', 'EP', 'EB', 'EL', 'EY', 'IB', 'IL', 'IN', 'IE', 'EI']))) || (($at($i + 1, ['ER']) || $next === 'Y') && ! $at(0, ['DANGER', 'RANGER', 'MANGER']) && ! $at($i - 1, ['E', 'I']) && ! $at($i - 1, ['RGY', 'OGY']))) {
                         $add('K', 'J');
+                        // The letter a shorter skip stops on is a vowel, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 2;
                     } elseif ($at($i + 1, ['E', 'I', 'Y']) || $at($i - 1, ['AGGI', 'OGGI'])) {
                         if ($at(0, ['VAN', 'VON', 'SCH']) || $at($i + 1, ['ET'])) {
@@ -181,6 +204,8 @@ final class Phonetic
                     } break;
                 case 'H': if (($i === 0 || $vowel($i - 1)) && $vowel($i + 1)) {
                     $add('H');
+                    // The letter a shorter skip stops on is a vowel, which the loop passes over without a key.
+                    // @pest-mutate-ignore:DecrementInteger
                     $i += 2;
                 } else {
                     $i++;
@@ -202,6 +227,8 @@ final class Phonetic
                         $add('J');
                     }
 
+                    // A step of 0 never leaves a letter that adds no key, so the loop never ends.
+                    // @pest-mutate-ignore:DecrementInteger
                     $i += $next === 'J' ? 2 : 1;
                     break;
                 case 'K': $add('K');
@@ -223,7 +250,7 @@ final class Phonetic
                     $i += $next === 'N' ? 2 : 1;
                     break;
                 case 'P': $add($next === 'H' ? 'F' : 'P');
-                    $i += $at($i + 1, ['H', 'P', 'B']) ? 2 : 1;
+                    $i += $at($i + 1, ['P', 'B']) ? 2 : 1;
                     break;
                 case 'Q': $add('K');
                     $i += $next === 'Q' ? 2 : 1;
@@ -232,19 +259,29 @@ final class Phonetic
                     $add('', 'R');
                 } else {
                     $add('R');
-                } $i += $next === 'R' ? 2 : 1;
+                }
+
+                    // A step of 0 or a step back stays on a letter whose key is empty in one of the two, and the loop never ends.
+                    // @pest-mutate-ignore:DecrementInteger,PlusEqualToMinusEqual
+                    $i += $next === 'R' ? 2 : 1;
                     break;
                 case 'S':
                     if ($at($i - 1, ['ISL', 'YSL'])) {
+                        // A step back lands on a letter that adds no key, and the loop never ends.
+                        // @pest-mutate-ignore:PostIncrementToPostDecrement
                         $i++;
                     } elseif ($i === 0 && $at(0, ['SUGAR'])) {
                         $add('X', 'S');
                         $i++;
                     } elseif ($at($i, ['SH'])) {
                         $add($at($i + 1, ['HEIM', 'HOEK', 'HOLM', 'HOLZ']) ? 'S' : 'X');
+                        // The letter a shorter skip stops on is an H after a consonant, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 2;
-                    } elseif ($at($i, ['SIO', 'SIA']) || $at($i, ['SIAN'])) {
+                    } elseif ($at($i, ['SIO', 'SIA'])) {
                         $add('S', $slavo ? 'S' : 'X');
+                        // The letter a shorter skip stops on is a vowel, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 3;
                     } elseif (($i === 0 && $at($i + 1, ['M', 'N', 'L', 'W'])) || $next === 'Z') {
                         $add('S', 'X');
@@ -268,11 +305,13 @@ final class Phonetic
                             $add('', 'S');
                         } else {
                             $add('S');
-                        } $i += $at($i + 1, ['S', 'Z']) ? 2 : 1;
+                        } $i += $next === 'S' ? 2 : 1;
                     } break;
                 case 'T':
                     if ($at($i, ['TION', 'TIA', 'TCH'])) {
                         $add('X');
+                        // The letter a shorter skip stops on is an I, or an H after a C, which the loop passes over without a key.
+                        // @pest-mutate-ignore:DecrementInteger
                         $i += 3;
                     } elseif ($at($i, ['TH', 'TTH'])) {
                         if ($at($i + 2, ['OM', 'AM']) || $at(0, ['VAN', 'VON', 'SCH'])) {
@@ -301,20 +340,31 @@ final class Phonetic
                         $add('TS', 'FX');
                         $i += 4;
                     } else {
+                        // A step back lands on a letter that adds no key, and the loop never ends.
+                        // @pest-mutate-ignore:PostIncrementToPostDecrement
                         $i++;
                     } break;
-                case 'X': if ($i !== $n - 1 || ! $at($i - 3, ['IAU', 'EAU']) && ! $at($i - 2, ['AU', 'OU'])) {
+                case 'X': if ($i !== $n - 1 || ! $at($i - 2, ['AU', 'OU'])) {
                     $add('KS');
-                } $i += $at($i + 1, ['C', 'X']) ? 2 : 1;
+                }
+
+                    // A step of 0 or a step back lands on a letter that adds no key, and the loop never ends.
+                    // @pest-mutate-ignore:DecrementInteger,PlusEqualToMinusEqual
+                    $i += $at($i + 1, ['C', 'X']) ? 2 : 1;
                     break;
                 case 'Z': if ($next === 'H') {
                     $add('J');
+                    // The letter a shorter skip stops on is an H after a consonant, which the loop passes over without a key.
+                    // @pest-mutate-ignore:DecrementInteger
                     $i += 2;
                 } else {
                     $add('S', $at($i + 1, ['ZO', 'ZI', 'ZA']) || ($slavo && $i > 0 && $prev !== 'T') ? 'TS' : 'S');
                     $i += $next === 'Z' ? 2 : 1;
                 } break;
-                default: $i++;
+                default:
+                    // Every letter has a case above, so none reaches this step. It keeps the loop moving past a character a changed rule could leave in place.
+                    // @pest-mutate-ignore:PostIncrementToPostDecrement
+                    $i++;
             }
         }
 
