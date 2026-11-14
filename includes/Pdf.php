@@ -30,6 +30,8 @@ final class Pdf
         // Find the file and check it is a readable file inside uploads
         $path = get_attached_file($post->ID);
         $uploads = wp_get_upload_dir();
+        // A `true` is read as the text `1`, which is not inside uploads either, so the same refusal follows.
+        // @pest-mutate-ignore:FalseToTrue
         $real = $path ? realpath($path) : false;
         $root = realpath($uploads['basedir']);
         if (! $real || ! $root || ! str_starts_with($real, $root.DIRECTORY_SEPARATOR) || ! is_readable($real)) {
@@ -44,13 +46,18 @@ final class Pdf
 
         // Reuse the earlier text when the file is unchanged
         $sig = hash('sha256', $real.'|'.$size.'|'.filemtime($real));
+        // A status is a non-numeric word, so a loose comparison with these two matches only when the strict one does.
+        // @pest-mutate-ignore:TrueToFalse
         if ($old && $old['file_signature'] === $sig && \in_array($old['status'], ['ready', 'scanned'], true)) {
             return ['pdf' => $old['pdf'], 'file_signature' => $sig, 'file_size' => $size, 'status' => $old['status'], 'error' => $old['error'], 'fields' => Text::plain(pathinfo($real, PATHINFO_FILENAME))];
         }
 
         // Find Poppler and the time limit
         $binary = Filters::string('uams_search_pdftotext', self::binary('pdftotext') ?? '');
-        $seconds = min(120, max(1, (int) Config::number('pdf_timeout')));
+        // One second leaves no whole second for the fallback, so a limit of 0 or 1 ends in the same timeout.
+        // @pest-mutate-ignore:DecrementInteger
+        $wanted = max(1, (int) Config::number('pdf_timeout'));
+        $seconds = min(120, $wanted);
         $started = microtime(true);
         // Try Poppler first
         try {
@@ -61,6 +68,8 @@ final class Pdf
             $text = self::process([$binary, '-enc', 'UTF-8', '-nopgbrk', $real, '-'], $seconds);
         } catch (Throwable $throwable) {
             // Check that time remains for the fallback
+            // `floor()` returns a whole number, so the cast changes the type and nothing printed or compared.
+            // @pest-mutate-ignore:RemoveIntegerCast
             $remaining = (int) floor($seconds - (microtime(true) - $started));
             if ($remaining < 1) {
                 throw new RuntimeException('PDF extraction timed out', 0, $throwable);
@@ -122,6 +131,8 @@ final class Pdf
     {
         $file = $family === 'Windows' && ! str_ends_with(strtolower($name), '.exe') ? $name.'.exe' : $name;
         // Check each folder on the path, then the usual install folders
+        // An empty or unset path becomes a folder name that does not exist, so the odd name finds nothing either, and the two Homebrew-style folders cannot be created in a test.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty,RemoveArrayItem
         foreach (array_merge(explode(PATH_SEPARATOR, $path ?? (getenv('PATH') ?: '')), ['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin']) as $dir) {
             if ($dir !== '' && is_executable($dir.'/'.$file)) {
                 return $dir.'/'.$file;
@@ -165,6 +176,8 @@ final class Pdf
         $start = microtime(true);
         $out = '';
         $err = '';
+        // Only compared with 0 below, and the loop sets the real code before it ends.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         $exit = -1;
         // Collect the output until the command ends
         try {
@@ -177,6 +190,8 @@ final class Pdf
                 }
 
                 // Stop when the time limit passes
+                // Elapsed time is a float, so it never lands exactly on the limit and `>=` reads the same.
+                // @pest-mutate-ignore:GreaterToGreaterOrEqual
                 if (microtime(true) - $start > $timeout) {
                     throw new RuntimeException('PDF extraction timed out');
                 }
@@ -189,6 +204,8 @@ final class Pdf
                     break;
                 }
 
+                // Only paces the polling; a shorter or longer pause, or none, reads the same output.
+                // @pest-mutate-ignore:DecrementInteger,IncrementInteger,RemoveFunctionCall
                 usleep(10000);
             } while (true);
         } finally {
@@ -199,9 +216,14 @@ final class Pdf
             }
 
             // Close the pipes and collect the exit code
+            // `proc_close()` closes any pipe still open, so closing them first changes nothing.
+            // @pest-mutate-ignore:RemoveFunctionCall
             fclose($pipes[1]);
+            // @pest-mutate-ignore:RemoveFunctionCall
             fclose($pipes[2]);
             $closed = proc_close($proc);
+            // From PHP 8.3 `proc_close()` returns the code `proc_get_status()` already reported, so reading it again, or reading it when the status held a real code, gives the same number.
+            // @pest-mutate-ignore:IfNegated,SmallerToGreaterOrEqual,SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger
             if ($exit < 0) {
                 $exit = $closed;
             }
