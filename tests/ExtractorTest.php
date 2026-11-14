@@ -94,6 +94,16 @@ if (! function_exists('is_wp_error')) {
     }
 }
 
+// The same ACF definition stand-in FieldTextTest declares; whichever file loads first defines it.
+if (! function_exists('acf_get_field')) {
+    function acf_get_field($selector)
+    {
+        $GLOBALS['uams_test_acf_lookups'][] = $selector;
+
+        return $GLOBALS['uams_test_acf_fields'][$selector] ?? false;
+    }
+}
+
 if (! function_exists('get_permalink')) {
     function get_permalink($post)
     {
@@ -113,11 +123,13 @@ final class ExtractorTest extends TestCase
         $GLOBALS['uams_test_terms'] = [];
         $GLOBALS['uams_test_viewable_statuses'] = ['publish'];
         $GLOBALS['uams_test_hidden_types'] = [];
+        $GLOBALS['uams_test_acf_fields'] = [];
         unset($GLOBALS['uams_test_blocks']);
     }
 
     protected function tearDown(): void
     {
+        $GLOBALS['uams_test_acf_fields'] = [];
         $GLOBALS['uams_test_options'] = [];
         $GLOBALS['uams_test_filters'] = [];
         $GLOBALS['uams_test_meta'] = [];
@@ -362,6 +374,64 @@ final class ExtractorTest extends TestCase
         $row = Extractor::extract($this->post(['post_type' => 'provider']));
 
         self::assertSame('RAW VALUE custom_field 42', $row['fields']);
+    }
+
+    public function test_a_configured_acf_select_indexes_its_label_and_the_filter_receives_the_label(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['location' => ['location_state' => 2]]];
+        $GLOBALS['uams_test_meta'][42] = ['location_state' => 'AR', '_location_state' => 'field_state'];
+        $GLOBALS['uams_test_acf_fields']['field_state'] = ['type' => 'select', 'choices' => ['AR' => 'Arkansas']];
+        $seen = null;
+        $GLOBALS['uams_test_filters']['uams_search_field_value'][] = static function ($value, string $name) use (&$seen) {
+            $seen = [$value, $name];
+
+            return $value;
+        };
+        $row = Extractor::extract($this->post(['post_type' => 'location']));
+
+        self::assertSame('Arkansas', $row['fields']);
+        self::assertSame([['Arkansas'], 'location_state'], $seen);
+    }
+
+    public function test_a_configured_field_acf_does_not_know_reaches_the_filter_unchanged(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['location' => ['location_code' => 1]]];
+        $GLOBALS['uams_test_meta'][42] = ['location_code' => 'AR-12', '_location_code' => 'field_gone'];
+        $seen = null;
+        $GLOBALS['uams_test_filters']['uams_search_field_value'][] = static function ($value) use (&$seen) {
+            $seen = $value;
+
+            return $value;
+        };
+        $row = Extractor::extract($this->post(['post_type' => 'location']));
+
+        self::assertSame('AR-12', $seen);
+        self::assertSame('AR-12', $row['fields']);
+    }
+
+    public function test_a_skipped_acf_type_adds_no_digits_to_the_fields(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['page_hero' => 1, 'page_note' => 1]]];
+        $GLOBALS['uams_test_meta'][42] = ['page_hero' => '3', '_page_hero' => 'field_hero', 'page_note' => 'Open late'];
+        $GLOBALS['uams_test_acf_fields']['field_hero'] = ['type' => 'repeater'];
+        $row = Extractor::extract($this->post());
+
+        self::assertSame('Open late', trim($row['fields']));
+    }
+
+    public function test_a_block_field_uses_the_key_saved_beside_it(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['hero' => 1]]];
+        $GLOBALS['uams_test_acf_fields']['field_style'] = ['type' => 'select', 'choices' => ['dark' => 'Dark Blue']];
+        $GLOBALS['uams_test_acf_fields']['field_rows'] = ['type' => 'repeater'];
+        $GLOBALS['uams_test_blocks'] = [
+            ['blockName' => 'acf/hero', 'attrs' => ['data' => ['hero' => '2', '_hero' => 'field_rows', 'hero_style' => 'dark', '_hero_style' => 'field_style', 'hero_0_caption' => 'Spine']], 'innerBlocks' => [], 'innerHTML' => ''],
+        ];
+        $row = Extractor::extract($this->post());
+
+        self::assertStringContainsString('Dark Blue Spine', $row['fields']);
+        self::assertStringNotContainsString('dark ', $row['fields']);
+        self::assertSame(0, preg_match('/\d/', $row['fields']));
     }
 
     public function test_extract_adds_the_related_provider_dependency_for_a_location(): void

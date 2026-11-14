@@ -101,7 +101,7 @@ The queue is its own small table (`site_id`, `object_id`, `action`, `queued_at`,
 
 - **Title.**
 - **Content:** `post_content` with blocks parsed, shortcodes and tags stripped. It does *not* run `the_content`, which avoids slow or recursive filters like MinervaKB's.
-- **ACF fields:** an explicit list per post type, each with a weight. No "any meta key".
+- **ACF fields:** an explicit list per post type, each with a weight. No "any meta key". When ACF defines a field, its stored value becomes readable text by type: choice labels for select, radio, button group and checkbox (option groups included); a date such as `March 5, 2026` for a date picker; and, for a repeater, flexible content or group, each sub-field by its own type. Images, files, galleries, true/false flags, links, maps, a bare row count or layout list, and post and term references (relationship, post object, taxonomy) add nothing: post titles and term names are not copied in, because nothing reindexes a page when the linked post or term changes. A field ACF does not define is indexed as stored, and the `uams_search_field_value` filter receives the value after this step.
 - **Taxonomy terms:** names of the terms on the post, for the taxonomies chosen per post type.
 - **Text from ACF blocks:** the block's saved field values, through the same field list.
 
