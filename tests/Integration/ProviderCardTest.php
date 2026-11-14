@@ -111,7 +111,8 @@ final class ProviderCardTest extends IntegrationTestCase
         ob_start();
         ProviderCard::render($data);
         $html = (string) ob_get_clean();
-        $this->assertTrue(str_contains($html, 'No Image') && str_contains($html, 'View Profile'), 'A missing portrait still renders a usable profile card');
+        // The directory's placeholder replaces the "No Image" text once its URL constant is defined, which another test in the process may have done.
+        $this->assertTrue(str_contains($html, 'No Image') !== defined('UAMS_FAD_ROOT_URL') && str_contains($html, 'View Profile'), 'A missing portrait still renders a usable profile card');
         update_post_meta($fallback, 'physician_pedigree', 'Jr.');
         $this->assertTrue(ProviderCard::data($this->snapshot($fallback))['name'] === 'Fallback & "Quoted"', 'A pedigree alone cannot replace the full post title');
         update_post_meta($fallback, 'physician_first_name', 'Only first');
