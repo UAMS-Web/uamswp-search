@@ -11,6 +11,7 @@ namespace UAMS_Search\Tests\Integration;
 use UAMS_Search\DB;
 use UAMS_Search\Indexer;
 use UAMS_Search\Query;
+use UAMS_Search\Result;
 use UAMS_Search\Tests\Support\IntegrationTestCase;
 
 final class OneRowRankingTest extends IntegrationTestCase
