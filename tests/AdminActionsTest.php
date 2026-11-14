@@ -345,9 +345,7 @@ namespace UAMS_Search\Tests {
         {
             $html = $this->printed(Admin::notice(...));
 
-            self::assertStringContainsString('UAMSWP Search needs its index tables.', $html);
-            self::assertStringContainsString('https://example.test/wp-admin/', $html);
-            self::assertStringNotContainsString('rebuild', $html);
+            self::assertSame('<div class="notice notice-warning"><p>UAMSWP Search needs its index tables. <a href="https://example.test/wp-admin/options-general.php?page=uams-search">Create them on the Index screen</a>.</p></div>', $html);
         }
 
         public function test_the_notice_asks_for_a_rebuild_when_a_site_is_out_of_date(): void
@@ -376,8 +374,7 @@ namespace UAMS_Search\Tests {
         {
             $this->indexReady('running');
             $html = $this->printed(Admin::notice(...));
-            self::assertStringContainsString('A browser rebuild is in progress or paused.', $html);
-            self::assertStringContainsString('#uams-search-rebuild', $html);
+            self::assertStringContainsString('<div class="notice notice-info"><p>A browser rebuild is in progress or paused. Saved edits remain queued until it finishes or is canceled. <a href="https://example.test/wp-admin/options-general.php?page=uams-search#uams-search-rebuild">Resume or cancel the rebuild</a>.</p></div>', $html);
 
             $this->indexReady('done');
             self::assertStringNotContainsString('in progress', $this->printed(Admin::notice(...)));
@@ -472,6 +469,25 @@ namespace UAMS_Search\Tests {
 
             $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = '1';
             self::assertStringContainsString('checked', $edit([], $pdf)['uams_search_exclude']['html']);
+        }
+
+        public function test_the_pdf_checkbox_reads_one_value_and_prints_nothing_itself(): void
+        {
+            Admin::hooks();
+            $edit = $GLOBALS['uams_test_hooks']['attachment_fields_to_edit'][0];
+            $pdf = new WP_Post;
+            $pdf->post_mime_type = 'application/pdf';
+            $GLOBALS['uams_test_meta_record'] = true;
+            $GLOBALS['uams_test_meta_reads'] = [];
+            try {
+                self::assertSame('', $this->printed(static function () use ($edit, $pdf): void {
+                    $edit([], $pdf);
+                }));
+            } finally {
+                unset($GLOBALS['uams_test_meta_record']);
+            }
+
+            self::assertSame([['_uams_search_exclude', true]], $GLOBALS['uams_test_meta_reads']);
         }
 
         public function test_the_pdf_checkbox_saves_only_when_submitted_by_a_user_who_can_edit(): void
