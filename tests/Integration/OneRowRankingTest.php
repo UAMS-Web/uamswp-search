@@ -41,7 +41,7 @@ final class OneRowRankingTest extends IntegrationTestCase
     {
         $id = $this->make_page(['post_title' => $this->token.' before']);
         Indexer::one($this->site, $id);
-        $renamed = $this->token.'renamed';
+        $renamed = 'renamed'.$this->token;
         wp_update_post(['ID' => $id, 'post_title' => $renamed.' after']);
         Indexer::one($this->site, $id);
 
