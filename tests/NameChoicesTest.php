@@ -163,9 +163,10 @@ final class NameChoicesTest extends TestCase
         self::assertSame(['fields' => [], 'taxonomies' => ['category' => 'Categories']], $labels);
     }
 
-    public function test_a_refresh_without_acf_loaded_saves_the_names_without_field_labels(): void
+    public function test_a_refresh_saves_the_names_without_field_labels_when_acf_defines_none(): void
     {
-        self::assertFalse(function_exists('acf_get_field'), 'The unit tests run without ACF.');
+        // Other test files stand in for ACF with a lookup that finds nothing here, and without them ACF is absent: either way no field has a label
+        $GLOBALS['uams_test_acf_fields'] = [];
         $GLOBALS['uams_test_taxonomies'] = ['category' => (object) ['label' => 'Categories']];
         $this->db->rows['wp_postmeta'] = [['type' => 'post', 'name' => 'subtitle']];
         $this->db->rows['wp_term_relationships'] = [['type' => 'post', 'name' => 'category']];
