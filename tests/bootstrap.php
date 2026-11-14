@@ -2,6 +2,7 @@
 
 require __DIR__.'/../includes/autoload.php';
 require __DIR__.'/Support/meta-record.php';
+require __DIR__.'/Support/wp-shims.php';
 // The same read the plugin makes: the header's Version, found in the first 8 KB as core does.
 defined('UAMS_SEARCH_VERSION') || define('UAMS_SEARCH_VERSION', preg_match('/^[ \t\/*#@]*Version:(.*)$/mi', (string) file_get_contents(__DIR__.'/../uams-search.php', false, null, 0, 8192), $header_version) ? trim($header_version[1]) : '');
 defined('UAMS_SEARCH_SCHEMA_VERSION') || define('UAMS_SEARCH_SCHEMA_VERSION', '0.1.0');

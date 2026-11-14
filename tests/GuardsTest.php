@@ -415,11 +415,11 @@ namespace UAMS_Search\Tests {
         public function test_chosen_types_keep_their_boosts_and_ignore_what_is_not_a_chosen_type(): void
         {
             $saved = $this->save(['types' => [
-                'Post Type' => ['include' => '1', 'boost' => '2.5'],
-                'page' => ['include' => '1'],
                 'skipped' => ['boost' => '3'],
                 'text' => 'include',
                 '!!!' => ['include' => '1'],
+                'Post Type' => ['include' => '1', 'boost' => '2.5'],
+                'page' => ['include' => '1'],
             ]]);
 
             self::assertSame(['posttype' => 2.5, 'page' => 1.0], $saved['types']);
