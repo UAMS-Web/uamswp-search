@@ -381,7 +381,7 @@ namespace UAMS_Search\Tests {
             self::assertSame('all', Config::scope('bogus'));
 
             $GLOBALS['uams_test_options']['uams_search_scope'] = 'install';
-            self::assertSame('site', Config::scope(null));
+            self::assertSame('site', Config::scope());
         }
     }
 }
