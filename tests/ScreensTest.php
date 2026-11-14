@@ -360,6 +360,24 @@ final class ScreensTest extends TestCase
         self::assertNotSame([], $GLOBALS['wpdb']->queries, 'The stand-in records the queries screens run.');
     }
 
+    public function test_a_suggestion_with_a_label_prints_it_and_the_rest_print_the_name_alone(): void
+    {
+        $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['post' => 1.0], 'fields' => ['post' => []], 'taxonomies' => []];
+        $GLOBALS['uams_test_options']['uams_search_name_choices'] = [
+            'refreshed' => '2026-11-12 18:00:00',
+            'fields' => ['post' => ['subtitle', 'teaser']],
+            'taxonomies' => ['post' => ['category', 'other']],
+            'labels' => ['fields' => ['subtitle' => 'Sub "Title" <b>'], 'taxonomies' => ['category' => 'Categories']],
+        ];
+        $html = $this->render('settings_page');
+
+        self::assertStringContainsString('<datalist id="uams-search-names-fields-post"><option value="subtitle" label="Sub &quot;Title&quot; &lt;b&gt;"></option><option value="teaser"></option></datalist>', $html, 'The label is escaped, and a name with no label stays bare.');
+        self::assertStringContainsString('<datalist id="uams-search-names-taxonomies-post"><option value="category" label="Categories"></option><option value="other"></option></datalist>', $html);
+        // A name's label belongs to the group it was saved under
+        $GLOBALS['uams_test_options']['uams_search_name_choices']['labels'] = ['fields' => [], 'taxonomies' => ['subtitle' => 'Wrong group']];
+        self::assertStringNotContainsString('Wrong group', $this->render('settings_page'));
+    }
+
     public function test_name_boxes_are_plain_text_boxes_until_the_choices_are_refreshed(): void
     {
         $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['post' => 1.0], 'fields' => ['post' => ['subtitle' => 1.0]], 'taxonomies' => []];
