@@ -162,8 +162,8 @@ final class Query
         $out = ['results' => $results, 'total' => (int) $total, 'pages' => (int) ceil((int) $total / $limit), 'fallback' => $fallback && (int) $total > 0, 'suggestion' => null];
         // Suggest a spelling when there are few results
         // A numeric string compares to 3 like its integer. Negating the test, or joining its halves with `||`, or dropping the default for `suggest`, makes the probe searches that `Suggestions::suggest()` runs with `suggest` off ask for a suggestion again, which recurses without end (a timeout, never a failing test).
-        // @pest-mutate-ignore:RemoveIntegerCast,IfNegated,BooleanAndToBooleanOr,CoalesceRemoveLeft
-        if (($args['suggest'] ?? true) && (int) $total < 3) {
+        // @pest-mutate-ignore:RemoveIntegerCast
+        if (($args['suggest'] ?? true) && (int) $total < 3) { // @pest-mutate-ignore:IfNegated,BooleanAndToBooleanOr,CoalesceRemoveLeft,RemoveIntegerCast
             $out['suggestion'] = Suggestions::suggest($search, $args);
         }
 
