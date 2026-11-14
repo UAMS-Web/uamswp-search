@@ -408,6 +408,15 @@ final class LocationCardTest extends IntegrationTestCase
         set_post_thumbnail($owner, $id);
     }
 
+    public function test_a_result_without_a_site_or_a_post_has_no_card(): void
+    {
+        // The caller's post must not stand in for a missing ID
+        $GLOBALS['post'] = get_post($this->parent);
+        $this->assertNull(LocationCard::data($this->snapshot(0)), 'No post ID');
+        $this->assertNull(LocationCard::data($this->snapshot(99999999)), 'A deleted post');
+        $this->assertNull(LocationCard::data($this->snapshot($this->parent, 0)), 'No site');
+    }
+
     private function snapshot(int $id, ?int $blog = null): Result
     {
         return new Result(id: $id, site: $blog ?? get_current_blog_id(), relevance: 0.0, excerpt: 'Old location excerpt', title: 'Indexed snapshot', url: 'https://example.test/stale/', post_type: 'location', file_size: 0);

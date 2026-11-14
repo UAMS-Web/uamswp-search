@@ -201,6 +201,13 @@ final class ProviderCardTest extends IntegrationTestCase
         $this->assertSame(1, $this->xpath($html)->query('//article//h3')->length, 'Only the eligible provider prints a card');
     }
 
+    public function test_a_provider_with_no_name_and_no_title_is_called_provider(): void
+    {
+        $nameless = $this->make_page(['post_type' => 'provider', 'post_title' => '', 'post_content' => 'Profile text']);
+
+        $this->assertSame('Provider', ProviderCard::data($this->snapshot($nameless))['name']);
+    }
+
     public function test_same_id_providers_resolve_on_the_result_site(): void
     {
         if (! is_multisite()) {
