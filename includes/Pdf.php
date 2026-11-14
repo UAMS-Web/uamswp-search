@@ -223,7 +223,7 @@ final class Pdf
 
             // Close the pipes and collect the exit code
             // `proc_close()` closes any pipe still open, so closing them first changes nothing.
-            // @pest-mutate-ignore:RemoveFunctionCall
+            // @pest-mutate-ignore:RemoveFunctionCall,ForeachEmptyIterable,RemoveArrayItem
             foreach ([$pipes[1], $pipes[2]] as $pipe) {
                 fclose($pipe);
             }
