@@ -15,7 +15,7 @@ namespace {
         $GLOBALS['uams_test_blog_lookups'][] = $id;
         $sites = $GLOBALS['uams_test_sites'] ?? [];
 
-        return isset($sites[$id]) ? (object) ['blogname' => $sites[$id]] : false;
+        return $GLOBALS['uams_test_site_details'][$id] ?? (isset($sites[$id]) ? (object) ['blogname' => $sites[$id]] : false);
     }
 }
 
@@ -38,7 +38,7 @@ namespace UAMS_Search\Tests {
 
         protected function tearDown(): void
         {
-            unset($GLOBALS['uams_test_multisite']);
+            unset($GLOBALS['uams_test_multisite'], $GLOBALS['uams_test_site_details']);
         }
 
         public function test_known_site_and_missing_site(): void
@@ -80,6 +80,25 @@ namespace UAMS_Search\Tests {
             } finally {
                 $GLOBALS['uams_test_options'] = [];
             }
+        }
+
+        public function test_a_single_site_without_a_title_option_reads_as_missing(): void
+        {
+            $GLOBALS['uams_test_multisite'] = false;
+            $GLOBALS['uams_test_options'] = [];
+            self::assertSame('(site not found)', SiteNames::name(1), 'No blogname option at all is not a title');
+        }
+
+        public function test_a_multisite_site_with_no_usable_title_reads_as_missing(): void
+        {
+            $GLOBALS['uams_test_site_details'] = [
+                5 => (object) ['blogname' => ''],
+                6 => (object) ['domain' => 'six.example.com'],
+                7 => (object) ['blogname' => 'Seven'],
+            ];
+            self::assertSame('(site not found)', SiteNames::name(5), 'An empty title reads as missing');
+            self::assertSame('(site not found)', SiteNames::name(6), 'A site row with no title is not a title');
+            self::assertSame('Seven', SiteNames::name(7));
         }
 
         public function test_each_site_is_looked_up_once(): void
