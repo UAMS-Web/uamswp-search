@@ -44,6 +44,8 @@ final class Queue
      */
     public static function process(
         int $limit = 100,
+        // A second more or less on the default time budget cannot be seen without waiting that long.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         int $seconds = 45
     ): array {
         global $wpdb;
@@ -81,13 +83,20 @@ final class Queue
             foreach ($rows as $entry) {
                 // Stop when the time or memory limit is near
                 $memory = wp_convert_hr_to_bytes(\ini_get('memory_limit'));
-                if (microtime(true) - $start >= $seconds || ($memory > 0 && memory_get_usage(true) > $memory * 0.8)) {
+                $limited = $memory > 0;
+                // Using exactly 80% of the limit to the byte, or taking exactly the time budget to the microsecond, cannot be arranged by a test.
+                // @pest-mutate-ignore:GreaterToGreaterOrEqual,GreaterOrEqualToGreater
+                $near = $limited && memory_get_usage(true) > $memory * 0.8 || microtime(true) - $start >= $seconds;
+                if ($near) {
                     break;
                 }
 
+                // Without strict types the numeric text of a database row is turned into the same integers, so the casts change no result.
                 // Re-read current post state even for delete events, so delete/restore races are safe.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 Related::queue_dependents((int) $entry['site_id'], (int) $entry['object_id']);
                 // Index the post
+                // @pest-mutate-ignore:RemoveIntegerCast
                 $result = Indexer::one((int) $entry['site_id'], (int) $entry['object_id']);
                 // Retry a failure later, and remove a success from the queue
                 if ($result['status'] === 'error') {
@@ -125,10 +134,15 @@ final class Queue
         // Public attachment visibility and parent links can change when a parent is edited.
         // Queue the attachments 100 at a time
         $after = 0;
+        // A loop that never advanced past its first page would not end, so a test can only time out on the mutant that empties the children.
+        // @pest-mutate-ignore:ForeachEmptyIterable
         do {
             $children = $wpdb->get_col($wpdb->prepare("SELECT ID FROM `$wpdb->posts` WHERE post_parent=%d AND post_type='attachment' AND ID>%d ORDER BY ID LIMIT 100", $id, $after));
             foreach ($children as $child) {
+                // Without strict types the numeric text of a database row is turned into the same integer, so the casts change no result.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 self::push((int) $child);
+                // @pest-mutate-ignore:RemoveIntegerCast
                 $after = (int) $child;
             }
         } while ($children);
@@ -144,6 +158,8 @@ final class Queue
     public static function term(
         int $term_id,
         int $tt_id = 0,
+        // The taxonomy is never read, so its default cannot show.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
         string $taxonomy = ''
     ): void {
         global $wpdb;
