@@ -180,6 +180,8 @@ final class Pdf
         // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         $exit = -1;
         // Collect the output until the command ends
+        // The cleanup below closes each pipe in a loop over a list of both, and `proc_close()` closes whatever is still open, so an empty list, or one pipe fewer, changes nothing. A marker on the loop itself does not reach its own mutator, so this one sits on the block that holds it.
+        // @pest-mutate-ignore:ForeachEmptyIterable,RemoveArrayItem
         try {
             // Removing the pause between reads makes the loop spin without changing what it reads.
             // @pest-mutate-ignore:RemoveFunctionCall
@@ -223,7 +225,7 @@ final class Pdf
 
             // Close the pipes and collect the exit code
             // `proc_close()` closes any pipe still open, so closing them first changes nothing.
-            // @pest-mutate-ignore:RemoveFunctionCall,ForeachEmptyIterable,RemoveArrayItem
+            // @pest-mutate-ignore:RemoveFunctionCall
             foreach ([$pipes[1], $pipes[2]] as $pipe) {
                 fclose($pipe);
             }
