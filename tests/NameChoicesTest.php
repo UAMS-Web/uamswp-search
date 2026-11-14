@@ -2,10 +2,23 @@
 
 namespace {
 
+    // Records the arguments and answers from a global a test sets; ScreensTest declares the same name with a fixed answer, and whichever file loads first defines it.
     if (! function_exists('get_post_types')) {
         function get_post_types($args = [])
         {
-            return ['post' => 'post'];
+            $GLOBALS['uams_test_post_types_args'] = $args;
+
+            return $GLOBALS['uams_test_post_types'] ?? ['post' => 'post'];
+        }
+    }
+
+    // The same ACF definition stand-in FieldTextTest and ExtractorTest declare; whichever file loads first defines it.
+    if (! function_exists('acf_get_field')) {
+        function acf_get_field($selector)
+        {
+            $GLOBALS['uams_test_acf_lookups'][] = $selector;
+
+            return $GLOBALS['uams_test_acf_fields'][$selector] ?? false;
         }
     }
 
@@ -22,7 +35,15 @@ namespace UAMS_Search\Tests {
     use RuntimeException;
     use UAMS_Search\NameChoices;
 
-    /** Pins for the Name suggestions (#45) and their labels (#160). A stand-in `$wpdb` answers each site's two lookups from scripted rows. */
+    /**
+     * Pins for the Name suggestions (#45) and their labels (#160). A stand-in `$wpdb` answers each site's two lookups from scripted rows.
+     *
+     * Mutants left alone in `includes/NameChoices.php`, each annotated with `@pest-mutate-ignore` and no input can tell it apart:
+     * - `array_fill()`'s first key in `lookup()` (`IncrementInteger`, `DecrementInteger`): only the values reach `implode()`.
+     * - The string casts in `lookup()`, `strings()` and `lists()` (`RemoveStringCast`): a list key that is a numeric string is an integer already, and without `strict_types` a scalar passed to `trim()` is converted the same way.
+     * - `array_values()` before `natcasesort()` in `lists()` (`UnwrapArrayValues`): the final `array_values()` renumbers the sorted list either way.
+     * - The offset test of the `while` in `field_label()` (`NotIdenticalToIdentical`, `FalseToTrue`, `DecrementInteger`): each makes the loop search the same underscore forever, so the run times out, which is unverified rather than killed.
+     */
     final class NameChoicesTest extends TestCase
     {
         private object $db;
@@ -88,7 +109,7 @@ namespace UAMS_Search\Tests {
         protected function tearDown(): void
         {
             $GLOBALS['uams_test_options'] = [];
-            unset($GLOBALS['uams_test_taxonomies']);
+            unset($GLOBALS['uams_test_taxonomies'], $GLOBALS['uams_test_post_types'], $GLOBALS['uams_test_post_types_args']);
         }
 
         /**
@@ -105,7 +126,17 @@ namespace UAMS_Search\Tests {
                     ['name' => 'phone', 'label' => 'Phone Number'],
                     ['name' => 'hours', 'label' => 'Hours', 'type' => 'repeater', 'sub_fields' => [['name' => 'day', 'label' => 'Day Of Week']]],
                 ]],
-                'mixed' => ['name' => 'mixed', 'label' => 'Mixed', 'type' => 'group', 'sub_fields' => ['not a field', ['name' => '', 'label' => 'Nameless'], ['label' => 'No name'], ['name' => 'ok', 'label' => 'Okay']]],
+                'mixed' => ['name' => 'mixed', 'label' => 'Mixed', 'type' => 'group', 'sub_fields' => ['not a field', ['name' => '', 'label' => 'Nameless'], ['label' => 'No name'], ['name' => 'nolabel'], ['name' => 'padded', 'label' => '  Padded  '], ['name' => 'ok', 'label' => 'Okay']]],
+                'padded_direct' => ['name' => 'padded_direct', 'label' => '  Direct  '],
+                'contact_phone' => ['name' => 'contact_phone', 'label' => ' '],
+                'badlabel' => ['name' => 'badlabel', 'label' => ['not text']],
+                'g' => ['name' => 'g', 'label' => 'G', 'type' => 'group', 'sub_fields' => [['name' => 'x', 'label' => 'Short Child'], ['name' => 'a', 'label' => 'A', 'type' => 'group', 'sub_fields' => [['name' => 'c', 'label' => 'Deep']]]]],
+                'a_' => ['name' => 'a_', 'label' => 'Underscored', 'sub_fields' => [['name' => 'b', 'label' => 'After Double']]],
+                'm' => ['name' => 'm', 'label' => 'M', 'sub_fields' => [['name' => 'n_o', 'label' => ' '], ['name' => 'o', 'label' => 'Late']]],
+                'm_n' => ['name' => 'm_n', 'label' => 'MN', 'sub_fields' => [['name' => 'o', 'label' => 'Reached']]],
+                'tw' => ['name' => 'tw', 'label' => 'Tw', 'sub_fields' => [['name' => 'x', 'sub_fields' => []], ['name' => 'x_y', 'label' => 'Second Match']]],
+                'lay' => ['name' => 'lay', 'label' => 'Lay', 'type' => 'flexible_content', 'layouts' => ['bad', ['name' => 'empty'], ['name' => 'real', 'sub_fields' => [['name' => 'deep', 'label' => 'Deep Layout']]]]],
+                '' => ['sub_fields' => [['name' => 'a', 'label' => 'Empty Parent Child']]],
                 'slides' => ['name' => 'slides', 'label' => 'Slides', 'type' => 'repeater', 'sub_fields' => [['name' => 'caption', 'label' => 'Slide Caption']]],
                 'blocks' => ['name' => 'blocks', 'label' => 'Blocks', 'type' => 'flexible_content', 'layouts' => [
                     ['name' => 'quote', 'sub_fields' => [['name' => 'speaker', 'label' => 'Speaker']]],
@@ -136,6 +167,86 @@ namespace UAMS_Search\Tests {
             ], $labels['fields']);
         }
 
+        public function test_a_label_is_trimmed_and_the_search_goes_on_past_a_blank_or_unusable_match(): void
+        {
+            $names = ['padded_direct', 'g_x', 'a__b', 'm_n_o', 'tw_x_y', 'lay_deep', 'mixed_padded', 'contact_phone'];
+            $labels = NameChoices::labels(['fields' => ['page' => $names], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
+            self::assertSame([
+                'a__b' => 'After Double',
+                'contact_phone' => 'Phone Number',
+                'g_x' => 'Short Child',
+                'lay_deep' => 'Deep Layout',
+                'm_n_o' => 'Reached',
+                'mixed_padded' => 'Padded',
+                'padded_direct' => 'Direct',
+                'tw_x_y' => 'Second Match',
+            ], $labels['fields']);
+        }
+
+        public function test_taxonomy_labels_are_sorted_by_name_and_a_name_on_two_types_is_looked_up_once(): void
+        {
+            $asked = [];
+            $taxonomy = function (string $name) use (&$asked): mixed {
+                $asked[] = $name;
+
+                return (object) ['label' => $name === 'numbered' ? 5 : ' '.ucfirst($name).' '];
+            };
+            $labels = NameChoices::labels(['fields' => [], 'taxonomies' => ['page' => ['tag', 'category'], 'post' => ['tag', 'numbered']]], null, $taxonomy);
+            self::assertSame(['category' => 'Category', 'tag' => 'Tag'], $labels['taxonomies'], 'Sorted by name, trimmed, and a label that is not text is left out.');
+            self::assertSame(['tag', 'category', 'numbered'], $asked);
+        }
+
+        public function test_the_types_are_the_configured_ones_then_the_public_ones_without_repeats(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['page' => 1.0, 'post' => 2.0]];
+            $GLOBALS['uams_test_post_types'] = ['post' => 'post', 'event' => 'event'];
+            self::assertSame(['page', 'post', 'event'], NameChoices::types());
+            self::assertSame(['public' => true], $GLOBALS['uams_test_post_types_args']);
+        }
+
+        public function test_the_taxonomy_lookup_is_prepared_with_the_same_types_and_internal_pattern(): void
+        {
+            NameChoices::lookup([1], ['provider', 'page']);
+            self::assertSame(['provider', 'page', '\\_%'], $this->db->prepared[1][1][0]);
+            self::assertStringContainsString('p.post_type IN (%s,%s) AND tt.taxonomy NOT LIKE %s', $this->db->prepared[1][0]);
+        }
+
+        public function test_a_row_without_a_type_or_a_name_is_left_out(): void
+        {
+            $this->db->rows['wp_postmeta'] = [['name' => 'no_type'], ['type' => 'post'], ['type' => 'post', 'name' => 'kept']];
+            $this->db->rows['wp_term_relationships'] = [['name' => 'no_type'], ['type' => 'post']];
+            $found = NameChoices::lookup([1], ['post']);
+            self::assertSame(['post' => ['kept']], $found['fields']);
+            self::assertSame([], $found['taxonomies']);
+        }
+
+        public function test_saved_choices_are_cleaned_and_ordered_on_read(): void
+        {
+            $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['b' => ['x'], 'a' => ['y'], 'e' => [], '' => ['z'], 'c' => ['w']], 'taxonomies' => [], 'labels' => ['fields' => ['kept' => ' Padded ', 'blank' => ' ', ' ' => 'No name'], 'taxonomies' => []]];
+            $saved = NameChoices::get();
+            self::assertSame(['a', 'b', 'c'], array_keys($saved['fields']), 'An empty or unnamed type is skipped and the rest are kept, sorted by type.');
+            self::assertSame(['kept' => 'Padded'], $saved['labels']['fields']);
+        }
+
+        public function test_a_cache_missing_a_part_reads_as_none(): void
+        {
+            foreach ([['fields' => [], 'taxonomies' => []], ['refreshed' => 5, 'fields' => [], 'taxonomies' => []], ['refreshed' => 'x', 'fields' => [], 'taxonomies' => 'x']] as $saved) {
+                $GLOBALS['uams_test_options'][NameChoices::OPTION] = $saved;
+                self::assertNull(NameChoices::get());
+            }
+        }
+
+        public function test_a_refresh_labels_the_field_names_acf_defines(): void
+        {
+            $GLOBALS['uams_test_acf_fields'] = ['subtitle' => ['name' => 'subtitle', 'label' => 'Subtitle']];
+            $this->db->rows['wp_postmeta'] = [['type' => 'post', 'name' => 'subtitle']];
+            try {
+                self::assertSame(['subtitle' => 'Subtitle'], NameChoices::refresh()['labels']['fields']);
+            } finally {
+                $GLOBALS['uams_test_acf_fields'] = [];
+            }
+        }
+
         public function test_a_sub_field_that_is_not_a_usable_field_is_skipped_and_the_search_goes_on(): void
         {
             $labels = NameChoices::labels(['fields' => ['page' => ['mixed_ok']], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
@@ -144,7 +255,7 @@ namespace UAMS_Search\Tests {
 
         public function test_a_name_acf_does_not_know_has_no_label(): void
         {
-            $names = ['unknown', 'contact_missing', 'slides_0_missing', 'slides_caption_extra', 'blank_label', 'subtitle_extra'];
+            $names = ['unknown', 'contact_missing', 'slides_0_missing', 'slides_caption_extra', 'blank_label', 'subtitle_extra', 'mixed_', 'mixed_nolabel', 'badlabel', 'g_axc', '_a'];
             $labels = NameChoices::labels(['fields' => ['page' => $names], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
             self::assertSame([], $labels['fields'], 'Each of these keeps its name alone.');
         }
