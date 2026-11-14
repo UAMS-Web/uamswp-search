@@ -67,7 +67,7 @@ final class Pdf
             }
 
             // Find a PHP command to run the bundled parser
-            $php = Filters::string('uams_search_php_binary', PHP_BINDIR.'/php');
+            $php = Filters::string('uams_search_php_binary', self::php_binary());
             if (! is_executable($php)) {
                 throw new RuntimeException('PDF fallback needs an executable PHP CLI; set uams_search_php_binary. '.$throwable->getMessage(), $throwable->getCode(), $throwable);
             }
@@ -80,6 +80,32 @@ final class Pdf
         $plain = Text::plain($text);
 
         return ['pdf' => $plain, 'file_signature' => $sig, 'file_size' => $size, 'status' => $plain === '' ? 'scanned' : 'ready', 'error' => $plain === '' ? 'No text layer; matched by title and filename only.' : '', 'fields' => Text::plain(pathinfo($real, PATHINFO_FILENAME))];
+    }
+
+    /**
+     * The default PHP command line program that runs the bundled parser.
+     *
+     * Looks in the folder PHP was built for, then next to the running binary, which is where a
+     * relocated install such as Herd keeps `php.exe` while `PHP_BINDIR` still names the build folder.
+     * The running binary itself is not used: under PHP-FPM or Apache it is not the command line program.
+     *
+     * @param  string  $family  The operating system family, `Windows` or another.
+     * @param  string  $bindir  The folder PHP was built to install its programs in.
+     * @param  string  $running  The path of the running PHP binary.
+     * @return string Path to `php`, or to `php.exe` on Windows: the first that is executable, otherwise the build folder's.
+     */
+    public static function php_binary(string $family = PHP_OS_FAMILY, string $bindir = PHP_BINDIR, string $running = PHP_BINARY): string
+    {
+        // Windows programs end in .exe, and a path without it cannot start
+        $name = 'php'.($family === 'Windows' ? '.exe' : '');
+        $default = $bindir.'/'.$name;
+        foreach ([$default, \dirname(str_replace('\\', '/', $running)).'/'.$name] as $candidate) {
+            if (is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return $default;
     }
 
     /**
