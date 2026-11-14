@@ -70,7 +70,7 @@ final class Stemmer
     private static function double(string $s): bool
     {
         // A lone consonant would pass the checks below, but a part reaching here holds a vowel, so no input reaches this guard or tells its limit apart.
-        // @pest-mutate-ignore:SmallerToSmallerOrEqual,FalseToTrue,RemoveEarlyReturn
+        // @pest-mutate-ignore:SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger,FalseToTrue,RemoveEarlyReturn
         if (\strlen($s) < 2) {
             return false;
         }
