@@ -479,6 +479,7 @@ namespace UAMS_Search\Tests {
             $pdf->post_mime_type = 'application/pdf';
             $GLOBALS['uams_test_meta_record'] = true;
             $GLOBALS['uams_test_meta_reads'] = [];
+            $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = '1';
             try {
                 self::assertSame('', $this->printed(static function () use ($edit, $pdf): void {
                     $edit([], $pdf);
