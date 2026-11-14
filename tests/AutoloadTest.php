@@ -23,6 +23,13 @@ namespace UAMS_Search\Tests {
             self::assertFalse(class_exists('UAMS_Search_Vendor\PdfParser\NoSuchClass'));
         }
 
+        public function test_a_nested_bundled_parser_class_loads_from_its_folder(): void
+        {
+            $class = 'UAMS_Search_Vendor\PdfParser\Encoding\WinAnsiEncoding';
+            self::assertTrue(class_exists($class));
+            self::assertSame(realpath(__DIR__.'/../lib/pdfparser/src/Smalot/PdfParser/Encoding/WinAnsiEncoding.php'), (new \ReflectionClass($class))->getFileName());
+        }
+
         public function test_classes_in_other_namespaces_are_left_to_other_loaders(): void
         {
             self::assertFalse(class_exists('Other_Vendor\Thing'));

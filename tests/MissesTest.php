@@ -125,6 +125,11 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString("INSERT INTO `wp_uams_search_misses` (site_id,search_hash,search_text,day) VALUES (1,'".hash('sha256', 'orthopaedics')."','Orthopaedics',UTC_DATE())", $this->db->queries[3]);
         }
 
+        public function test_the_daily_limit_is_one_thousand(): void
+        {
+            self::assertSame(1000, Misses::DAILY_LIMIT);
+        }
+
         public function test_a_new_search_is_dropped_at_the_daily_limit(): void
         {
             $this->db->day_count = Misses::DAILY_LIMIT;

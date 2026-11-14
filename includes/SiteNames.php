@@ -73,6 +73,8 @@ final class SiteNames
         // Look up the site's details
         $details = get_blog_details($site_id);
 
+        // Without strict types a returned number becomes the same string, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveStringCast
         return $details && isset($details->blogname) && $details->blogname !== '' ? (string) $details->blogname : self::NOT_FOUND;
     }
 }
