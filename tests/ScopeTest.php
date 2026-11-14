@@ -118,18 +118,32 @@ namespace {
     if (! function_exists('wp_nonce_field')) {
         function wp_nonce_field($action = -1, $name = '_wpnonce', $referer = true, $display = true)
         {
-            return '';
+            $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
+            if ($display) {
+                echo $field;
+            }
+
+            return $field;
         }
     }
 
     if (! function_exists('submit_button')) {
-        function submit_button($text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null): void {}
+        function submit_button($text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null): void
+        {
+            echo '<input type="submit" value="'.htmlspecialchars((string) $text).'">';
+        }
     }
 
     if (! function_exists('checked')) {
         function checked($checked, $current = true, $display = true)
         {
-            return $checked == $current ? 'checked' : '';
+            // The same comparison, output and return as WordPress's helper
+            $result = (string) $checked === (string) $current ? " checked='checked'" : '';
+            if ($display) {
+                echo $result;
+            }
+
+            return $result;
         }
     }
 
