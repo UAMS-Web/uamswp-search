@@ -2,7 +2,17 @@
 
 /**
  * The browser rebuild's refusals and failures: no content type, a busy lock, a failed count, a site that is no longer eligible, an unknown phase, low
- * memory, a database error in each phase, an interrupted dictionary entry and the hand-off between sites.
+ * memory, a database error in each phase, an interrupted dictionary entry and the hand-off between sites. It also pins the job a start creates, the
+ * limits and time budget of a step, the cursor resets of each phase and what a pause, a cancel and a failed step save.
+ *
+ * Mutants that no test can tell apart from the code, each annotated in `includes/Rebuild.php` with its reason: loose against strict `in_array()` on status
+ * strings and on an int site ID, the keys `array_fill()` gives the placeholders, removed `(int)` casts that an int parameter or an int sum coerces anyway
+ * (the file is not strict-typed), a step floor of 0 against 1 unit (the loop body always runs once), a site ID default of -1 (the column is unsigned), the
+ * memory guard's 0, -1, `>=` and real-usage variants (a limit of 0 cannot be set and a float tie cannot be built), a tie of two clock readings, and the
+ * 7, 9 and 11 second variants of the time ceilings, which differ only in runs longer than seven seconds.
+ *
+ * These classes close on a macOS hand-mutation record (every mutant of the file applied by hand and the integration suite run, single site and
+ * multisite); a Linux run is tracked in #208.
  */
 
 declare(strict_types=1);
@@ -263,6 +273,8 @@ final class RebuildStepsTest extends IntegrationTestCase
 
             $job = Rebuild::start(false)['job'];
             $this->assertGreaterThanOrEqual(2, \count($job['sites']));
+            $names = array_column($job['sites'], 'name', 'id');
+            $this->assertSame((string) get_blog_details($blog)->blogname, $names[$blog], 'Each site is listed under its own name');
             for ($i = 0; $i < 2000 && $job['status'] === 'running'; $i++) {
                 $job = Rebuild::step($job['id'], $job['revision'], 50, 10)['job'];
             }
@@ -405,5 +417,310 @@ final class RebuildStepsTest extends IntegrationTestCase
 
         $twice = $this->step($this->job('dictionary', ['inflight' => ['object' => $page, 'phase' => 'dictionary', 'attempts' => 2]]));
         $this->assertSame(0, $twice['dictionary_skipped'], 'Two interruptions still get a third try');
+    }
+
+    /** @return array<int, array{id: int, name: string, maximum: int, total: int}> Each eligible site's content counted straight from the database. */
+    private function counted_sites(): array
+    {
+        global $wpdb;
+        $sites = [];
+        foreach (Config::index_sites() as $id) {
+            $posts = $wpdb->get_blog_prefix($id).'posts';
+            $row = $wpdb->get_row("SELECT COUNT(*) AS total, COALESCE(MAX(ID),0) AS maximum FROM `$posts` WHERE post_type IN ('page')", ARRAY_A);
+            $name = is_multisite() ? (string) get_blog_details($id)->blogname : get_bloginfo('name');
+            $sites[] = ['id' => $id, 'name' => $name, 'maximum' => (int) $row['maximum'], 'total' => (int) $row['total']];
+        }
+
+        return $sites;
+    }
+
+    public function test_a_started_job_carries_every_initial_value_with_its_type(): void
+    {
+        $this->make_page(['post_title' => $this->token.' counted']);
+        $sites = $this->counted_sites();
+
+        $started = Rebuild::start(false);
+        $job = $started['job'];
+
+        $this->assertFalse($started['busy']);
+        $this->assertTrue(wp_is_uuid($job['id']));
+        $this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $job['started_at']);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $job['updated_at']);
+        $this->assertSame([
+            'id' => $job['id'], 'revision' => 1, 'status' => 'running', 'phase' => 'prepare',
+            'sites' => $sites, 'site_index' => 0, 'completed_sites' => 0, 'types' => ['page'],
+            'fingerprint' => Config::fingerprint(), 'include_noindex' => false,
+            'cursor' => 0, 'site_checked' => 0, 'dictionary_cursor' => 0, 'dictionary_done' => 0, 'dictionary_total' => 0,
+            'checked' => 0, 'total' => array_sum(array_column($sites, 'total')), 'indexed' => 0, 'failed' => 0, 'dictionary_skipped' => 0,
+            'inflight' => null, 'error' => '', 'started_at' => $job['started_at'], 'updated_at' => $job['updated_at'],
+        ], $job);
+        $this->assertSame($job, Rebuild::state(), 'The saved job is the one returned');
+    }
+
+    public function test_a_count_that_returns_no_row_stops_the_start_with_a_reason(): void
+    {
+        add_filter('query', static fn (string $sql): string => str_starts_with($sql, 'SELECT COUNT(*) AS total') ? 'SELECT 1 AS total FROM DUAL WHERE 1=0' : $sql);
+
+        try {
+            Rebuild::start(false);
+            $this->fail('The start did not stop');
+        } catch (RuntimeException $runtimeException) {
+            $this->assertSame('Could not count site content', $runtimeException->getMessage());
+        }
+
+        remove_all_filters('query');
+        $this->assertFalse(Rebuild::active(), 'No job was saved');
+    }
+
+    public function test_starting_creates_a_missing_table(): void
+    {
+        global $wpdb;
+        $table = DB::table('misses');
+        $wpdb->query("DROP TABLE `$table`");
+        try {
+            Rebuild::start(false);
+            $this->assertSame($table, $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))));
+        } finally {
+            DB::install();
+        }
+    }
+
+    public function test_every_answer_that_is_not_a_lock_refusal_says_the_writer_is_not_busy(): void
+    {
+        $started = Rebuild::start(false);
+        $this->assertSame(false, $started['busy'], 'start');
+
+        $job = $started['job'];
+        $stale = Rebuild::step($job['id'], $job['revision'] + 5, 1, 1);
+        $this->assertSame(false, $stale['busy'], 'a step for a revision that is not current');
+        $this->assertSame($job['revision'], $stale['job']['revision']);
+
+        $ran = Rebuild::step($job['id'], $job['revision'], 1, 1);
+        $this->assertSame(false, $ran['busy'], 'a step that ran');
+
+        $fail = $this->job('nonsense');
+        $paused = Rebuild::step($fail['id'], $fail['revision'], 1, 1);
+        $this->assertSame(false, $paused['busy'], 'a step that paused the job');
+        $this->assertSame('paused', $paused['job']['status']);
+
+        $this->assertSame(false, Rebuild::pause($fail['id'])['busy'], 'a pause of a paused job');
+        $this->assertSame(false, Rebuild::cancel($fail['id'])['busy'], 'a cancel');
+        $this->assertSame(false, Rebuild::cancel($fail['id'])['busy'], 'a cancel of a cancelled job');
+    }
+
+    public function test_a_step_for_a_stopped_job_returns_it_untouched(): void
+    {
+        $job = $this->job('scan', ['status' => 'complete']);
+
+        $result = Rebuild::step($job['id'], $job['revision'], 5, 5);
+
+        $this->assertSame(false, $result['busy']);
+        $this->assertSame('complete', $result['job']['status']);
+        $this->assertSame($job['revision'], Rebuild::state()['revision'], 'Nothing was saved');
+    }
+
+    public function test_pausing_saves_the_pause(): void
+    {
+        $job = $this->job('scan');
+
+        $result = Rebuild::pause($job['id']);
+
+        $this->assertSame('paused', $result['job']['status']);
+        $this->assertSame('paused', Rebuild::state()['status'], 'The pause is saved, not only returned');
+        $this->assertSame($job['revision'] + 1, Rebuild::state()['revision']);
+    }
+
+    public function test_pausing_while_another_writer_holds_the_lock_changes_nothing(): void
+    {
+        $job = $this->job('scan');
+        $this->hold_the_lock();
+
+        $result = Rebuild::pause($job['id']);
+
+        $this->assertTrue($result['busy']);
+        $this->assertSame('running', Rebuild::state()['status'], 'The job was not paused');
+        $this->assertSame($job['revision'], Rebuild::state()['revision']);
+    }
+
+    public function test_cancelling_clears_the_last_error_and_the_checkpoint(): void
+    {
+        $job = $this->job('scan', ['error' => 'earlier problem', 'inflight' => ['object' => 3, 'phase' => 'scan', 'attempts' => 2]]);
+
+        $result = Rebuild::cancel($job['id']);
+
+        $this->assertSame('cancelled', $result['job']['status']);
+        $this->assertSame('', $result['job']['error']);
+        $this->assertNull($result['job']['inflight']);
+        $this->assertSame('', Rebuild::state()['error'], 'and saved that way');
+    }
+
+    public function test_cancelling_a_job_with_no_current_site_deletes_no_staged_rows(): void
+    {
+        global $wpdb;
+        Indexer::failure(1, 999020, 'page', 'leftover', 'stage');
+        $job = $this->job('scan', ['site_index' => 5]);
+
+        $result = Rebuild::cancel($job['id']);
+
+        $this->assertSame('cancelled', $result['job']['status']);
+        $this->assertSame(1, (int) $wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('stage').'` WHERE site_id=1 AND object_id=999020'), 'Site 1 keeps its rows when the job points at no site');
+        $wpdb->delete(DB::table('stage'), ['site_id' => 1, 'object_id' => 999020]);
+    }
+
+    public function test_a_resumed_step_clears_the_error_it_paused_with(): void
+    {
+        $job = $this->job('prepare', ['status' => 'paused', 'error' => 'earlier problem']);
+
+        $after = $this->step($job);
+
+        $this->assertSame('running', $after['status']);
+        $this->assertSame('', $after['error']);
+    }
+
+    public function test_changed_index_settings_pause_even_a_job_that_is_already_paused(): void
+    {
+        $job = $this->job('scan', ['status' => 'paused', 'fingerprint' => 'stale-fingerprint']);
+
+        $result = Rebuild::step($job['id'], $job['revision'], 1, 1);
+
+        $this->assertSame('paused', $result['job']['status']);
+        $this->assertSame('Index settings changed. Cancel this rebuild, then start a new one.', $result['job']['error']);
+        $this->assertSame($result['job']['error'], Rebuild::state()['error'], 'The reason is saved');
+    }
+
+    public function test_a_pause_for_a_failure_is_saved_and_its_reason_is_cut_at_two_thousand_characters(): void
+    {
+        $message = str_repeat('0123456789', 250);
+        $job = $this->job('promote');
+        add_filter('query', static function (string $sql) use ($message): string {
+            if (str_starts_with($sql, 'SELECT COUNT(*) FROM')) {
+                throw new RuntimeException($message);
+            }
+
+            return $sql;
+        });
+
+        $after = $this->step($job);
+        remove_all_filters('query');
+
+        $this->assertSame('paused', $after['status']);
+        $this->assertSame(2000, \strlen($after['error']));
+        $this->assertSame(substr($message, 0, 2000), $after['error']);
+        $this->assertSame($after['error'], Rebuild::state()['error'], 'The paused job is saved');
+        $this->assertSame('paused', Rebuild::state()['status']);
+        $this->assertStringContainsString('browser rebuild paused: '.substr($message, 0, 2000), (string) file_get_contents($this->log));
+    }
+
+    public function test_a_step_stops_after_exactly_the_limit_it_is_given(): void
+    {
+        for ($i = 0; $i < 4; $i++) {
+            $this->make_page(['post_title' => $this->token.' limit '.$i]);
+        }
+
+        $job = $this->job('scan');
+        $after = Rebuild::step($job['id'], $job['revision'], 2, 10)['job'];
+
+        $this->assertSame(2, $after['checked']);
+    }
+
+    public function test_a_step_given_no_limit_or_time_runs_twenty_five_units(): void
+    {
+        for ($i = 0; $i < 30; $i++) {
+            $this->make_page(['post_title' => $this->token.' default '.$i]);
+        }
+
+        $job = Rebuild::start(false)['job'];
+        $after = Rebuild::step($job['id'], $job['revision'])['job'];
+
+        $this->assertSame(24, $after['checked'], 'The prepare unit and twenty-four posts make twenty-five units');
+    }
+
+    /** @return array<string, array{int}> */
+    public static function limits_below_one(): array
+    {
+        return ['zero' => [0], 'negative' => [-4]];
+    }
+
+    /**
+     * @dataProvider limits_below_one
+     */
+    public function test_a_step_given_less_than_one_unit_still_runs_one(int $limit): void
+    {
+        $job = Rebuild::start(false)['job'];
+
+        $after = Rebuild::step($job['id'], $job['revision'], $limit, 5)['job'];
+
+        $this->assertSame('scan', $after['phase'], 'The prepare unit ran');
+        $this->assertSame($job['revision'] + 1, $after['revision'], 'and nothing more');
+    }
+
+    /** @return array<string, array{int}> */
+    public static function times_below_two_seconds(): array
+    {
+        return ['zero' => [0], 'one' => [1], 'negative' => [-3]];
+    }
+
+    /**
+     * @dataProvider times_below_two_seconds
+     */
+    public function test_a_step_runs_for_one_second_at_the_least_and_stops_there_when_asked_for_less_or_one(int $seconds): void
+    {
+        for ($i = 0; $i < 6; $i++) {
+            $this->make_page(['post_title' => $this->token.' slow '.$i]);
+        }
+
+        $job = $this->job('scan');
+        add_filter('query', static function (string $sql): string {
+            if (str_starts_with($sql, 'SELECT ID,post_type FROM')) {
+                usleep(600000);
+            }
+
+            return $sql;
+        });
+
+        $after = Rebuild::step($job['id'], $job['revision'], 50, $seconds)['job'];
+        remove_all_filters('query');
+
+        $this->assertSame(2, $after['checked'], 'Each unit takes 0.6 seconds, so a one second budget allows two');
+    }
+
+    public function test_the_prepare_phase_resets_the_site_cursors_and_the_checkpoint(): void
+    {
+        $job = $this->job('prepare', ['cursor' => 9, 'site_checked' => 9, 'dictionary_cursor' => 9, 'inflight' => ['object' => 9, 'phase' => 'scan', 'attempts' => 1]]);
+
+        $after = $this->step($job);
+
+        $this->assertSame(0, $after['cursor']);
+        $this->assertSame(0, $after['site_checked']);
+        $this->assertSame(0, $after['dictionary_cursor']);
+        $this->assertNull($after['inflight']);
+    }
+
+    public function test_the_promote_phase_counts_the_dictionary_work_and_resets_its_cursors(): void
+    {
+        $page = $this->make_page(['post_title' => 'Uamsfixturepromoteword']);
+        Indexer::one($this->site, $page, 'stage');
+        $job = $this->job('promote', ['dictionary_done' => 9, 'dictionary_cursor' => 9, 'inflight' => ['object' => 9, 'phase' => 'scan', 'attempts' => 1]]);
+
+        $after = $this->step($job);
+
+        $this->assertSame('dictionary_cleanup', $after['phase']);
+        $this->assertIsInt($after['dictionary_total']);
+        $this->assertGreaterThanOrEqual(1, $after['dictionary_total']);
+        $this->assertSame(0, $after['dictionary_done']);
+        $this->assertSame(0, $after['dictionary_cursor']);
+        $this->assertNull($after['inflight']);
+    }
+
+    public function test_a_site_id_saved_as_text_is_still_eligible(): void
+    {
+        $job = $this->job('scan');
+        $job['sites'][0]['id'] = (string) $this->site;
+        update_site_option('uams_search_rebuild', $job);
+
+        $after = $this->step($job);
+
+        $this->assertSame('running', $after['status']);
+        $this->assertSame('', $after['error']);
     }
 }
