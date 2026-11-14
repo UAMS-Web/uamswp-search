@@ -29,6 +29,8 @@ final class Query
         $empty = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
         // Read the search text and split it into term groups
         $text = $args['s'] ?? '';
+        // A scalar reaches `mb_substr()` as text under PHP's non-strict typing, so the string cast changes nothing.
+        // @pest-mutate-ignore:RemoveStringCast
         $search = mb_substr(\is_scalar($text) ? (string) $text : '', 0, 200);
         if (! DB::ready() || ! ($groups = Text::groups($search))) {
             return $empty;
@@ -44,16 +46,26 @@ final class Query
 
         // Read the page size and page number
         $limit = Config::page_size($args['per_page'] ?? null);
+        // The default of 0 and the default of -1 both give page 1 after `max()`; the `max()` bound itself is pinned by the page 0 and negative page tests.
+        // @pest-mutate-ignore:DecrementInteger
         $page = max(1, min(10000, (int) ($args['page'] ?? 1)));
         // Work out the post types to search
         $t = DB::table();
+        // A non-empty default names no known type, so the filter is empty and every configured type is searched, exactly as with the empty default.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
         $type = $args['type'] ?? '';
+        // Only the values are read from the list, so its keys are never seen.
+        // @pest-mutate-ignore:UnwrapArrayValues
         $types = array_values(array_intersect((array) $type, array_keys(Config::section('types'))));
         // Limit the rows to the chosen sites and ready objects
+        // The site IDs from `Config::sites()` are already integers, so the cast is defensive only.
+        // @pest-mutate-ignore:UnwrapArrayMap
         $where = 'i.site_id IN ('.implode(',', array_map(intval(...), $sites)).") AND i.status IN ('ready','scanned')";
         // Leave out PDFs when PDF search is off
         $configured = array_keys(Config::section('types'));
         if (! Config::flag('pdf')) {
+            // Only the values of the list are read, so its keys are never seen.
+            // @pest-mutate-ignore:UnwrapArrayValues
             $configured = array_values(array_diff($configured, ['attachment']));
         }
 
@@ -63,6 +75,8 @@ final class Query
 
         // Limit the rows to the chosen types and to what is public now
         $types = $types ?: $configured;
+        // `implode()` ignores the keys of the placeholder list, so its first key is irrelevant.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         $where .= $wpdb->prepare(' AND i.post_type IN ('.implode(',', array_fill(0, \count($types), '%s')).')', $types);
         $where .= ' AND ('.self::public_sql($sites).')';
         // Count the results that match every word
@@ -90,6 +104,8 @@ final class Query
         $explain = [];
         $scoring = Text::boolean($groups, false);
         foreach (Config::section('weights') as $column => $weight) {
+            // A weight column is a string key and PHP 8 never loosely equals a non-numeric string to another string, so strictness changes nothing.
+            // @pest-mutate-ignore:TrueToFalse
             if (! \in_array($column, ['title', 'content', 'terms', 'fields', 'pdf'], true)) {
                 continue;
             }
@@ -109,6 +125,8 @@ final class Query
 
         $boost .= ' ELSE 1 END';
         // Add a bonus for an exact phrase in the title, and the field and recency scores
+        // `Text::words()` returns words without spaces, so the joined phrase has no surrounding space to trim.
+        // @pest-mutate-ignore:UnwrapTrim
         $phrase = trim(implode(' ', Text::words($search)));
         $exact = $wpdb->prepare('LOWER(i.title) LIKE %s', '%'.$wpdb->esc_like($phrase).'%');
         $extra = self::field_score($groups);
@@ -133,12 +151,18 @@ final class Query
                 }
             }
 
+            // The typed `Result` constructor coerces numeric strings to int and float under non-strict typing, so those casts change nothing.
+            // @pest-mutate-ignore:RemoveIntegerCast,RemoveDoubleCast
             $results[] = new Result((int) $row['object_id'], (int) $row['site_id'], (float) $row['relevance'], Excerpt::make([$row['content'], $row['fields'], $row['pdf']], $search), (string) $row['title'], (string) $row['url'], (string) $row['post_type'], (int) $row['file_size'], $scores);
         }
 
         // Assemble the answer
+        // A numeric string divides, compares and coerces like its integer, so each cast gives the same count, page total and flag.
+        // @pest-mutate-ignore:RemoveIntegerCast
         $out = ['results' => $results, 'total' => (int) $total, 'pages' => (int) ceil((int) $total / $limit), 'fallback' => $fallback && (int) $total > 0, 'suggestion' => null];
         // Suggest a spelling when there are few results
+        // A numeric string compares to 3 like its integer. Negating the test, or joining its halves with `||`, or dropping the default for `suggest`, makes the probe searches that `Suggestions::suggest()` runs with `suggest` off ask for a suggestion again, which recurses without end (a timeout, never a failing test).
+        // @pest-mutate-ignore:RemoveIntegerCast,IfNegated,BooleanAndToBooleanOr,CoalesceRemoveLeft
         if (($args['suggest'] ?? true) && (int) $total < 3) {
             $out['suggestion'] = Suggestions::suggest($search, $args);
         }
@@ -154,6 +178,8 @@ final class Query
      */
     private static function sql_weight(mixed $value): string
     {
+        // The `string` return type coerces the number to the same text.
+        // @pest-mutate-ignore:RemoveStringCast
         return (string) Config::weight($value);
     }
 
@@ -189,6 +215,8 @@ final class Query
         $tokens = [];
         foreach ($groups as $group) {
             foreach ($group as $term) {
+                // Each token is trimmed of the same characters on the next line, so the outer trim only shortens the list.
+                // @pest-mutate-ignore:UnwrapTrim
                 foreach (explode(' ', trim($term, '"*')) as $token) {
                     $tokens[] = trim($token, '"*');
                 }
@@ -206,6 +234,8 @@ final class Query
         }
 
         // Individual source weights are relative to their column weight. The JSON data is generated by us.
+        // `Config::section('weights')` always carries the `fields` and `terms` defaults, so the `?? 0` fallbacks are never used.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         return "COALESCE((SELECT SUM((j.weight-1)*(CASE j.source WHEN 'fields' THEN ".self::sql_weight(Config::section('weights')['fields'] ?? 0).' ELSE '.self::sql_weight(Config::section('weights')['terms'] ?? 0)." END)) FROM JSON_TABLE(IF(JSON_VALID(i.weighted_data),i.weighted_data,'[]'),'$[*]' COLUMNS(stem LONGTEXT PATH '$.stem', weight DOUBLE PATH '$.weight', source VARCHAR(10) PATH '$.source')) AS j WHERE (".implode(' OR ', $matches).')),0)';
     }
 
@@ -228,6 +258,8 @@ final class Query
             // Define who may see each kind of post
             $visibility = "((p.post_type<>'attachment' AND p.post_status='publish') OR (p.post_type='attachment' AND p.post_mime_type='application/pdf' AND p.post_status IN ('inherit','publish') AND (p.post_parent=0 OR EXISTS (SELECT 1 FROM `$p` parent WHERE parent.ID=p.post_parent AND parent.post_status='publish' AND parent.post_password=''))))";
             // Require a published, unprotected, non-excluded post, and fresh related names
+            // Site IDs are integers already, so the cast is defensive only.
+            // @pest-mutate-ignore:RemoveIntegerCast
             $clause = '(i.site_id='.(int) $site." AND EXISTS (SELECT 1 FROM `$p` p WHERE p.ID=i.object_id AND p.post_password='' AND BINARY p.post_type=BINARY i.post_type AND $visibility) AND NOT EXISTS (SELECT 1 FROM `$m` m WHERE m.post_id=i.object_id AND ((m.meta_key='_uams_search_exclude' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_hidden' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_searchable' AND m.meta_value='0') OR (i.post_type='location' AND m.meta_key='location_hidden' AND m.meta_value NOT IN ('','0')))))";
             $clauses[] = '('.$clause.' AND '.Related::public_sql($p, $m).')';
         }
