@@ -111,15 +111,20 @@ final class Pdf
     /**
      * Find an executable on the server's path or the usual install folders.
      *
+     * On Windows a program file ends in `.exe`, and a path without it is not executable.
+     *
      * @param  string  $name  Program name, such as `pdftotext`.
+     * @param  string  $family  The operating system family, `Windows` or another.
+     * @param  string|null  $path  The folders to search, separated as `PATH` is; null reads `PATH`.
      * @return string|null Full path, or null when it is not installed.
      */
-    public static function binary(string $name): ?string
+    public static function binary(string $name, string $family = PHP_OS_FAMILY, ?string $path = null): ?string
     {
+        $file = $family === 'Windows' && ! str_ends_with(strtolower($name), '.exe') ? $name.'.exe' : $name;
         // Check each folder on the path, then the usual install folders
-        foreach (array_merge(explode(PATH_SEPARATOR, getenv('PATH') ?: ''), ['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin']) as $dir) {
-            if ($dir !== '' && is_executable($dir.'/'.$name)) {
-                return $dir.'/'.$name;
+        foreach (array_merge(explode(PATH_SEPARATOR, $path ?? (getenv('PATH') ?: '')), ['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin']) as $dir) {
+            if ($dir !== '' && is_executable($dir.'/'.$file)) {
+                return $dir.'/'.$file;
             }
         }
 
