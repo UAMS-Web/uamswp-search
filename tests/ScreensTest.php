@@ -170,6 +170,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\DB;
     use UAMS_Search\Rebuild;
     use UAMS_Search\SiteNames;
+    use UAMS_Search\Time;
 
     /** Answers the table probe and returns no rows, so the screens render their empty states. */
     class ScreensFixtureDB
@@ -361,6 +362,7 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('<input type="checkbox" name="google" value="1"  checked=\'checked\'> Show the Existing All of UAMS Google Search', $html, 'The Google results are on until the site turns them off.');
             self::assertStringContainsString('action="https://example.test/wp-admin/admin-post.php"', $html);
             self::assertStringContainsString('<input type="hidden" name="_wpnonce" value="nonce-for-uams_search_site">', $html);
+            self::assertSame(2, substr_count($html, "checked='checked'"), 'One scope and the Google switch.');
             self::assertStringContainsString('<input type="submit" value="Save search settings"></form></div>', $html);
 
             $GLOBALS['uams_test_options']['uams_search_scope'] = 'all';
@@ -410,11 +412,16 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('<th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Post type</th><th scope="col">Status</th><th scope="col">Count</th>', $status);
             self::assertStringContainsString('<tr><td>Main Site</td><td>1</td><td>post</td><td>ready</td><td>12</td></tr>', $status);
 
+            self::assertContains('SELECT COUNT(*) FROM `wp_uams_search_queue`', $GLOBALS['wpdb']->queries);
+            self::assertContains('SELECT site_id,post_type,status,COUNT(*) AS total FROM `wp_uams_search_index` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', $GLOBALS['wpdb']->queries);
             $GLOBALS['wpdb']->count = null;
             self::assertStringContainsString('<p>Queue length: 0. Last queue run: Never.</p>', $this->render('page'), 'A count the database did not give reads as zero.');
             $GLOBALS['wpdb']->count = 7;
 
             $reports = $this->render('reports_page');
+            self::assertStringContainsString('<h1>UAMSWP Search Reports</h1><section id="failed-items">', $reports);
+            self::assertContains("SELECT site_id,object_id,status,error FROM `wp_uams_search_index` WHERE status IN ('error','scanned') ORDER BY indexed_at DESC LIMIT 100", $GLOBALS['wpdb']->queries);
+            self::assertContains('SELECT site_id,search_text,SUM(count) AS total FROM `wp_uams_search_misses` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', $GLOBALS['wpdb']->queries);
             self::assertStringContainsString('<tr><td>Main Site</td><td>1</td><td>42</td><td>error</td><td>Timed out</td><td><a href="', $reports);
             self::assertStringContainsString('admin-post.php?action=uams_search_retry&site=1&object=42&_wpnonce=nonce-for-uams_search_retry', $reports);
             self::assertStringContainsString('>Retry item 42 on site 1</a></td></tr>', $reports);
@@ -437,9 +444,23 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_types'] = ['post' => (object) ['labels' => (object) ['name' => 'Posts']], 'page' => (object) ['labels' => (object) ['name' => 'Pages']]];
             $html = $this->render('settings_page');
 
+            $labels = ['enabled' => 'Use UAMSWP Search for Visitors', 'live' => 'Show Live Search Suggestions', 'logging' => 'Keep Search Text With No Results for up to 90 Days', 'pdf' => 'Index PDFs', 'pdf_parent' => 'Link PDFs to Their Parent Page When Available'];
             foreach (['enabled' => true, 'live' => false, 'logging' => true, 'pdf' => false, 'pdf_parent' => true] as $key => $on) {
-                self::assertStringContainsString('<input type="checkbox" name="settings['.$key.']" value="1" '.($on ? " checked='checked'" : '').'> ', $html, $key);
+                self::assertStringContainsString('<p><label><input type="checkbox" name="settings['.$key.']" value="1" '.($on ? " checked='checked'" : '').'> '.$labels[$key].'</label></p>', $html, $key);
             }
+
+            self::assertSame(6, substr_count($html, "checked='checked'"), 'Three switches, one site and two types.');
+            self::assertStringContainsString('<form method="post" action="https://example.test/wp-admin/admin-post.php"><input type="hidden" name="action" value="uams_search_save">', $html);
+            self::assertStringContainsString('<form id="uams-search-refresh-choices" method="post" action="https://example.test/wp-admin/admin-post.php"><input type="hidden" name="action" value="uams_search_refresh_choices">', $html);
+            self::assertStringContainsString('<p><label><input type="checkbox" name="settings[sites][]" value="1"  checked=\'checked\'> Main Site</label></p>', $html);
+            self::assertStringContainsString('<h3>ACF Fields</h3><table class="uams-search-rows" data-prefix="settings[types][post][fields]" data-label="Posts ACF Fields" data-size="31"><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>', $html);
+            self::assertStringContainsString('<tr><td><input size="31" aria-label="Posts ACF Fields name 1" name="settings[types][post][fields][0][name]" value="a_name_of_twenty_six_ch"></td><td><input type="number" min="0" max="100" step="0.1" aria-label="Posts ACF Fields weight 1" name="settings[types][post][fields][0][weight]" value="2"></td><td><button type="button" class="button uams-remove-row" aria-label="Remove Posts ACF Fields row 1" hidden>Remove</button></td></tr>', $html);
+            self::assertStringContainsString('<tr><td><input size="31" aria-label="Posts ACF Fields name 3" name="settings[types][post][fields][2][name]" value=""></td><td><input type="number" min="0" max="100" step="0.1" aria-label="Posts ACF Fields weight 3" name="settings[types][post][fields][2][weight]" value="1"></td><td><button type="button" class="button uams-remove-row" aria-label="Remove Posts ACF Fields row 3" hidden>Remove</button></td></tr>', $html);
+            self::assertSame(3, substr_count($html, 'aria-label="Posts ACF Fields name '), 'Rows are numbered from 1.');
+            self::assertSame(3, substr_count($html, 'aria-label="Posts ACF Fields weight '));
+            self::assertSame(3, substr_count($html, 'aria-label="Remove Posts ACF Fields row '));
+            self::assertStringNotContainsString('name 0"', $html);
+            self::assertStringNotContainsString('name -1"', $html);
 
             self::assertStringContainsString('name="settings[results_per_page]" min="1" max="100" step="1" value="33">', $html);
             self::assertStringContainsString('name="settings[sites][]" value="1"  checked=\'checked\'> Main Site', $html);
@@ -523,6 +544,15 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('name="settings[sites][]" value="5"  checked=\'checked\'> Cardiology (#5)', $html);
         }
 
+        public function test_the_setup_form_replaces_a_screen_whose_tables_are_missing(): void
+        {
+            $GLOBALS['uams_test_options'] = [];
+            $this->tablesReady(false);
+            $html = $this->render('reports_page');
+
+            self::assertSame('<div class="wrap"><h1>UAMSWP Search Reports</h1><form method="post" action="https://example.test/wp-admin/admin-post.php"><input type="hidden" name="action" value="uams_search_setup"><input type="hidden" name="_wpnonce" value="nonce-for-uams_search_setup"><input type="submit" value="Create index tables"></form></div>', $html);
+        }
+
         public function test_headings_and_field_labels_follow_ap_style(): void
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['weights' => ['title' => 1, 'pdf' => 1, 'long_name' => 1]];
@@ -585,7 +615,9 @@ namespace UAMS_Search\Tests {
             self::assertSame(2, substr_count($html, 'list="uams-search-names-fields-post" aria-label="Posts ACF Fields name'), 'The saved row and the blank row both suggest.');
             self::assertStringContainsString('data-list="uams-search-names-fields-post"', $html, 'Rows added with Add Row read the list from the table.');
             self::assertMatchesRegularExpression('/Add Row<\/button><\/p><datalist id="uams-search-names-fields-post">/', $html, 'The Add Row paragraph stays right after its table.');
-            self::assertStringContainsString('last refreshed', $html);
+            self::assertStringContainsString('<p id="uams-search-choices-status">The Name boxes suggest the field and taxonomy names in use on each content type across every site, last refreshed '.Time::local('2026-11-12 18:00:00').'. Any other name can still be typed. Refreshing asks every site and leaves this page, so save your changes first. <button type="submit" class="button" form="uams-search-refresh-choices" aria-describedby="uams-search-choices-status">Refresh Choices</button></p>', $html);
+            self::assertStringContainsString('<tr><td><input size="28" list="uams-search-names-fields-post" aria-label="Posts ACF Fields name 1" name="settings[types][post][fields][0][name]" value="subtitle"></td>', $html);
+            self::assertStringContainsString('data-size="28" data-list="uams-search-names-fields-post"><thead>', $html);
             self::assertStringContainsString('form="uams-search-refresh-choices"', $html);
             $lookups = array_filter($GLOBALS['wpdb']->queries, static fn (string $sql): bool => str_contains($sql, 'postmeta') || str_contains($sql, 'term_relationships'));
             self::assertSame([], $lookups, 'The screen reads the cache only.');
