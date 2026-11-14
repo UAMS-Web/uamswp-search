@@ -100,6 +100,8 @@ parameters:
         - vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
         - vendor/php-stubs/wp-cli-stubs/wp-cli-i18n-stubs.php
         - vendor/php-stubs/wp-cli-stubs/wp-cli-tools-stubs.php
+        # The hand-mutation runner, which tests/HandMutateTest.php loads; its functions are scanned, not analyzed.
+        - scripts/hand-mutate.php
 
     # The database constants WordPress defines in wp-config.php, read by the
     # `tests/` code, if any reads them. PHPStan cannot see them,
