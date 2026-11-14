@@ -14,6 +14,7 @@ use UAMS_Search\Indexer;
 use UAMS_Search\Integration;
 use UAMS_Search\Result;
 use UAMS_Search\Tests\Support\IntegrationTestCase;
+use UAMS_Search\Text;
 use WP_Query;
 use WP_REST_Request;
 use WP_REST_Server;
@@ -689,6 +690,404 @@ final class SearchPageTest extends IntegrationTestCase
             $this->assertStringContainsString('name="scope" value="install"', Integration::form(''));
             $this->assertStringContainsString('scope=install', Integration::url());
             $this->assertStringContainsString('scope=install', Integration::url(['paged' => 2]));
+        } finally {
+            $wpdb->delete(DB::table(), ['site_id' => $blog]);
+            wpmu_delete_blog($blog, true);
+        }
+    }
+
+    /** The priority and accepted argument count a callback was registered with, or null when it is not registered. */
+    private function registration(string $hook, callable|array $callback): ?array
+    {
+        global $wp_filter;
+        foreach ($wp_filter[$hook]->callbacks ?? [] as $priority => $callbacks) {
+            foreach ($callbacks as $registered) {
+                if ($registered['function'] === $callback) {
+                    return [$priority, $registered['accepted_args']];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public function test_each_hook_keeps_its_priority_and_the_arguments_it_accepts(): void
+    {
+        $this->assertSame([1, 2], $this->registration('posts_pre_query', [Integration::class, 'posts']));
+        $this->assertSame([PHP_INT_MAX, 2], $this->registration('relevanssi_search_ok', [Integration::class, 'allow_other_engine']));
+        $this->assertSame([PHP_INT_MAX, 2], $this->registration('asp_query_is_search', [Integration::class, 'allow_other_engine']));
+        $this->assertSame([99, 1], $this->registration('template_include', [Integration::class, 'template']));
+        $this->assertSame([99, 2], $this->registration('get_the_excerpt', [Integration::class, 'excerpt']));
+        $this->assertSame([99, 1], $this->registration('get_search_form', [Integration::class, 'form']));
+        $this->assertSame([10, 1], $this->registration('wp_enqueue_scripts', [Integration::class, 'assets']));
+        $this->assertSame([10, 1], $this->registration('rest_api_init', [Integration::class, 'rest']));
+    }
+
+    public function test_the_shortcode_returns_the_form_instead_of_printing_it(): void
+    {
+        ob_start();
+        $html = do_shortcode('[uams_search_form]');
+        $printed = (string) ob_get_clean();
+
+        $this->assertSame('', $printed, 'The form is returned, never echoed');
+        $this->assertStringStartsWith('<form role="search"', $html);
+        $this->assertStringEndsWith('</form>', $html);
+        $this->assertSame(1, substr_count($html, 'class="uams-search-form"'));
+    }
+
+    public function test_all_websites_leaves_the_query_with_exactly_the_google_marker(): void
+    {
+        $query = $this->search($this->word, ['scope' => 'all']);
+
+        $this->assertSame(['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null, 'google' => true], $query->get('uams_search_results'));
+    }
+
+    public function test_a_query_whose_fields_only_loosely_equal_an_empty_value_is_left_alone(): void
+    {
+        $this->indexed('Sentinel '.$this->word);
+
+        $this->assertNull(Integration::posts(null, $this->unrun(['s' => $this->word, 'fields' => false])), 'false is not the empty string');
+        $this->assertNull(Integration::posts(null, $this->unrun(['s' => $this->word, 'fields' => 0])), '0 is not the empty string');
+        $this->assertCount(1, Integration::posts(null, $this->unrun(['s' => $this->word, 'fields' => 'all'])), 'all is answered');
+    }
+
+    public function test_the_search_passes_the_page_the_site_the_type_and_the_page_size_to_the_query(): void
+    {
+        $this->configure(['types' => ['page' => 1.0, 'post' => 1.0], 'fields' => ['page' => [], 'post' => []], 'taxonomies' => ['page' => [], 'post' => []], 'results_per_page' => 10]);
+        for ($i = 0; $i < 12; $i++) {
+            $this->indexed('Sentinel '.$this->word.' '.$i);
+        }
+
+        $first = $this->search($this->word, ['scope' => $this->scope]);
+        $this->assertCount(10, $first->posts);
+        $this->assertSame(10, $first->get('posts_per_page'));
+        $this->assertSame(12, $first->found_posts);
+        $this->assertSame(2, $first->max_num_pages);
+
+        $_GET = ['scope' => $this->scope];
+        $second = new WP_Query;
+        $GLOBALS['wp_query'] = $GLOBALS['wp_the_query'] = $second;
+        $second->query(['s' => $this->word, 'paged' => 2]);
+        $this->assertCount(2, $second->posts, 'The second page holds the rest');
+
+        $zero = new WP_Query;
+        $GLOBALS['wp_query'] = $GLOBALS['wp_the_query'] = $zero;
+        $zero->query(['s' => $this->word, 'paged' => 0]);
+        $this->assertCount(10, $zero->posts, 'A page below one reads as the first');
+
+        $this->assertSame([], $this->search($this->word, ['scope' => $this->scope, 'type' => 'post'])->posts, 'The type narrows the search');
+        $this->assertSame(10, $this->search($this->word, ['scope' => $this->scope, 'type' => 'page'])->get('posts_per_page'));
+    }
+
+    public function test_a_failed_search_logs_the_reason_after_the_notice(): void
+    {
+        $this->indexed('Sentinel '.$this->word);
+        $log = tempnam(sys_get_temp_dir(), 'uamslog');
+        $previous = ini_set('error_log', $log);
+        $this->rename_index_table();
+        try {
+            $this->search($this->word);
+            $this->request(['s' => $this->word]);
+        } finally {
+            $this->restore_index_table();
+            ini_set('error_log', (string) $previous);
+        }
+
+        $lines = (string) file_get_contents($log);
+        unlink($log);
+        $this->assertMatchesRegularExpression('/UAMS Search: search failed; using WordPress\. \S/', $lines, 'The throwable message follows the notice');
+        $this->assertMatchesRegularExpression('/UAMS Search: REST \S/', $lines, 'The REST message follows its notice');
+    }
+
+    public function test_the_templates_are_the_files_in_the_plugin_folder(): void
+    {
+        $this->indexed('Sentinel '.$this->word);
+        $this->search($this->word);
+
+        $default = Integration::template('theme.php');
+        $this->assertFileExists($default);
+        $this->assertSame('search.php', basename($default));
+        $this->assertSame(dirname(__DIR__, 2).'/templates', realpath(dirname($default)));
+
+        add_filter('template', static fn (): string => 'genesis');
+        $genesis = Integration::template('theme.php');
+        remove_all_filters('template');
+        $this->assertFileExists($genesis);
+        $this->assertSame('search-genesis.php', basename($genesis));
+        $this->assertSame(dirname(__DIR__, 2).'/templates', realpath(dirname($genesis)));
+    }
+
+    public function test_the_excerpt_is_read_by_the_posts_own_site_and_id(): void
+    {
+        $id = $this->indexed('Sentinel '.$this->word);
+        $this->search($this->word);
+        Integration::$excerpts = [$this->site.':'.$id => 'saved here', '999:'.$id => 'saved elsewhere'];
+        $post = get_post($id);
+
+        $this->assertSame('saved here', Integration::excerpt('theme', $post), 'A post with no blog_id is read on the current site');
+        $post->blog_id = 999;
+        $this->assertSame('saved elsewhere', Integration::excerpt('theme', $post), 'A post with a blog_id is read on that site');
+        $post->blog_id = 998;
+        $this->assertSame('theme', Integration::excerpt('theme', $post));
+    }
+
+    public function test_the_form_markup_is_exact_and_escapes_the_search_text(): void
+    {
+        $_GET = ['scope' => $this->scope];
+        $GLOBALS['wp_query'] = $GLOBALS['wp_the_query'] = new WP_Query(['s' => 'a "b" & c']);
+        $normalize = static fn (string $html): string => (string) preg_replace('/uams-search-\d+/', 'ID', $html);
+        $open = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="ID">Search This Website</label><div class="uams-search-input"><input type="search" name="s" id="ID" value="a &quot;b&quot; &amp; c" maxlength="200" autocomplete="off" data-uams-live="true"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.$this->scope.'">';
+
+        $this->assertSame($open.'</form>', $normalize(Integration::form('')));
+
+        wp_set_current_user(1);
+        $_GET = ['scope' => $this->scope, 'engine' => 'uams', 'type' => 'page'];
+        $this->assertSame($open.'<input type="hidden" name="engine" value="uams"><input type="hidden" name="type" value="page"></form>', $normalize(Integration::form('')));
+    }
+
+    public function test_the_page_heading_and_form_print_the_search_text_once_escaped(): void
+    {
+        $query = $this->search('a & b', ['scope' => $this->scope]);
+        $html = $this->render($query);
+
+        $this->assertStringContainsString('<h1>Search Results for: a &amp; b</h1>', $html);
+        $this->assertStringContainsString('value="a &amp; b"', $html);
+        $this->assertStringNotContainsString('&amp;amp;', $html);
+        $this->assertStringContainsString('<form role="search"', $html, 'The form is printed under the heading');
+        $this->assertSame(1, substr_count($html, '<form role="search"'));
+    }
+
+    public function test_a_miss_is_recorded_as_typed_and_a_first_page_counts(): void
+    {
+        global $wpdb;
+        $miss = 'uamsfixture'.strtolower(wp_generate_password(6, false, false)).' & <b>more</b>';
+        $query = $this->search($miss, ['scope' => $this->scope]);
+        $query->set('paged', 1);
+        $this->render($query);
+
+        $stored = $wpdb->get_col($wpdb->prepare('SELECT search_text FROM `'.DB::table('misses').'` WHERE site_id=%d AND search_hash=%s', $this->site, hash('sha256', mb_strtolower(Text::plain($miss)))));
+        $this->assertSame([Text::plain($miss)], $stored, 'The text is recorded as typed, not escaped twice');
+    }
+
+    public function test_the_results_page_prints_no_form_of_its_own_when_the_plugin_is_off(): void
+    {
+        $query = $this->search($this->word, ['scope' => $this->scope]);
+        $this->configure(['enabled' => false]);
+        $html = $this->render($query);
+
+        $this->assertStringContainsString('</h1><nav aria-label="Search scope">', $html, 'The form call returns what it was given, which is nothing');
+    }
+
+    public function test_the_suggestion_link_keeps_the_scope_and_names_the_correction(): void
+    {
+        $this->indexed('Cardiovascularology '.$this->word);
+        $html = $this->render($this->search('cardiovascularolgy', ['scope' => $this->scope]));
+
+        $expected = esc_url(add_query_arg(['s' => 'cardiovascularology', 'scope' => $this->scope], home_url('/')));
+        $this->assertStringContainsString('<p>Did you mean <a href="'.$expected.'">cardiovascularology</a>?</p>', $html);
+    }
+
+    public function test_the_page_address_encodes_the_search_text_once(): void
+    {
+        $_GET = ['scope' => $this->scope];
+        $GLOBALS['wp_query'] = $GLOBALS['wp_the_query'] = new WP_Query(['s' => 'a&b']);
+
+        $this->assertSame(add_query_arg(['s' => 'a&b', 'scope' => $this->scope], home_url('/')), Integration::url());
+        $this->assertStringNotContainsString('amp;', Integration::url(), 'The text is not escaped before it is added');
+    }
+
+    public function test_the_filters_print_exact_links_for_each_scope_and_type(): void
+    {
+        $this->configure(['types' => ['page' => 1.0], 'pdf' => false]);
+        $_GET = ['scope' => $this->scope, 'type' => 'page'];
+        $GLOBALS['wp_query'] = $GLOBALS['wp_the_query'] = new WP_Query(['s' => 'findme']);
+        $query = $this->search('findme', ['scope' => $this->scope, 'type' => 'page']);
+        $html = $this->render($query);
+
+        $scope = $this->scope;
+        $link = static fn (array $args): string => esc_url(add_query_arg(array_merge(['s' => 'findme', 'scope' => $scope, 'type' => 'page'], $args), home_url('/')));
+        $this->assertStringContainsString('<a href="'.$link(['scope' => 'all']).'">All UAMS websites <span class="uams-search-note">UAMS.edu and UAMSHealth.com</span></a>', $html);
+        $this->assertStringContainsString('<li><a href="'.esc_url(add_query_arg(['s' => 'findme', 'scope' => $this->scope], home_url('/'))).'">All results</a></li>', $html, 'All results drops the type');
+        $this->assertStringContainsString('<a href="'.$link([]).'" aria-current="true">', $html);
+    }
+
+    public function test_the_google_block_is_exact_and_puts_the_engine_id_first(): void
+    {
+        $html = $this->render($this->search($this->word, ['scope' => 'all']));
+
+        $this->assertStringContainsString('<section class="uams-search-google" aria-label="All UAMS websites"><h2>All UAMS Websites</h2><script async src="https://cse.google.com/cse.js?cx=014806496997774146681%3Apyl1jhwi-bo"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section></section>', $html);
+    }
+
+    public function test_the_result_pages_link_to_each_page_and_mark_the_current_one(): void
+    {
+        $query = $this->search($this->word, ['scope' => $this->scope]);
+        $query->set('paged', 2);
+        $query->query_vars['paged'] = 2;
+        $query->set('uams_search_results', ['results' => [], 'total' => 20, 'pages' => 2, 'fallback' => false, 'suggestion' => null]);
+        $html = $this->render($query);
+
+        $this->assertStringContainsString('<nav aria-label="Search result pages"><ul class="page-numbers">', $html, 'Two pages are enough for page links');
+        $this->assertStringContainsString('<span aria-current="page" class="page-numbers current">2</span>', $html);
+        $this->assertMatchesRegularExpression('#<a class="page-numbers" href="[^"]*paged=1[^"]*">1</a>#', $html);
+        $this->assertStringContainsString('scope='.$this->scope, (string) preg_replace('/.*<nav aria-label="Search result pages">/s', '', $html));
+        $this->assertStringEndsWith("</ul>\n</nav></section>", $html);
+    }
+
+    public function test_the_suggestions_endpoint_checks_its_arguments(): void
+    {
+        $this->indexed('Sentinel '.$this->word);
+
+        $this->assertSame(400, $this->request([])->get_status(), 'The search text is required');
+        $this->assertSame(400, $this->request(['s' => $this->word, 'engine' => 'wordpress'])->get_status(), 'Only uams is a known engine');
+        $this->assertSame(1, $this->request(['s' => $this->word, 'type' => 'PAGE'])->get_data()['total'], 'The type is cleaned to a key');
+        $this->assertSame(1, $this->request(['s' => '  '.$this->word.'  '])->get_data()['total'], 'The text is trimmed');
+        foreach (['site', 'install', 'all'] as $scope) {
+            if ($scope === 'install' && ! is_multisite()) {
+                continue;
+            }
+
+            $this->assertSame(200, $this->request(['s' => $this->word, 'scope' => $scope])->get_status(), "$scope is a known scope");
+        }
+    }
+
+    public function test_the_suggestions_name_each_result_exactly(): void
+    {
+        $id = $this->indexed('Sentinel '.$this->word);
+        $items = $this->request(['s' => $this->word])->get_data()['items'];
+
+        $this->assertSame([['id' => $id, 'site' => $this->site, 'title' => 'Sentinel '.$this->word, 'url' => esc_url_raw((string) get_permalink($id))]], $items);
+    }
+
+    public function test_cards_and_results_are_grouped_and_every_group_is_closed(): void
+    {
+        foreach (['provider', 'location'] as $type) {
+            if (! post_type_exists($type)) {
+                register_post_type($type, ['public' => true]);
+            }
+        }
+
+        $provider = $this->make_page(['post_type' => 'provider', 'post_title' => 'Doctor '.$this->word]);
+        $second = $this->make_page(['post_type' => 'provider', 'post_title' => 'Second '.$this->word]);
+        $location = $this->make_page(['post_type' => 'location', 'post_title' => 'Clinic '.$this->word]);
+        $card = fn (int $id, string $type): Result => new Result($id, $this->site, 1.0, 'x', 'Card', 'http://example.org/?p='.$id, $type, 0);
+        $plain = new Result(1, $this->site, 1.0, 'plain', 'Plain', 'http://example.org/?p=1', 'page', 0);
+        $gone = new Result(0, $this->site, 1.0, 'x', 'Gone', 'http://example.org/?p=0', 'provider', 0);
+        $run = function (array $results): string {
+            $query = $this->search($this->word);
+            $query->set('uams_search_results', ['results' => $results, 'total' => count($results), 'pages' => 1, 'fallback' => false, 'suggestion' => null]);
+
+            return $this->render($query);
+        };
+
+        $html = $run([$card($provider, 'provider'), $card($second, 'provider'), $plain]);
+        $this->assertSame(1, substr_count($html, '<div class="uams-search-provider-cards card-list card-list-doctors">'), 'Neighbors share one group');
+        $this->assertMatchesRegularExpression('#</div><article class="uams-search-result"><p class="uams-search-label">Page</p><h3><a href="http://example.org/\?p=1">Plain</a></h3>#', $html, 'The group closes before an ordinary result');
+
+        $html = $run([$card($provider, 'provider'), $card($location, 'location'), $plain]);
+        $this->assertSame(1, substr_count($html, '<div class="uams-search-location-cards card-list">'));
+        $this->assertStringContainsString('</div><div class="uams-search-location-cards card-list">', $html, 'The provider group closes before the location group opens');
+        $this->assertMatchesRegularExpression('#</div><article class="uams-search-result">#', $html);
+
+        $html = $run([$plain, $card($provider, 'provider')]);
+        $this->assertStringEndsWith('</article></div></section>', $html, 'A group still open at the end is closed once');
+
+        $html = $run([$gone, $plain]);
+        $this->assertStringNotContainsString('uams-search-provider-cards', $html, 'A card with no data opens no group');
+        $this->assertStringNotContainsString('</div><article', $html);
+    }
+
+    public function test_each_type_link_names_its_type_and_carries_the_search_and_scope(): void
+    {
+        $this->configure(['types' => ['page' => 1.0, 'post' => 1.0], 'pdf' => false]);
+        $html = $this->render($this->search('findme', ['scope' => $this->scope]));
+
+        foreach (['page' => 'Pages', 'post' => 'News'] as $type => $label) {
+            $href = esc_url(add_query_arg(['s' => 'findme', 'scope' => $this->scope, 'type' => $type], home_url('/')));
+            $this->assertStringContainsString('<li><a href="'.$href.'">'.$label.'</a></li>', $html, "$type is linked without a current marker");
+        }
+
+        $html = $this->render($this->search('findme', ['scope' => $this->scope, 'type' => 'post']));
+        $href = esc_url(add_query_arg(['s' => 'findme', 'scope' => $this->scope, 'type' => 'post'], home_url('/')));
+        $this->assertStringContainsString('<li><a href="'.$href.'" aria-current="true">News</a></li>', $html);
+        $this->assertStringNotContainsString('paged=', $html, 'No filter link carries a page');
+    }
+
+    public function test_the_suggestions_follow_the_type_that_was_asked_for(): void
+    {
+        $this->configure(['types' => ['page' => 1.0, 'post' => 1.0], 'fields' => ['page' => [], 'post' => []], 'taxonomies' => ['page' => [], 'post' => []]]);
+        $this->indexed('Sentinel '.$this->word);
+
+        $this->assertSame(1, $this->request(['s' => $this->word, 'type' => 'page'])->get_data()['total']);
+        $this->assertSame(0, $this->request(['s' => $this->word, 'type' => 'post'])->get_data()['total'], 'The type narrows the suggestions');
+        $this->assertSame(1, $this->request(['s' => $this->word])->get_data()['total'], 'No type searches every type');
+    }
+
+    public function test_a_search_with_no_page_number_at_all_counts_as_the_first_page(): void
+    {
+        global $wpdb;
+        $miss = 'uamsfixture'.strtolower(wp_generate_password(6, false, false));
+        $query = $this->search($miss, ['scope' => $this->scope]);
+        unset($query->query_vars['paged']);
+        $this->render($query);
+
+        $this->assertSame(1, (int) $wpdb->get_var($wpdb->prepare('SELECT COUNT(*) FROM `'.DB::table('misses').'` WHERE site_id=%d AND search_text=%s', $this->site, $miss)));
+    }
+
+    public function test_the_page_links_run_from_the_first_page_to_the_last(): void
+    {
+        $query = $this->search($this->word, ['scope' => $this->scope]);
+        $query->set('uams_search_results', ['results' => [], 'total' => 45, 'pages' => 3, 'fallback' => false, 'suggestion' => null]);
+        unset($query->query_vars['paged']);
+
+        $html = $this->render($query);
+        $this->assertStringContainsString('<span aria-current="page" class="page-numbers current">1</span>', $html, 'No page number means page one');
+        $this->assertStringContainsString('href="'.str_replace('&#038;', '&amp;', esc_url(add_query_arg(['s' => $this->word, 'scope' => $this->scope, 'paged' => 2], home_url('/')))).'">2</a>', $html);
+        $this->assertStringContainsString('paged=3', $html);
+        $this->assertStringNotContainsString('999999999', $html);
+        $this->assertStringNotContainsString('paged=4', $html);
+        $this->assertStringContainsString('class="next page-numbers"', $html);
+        $this->assertStringNotContainsString('class="prev page-numbers"', $html, 'The first page has nothing before it');
+
+        $query->set('paged', 3);
+        $query->query_vars['paged'] = 3;
+        $html = $this->render($query);
+        $this->assertStringContainsString('<span aria-current="page" class="page-numbers current">3</span>', $html);
+        $this->assertStringContainsString('class="prev page-numbers"', $html);
+        $this->assertStringNotContainsString('class="next page-numbers"', $html, 'The last page has nothing after it');
+    }
+
+    public function test_a_second_site_searches_itself_unless_it_asks_for_the_whole_install(): void
+    {
+        global $wpdb;
+        if (! is_multisite() || ! is_main_site() || is_subdomain_install()) {
+            $this->markTestSkipped('Needs the main site of a subfolder multisite.');
+        }
+
+        $this->indexed('Sentinel '.$this->word);
+        $blog = (int) self::factory()->blog->create(['public' => 1]);
+        try {
+            switch_to_blog($blog);
+            $page = wp_insert_post(['post_title' => 'Sentinel '.$this->word, 'post_status' => 'publish', 'post_type' => 'page']);
+            restore_current_blog();
+            Indexer::one($blog, $page);
+
+            switch_to_blog($blog);
+            try {
+                $own = $this->search($this->word);
+                $this->assertSame([$blog], wp_list_pluck($own->posts, 'blog_id'), 'A second site searches itself by default');
+                $whole = $this->search($this->word, ['scope' => 'install']);
+                $sites = wp_list_pluck($whole->posts, 'blog_id');
+                sort($sites);
+                $this->assertSame([$this->site, $blog], $sites, 'It can ask for the whole install');
+                $this->assertSame($blog, get_current_blog_id(), 'and stays on its own site');
+
+                $this->assertSame([$blog], array_column($this->request(['s' => $this->word])->get_data()['items'], 'site'));
+                $items = array_column($this->request(['s' => $this->word, 'scope' => 'install'])->get_data()['items'], 'site');
+                sort($items);
+                $this->assertSame([$this->site, $blog], $items);
+            } finally {
+                restore_current_blog();
+            }
         } finally {
             $wpdb->delete(DB::table(), ['site_id' => $blog]);
             wpmu_delete_blog($blog, true);

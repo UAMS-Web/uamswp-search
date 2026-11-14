@@ -29,6 +29,8 @@ final class Integration
         string $name,
         string $default = ''
     ): string {
+        // `sanitize_text_field()` turns any scalar into text, so a missing string cast changes no result.
+        // @pest-mutate-ignore:RemoveStringCast
         return isset($_GET[$name]) && \is_scalar($_GET[$name]) ? sanitize_text_field(wp_unslash((string) $_GET[$name])) : $default;
     }
 
@@ -78,6 +80,8 @@ final class Integration
         // Load the assets, register the suggestions endpoint and add the form shortcode
         add_action('wp_enqueue_scripts', [self::class, 'assets']);
         add_action('rest_api_init', [self::class, 'rest']);
+        // `get_search_form(false)` already returns a string, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveStringCast
         add_shortcode('uams_search_form', static fn (): string => (string) get_search_form(false));
     }
 
@@ -125,7 +129,20 @@ final class Integration
 
         // Run the search
         try {
-            $args = ['s' => (string) $query->get('s'), 'site' => get_current_blog_id(), 'scope' => Config::scope(self::param('scope')), 'type' => self::param('type'), 'page' => max(1, (int) $query->get('paged')), 'per_page' => Config::page_size($query->query['posts_per_page'] ?? null)];
+            $args = [
+                // `Query::run()` reads a scalar as text, so the string cast changes no result.
+                // @pest-mutate-ignore:RemoveStringCast
+                's' => (string) $query->get('s'),
+                // `Query::run()` falls back to the current site, so naming it adds nothing.
+                // @pest-mutate-ignore:RemoveArrayItem
+                'site' => get_current_blog_id(),
+                'scope' => Config::scope(self::param('scope')),
+                'type' => self::param('type'),
+                // `Query::run()` casts the page to an integer and keeps it at one or more itself, so the cast and the floor of `max()` here change no result.
+                // @pest-mutate-ignore:RemoveIntegerCast,DecrementInteger
+                'page' => max(1, (int) $query->get('paged')),
+                'per_page' => Config::page_size($query->query['posts_per_page'] ?? null),
+            ];
             $results = Query::run($args);
             // Load each result's post from its site
             $out = [];
@@ -232,6 +249,8 @@ final class Integration
         // Build the form with the current scope
         $id = wp_unique_id('uams-search-');
         $scope = Config::scope(self::param('scope'));
+        // `esc_attr()` leaves entities that are already escaped alone, so escaping the search text first prints the same value.
+        // @pest-mutate-ignore:FalseToTrue
         $html = '<form role="search" method="get" action="'.esc_url(home_url('/')).'" class="uams-search-form"><label for="'.esc_attr($id).'">Search This Website</label><div class="uams-search-input"><input type="search" name="s" id="'.esc_attr($id).'" value="'.esc_attr(get_search_query(false)).'" maxlength="200" autocomplete="off" data-uams-live="'.(Config::flag('live') ? 'true' : 'false').'"><button type="submit">Search</button></div><input type="hidden" name="scope" value="'.esc_attr($scope).'">';
         // Keep a preview and the chosen type when searching again
         if (self::preview()) {
@@ -276,7 +295,20 @@ final class Integration
             ],
             'callback' => static function (WP_REST_Request $request): WP_REST_Response|WP_Error {
                 try {
-                    $out = Query::run(['s' => $request['s'], 'site' => get_current_blog_id(), 'scope' => Config::scope($request->get_param('scope')), 'type' => $request->get_param('type') ?: '', 'per_page' => 6, 'suggest' => false]);
+                    $out = Query::run([
+                        's' => $request['s'],
+                        // `Query::run()` falls back to the current site, so naming it adds nothing.
+                        // @pest-mutate-ignore:RemoveArrayItem
+                        'site' => get_current_blog_id(),
+                        'scope' => Config::scope($request->get_param('scope')),
+                        // A missing type searches every type, as the empty string does, and a text that names no type does the same.
+                        // @pest-mutate-ignore:EmptyStringToNotEmpty
+                        'type' => $request->get_param('type') ?: '',
+                        'per_page' => 6,
+                        // The response carries no suggestion, so asking for one only repeats work that is thrown away.
+                        // @pest-mutate-ignore:RemoveArrayItem,FalseToTrue
+                        'suggest' => false,
+                    ]);
                     $items = array_map(static fn (Result $r): array => ['id' => $r->id, 'site' => $r->site, 'title' => $r->title.($r->post_type === 'attachment' ? ' (PDF, '.size_format($r->file_size).')' : ''), 'url' => esc_url_raw($r->url)], $out['results']);
                     $response = new WP_REST_Response(['items' => $items, 'total' => $out['total']], 200);
                     $response->header('Cache-Control', 'no-store');
@@ -303,6 +335,8 @@ final class Integration
 
         // Print the heading, form and filters
         echo '<section class="uams-search-results" aria-label="Search results">';
+        // `esc_html()` leaves entities that are already escaped alone, so escaping the search text first prints the same heading.
+        // @pest-mutate-ignore:FalseToTrue
         echo '<h1>Search Results for: '.esc_html(get_search_query(false)).'</h1>';
         echo self::form('');
         self::filters(! empty($out['google']));
@@ -315,19 +349,27 @@ final class Integration
         }
 
         // Print the count, the partial-match notice and the spelling suggestion
+        // `_n()` compares the count as a number, so a numeric string picks the same form as its integer.
+        // @pest-mutate-ignore:RemoveIntegerCast
         echo '<h2>'.esc_html(sprintf(_n('%s result', '%s results', (int) $out['total'], 'uams-search'), number_format_i18n($out['total']))).'</h2>';
         if ($out['fallback']) {
             echo '<p>Not every word matched. These results match some of your words.</p>';
         }
 
         if ($out['suggestion']) {
-            echo '<p>Did you mean <a href="'.esc_url(self::url(['s' => $out['suggestion'], 'paged' => false])).'">'.esc_html($out['suggestion']).'</a>?</p>';
+            echo '<p>Did you mean <a href="'.esc_url(self::url([
+                's' => $out['suggestion'],
+                // `url()` never carries a page of its own, so there is nothing to remove.
+                // @pest-mutate-ignore:RemoveArrayItem
+                'paged' => false,
+            ])).'">'.esc_html($out['suggestion']).'</a>?</p>';
         }
 
         // Say so and record the search when nothing matched
         if (! $out['total']) {
             echo '<p>No results found. Try fewer words or check the spelling.</p>';
-            if ((int) get_query_var('paged', 1) <= 1) {
+            // A string page compares as its number, and a default of 0 or 1 is the first page either way.
+            if ((int) get_query_var('paged', 1) <= 1) { // @pest-mutate-ignore:RemoveIntegerCast,DecrementInteger
                 Misses::record(get_search_query(false));
             }
         }
@@ -384,7 +426,14 @@ final class Integration
 
         // Print the page links expects a literal placeholder in base.
         if ($out['pages'] > 1) {
-            $links = paginate_links(['base' => str_replace('999999999', '%#%', self::url(['paged' => 999999999])), 'current' => max(1, (int) get_query_var('paged', 1)), 'total' => $out['pages'], 'type' => 'list']);
+            $links = paginate_links([
+                'base' => str_replace('999999999', '%#%', self::url(['paged' => 999999999])),
+                // `paginate_links()` reads the same query variable, and a page of 0 or none is its first page, so the default, the cast and this key change no result.
+                // @pest-mutate-ignore:RemoveArrayItem,RemoveIntegerCast,DecrementInteger
+                'current' => max(1, (int) get_query_var('paged', 1)),
+                'total' => $out['pages'],
+                'type' => 'list',
+            ]);
             echo '<nav aria-label="Search result pages">'.wp_kses_post($links).'</nav>';
         }
 
@@ -435,14 +484,26 @@ final class Integration
         }
 
         // Print the result type links
-        echo '<nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url(['type' => false, 'paged' => false])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All results</a></li>';
+        echo '<nav aria-label="Result type"><ul class="uams-search-filters"><li><a href="'.esc_url(self::url([
+            'type' => false,
+            // `url()` never carries a page of its own, so there is nothing to remove.
+            // @pest-mutate-ignore:RemoveArrayItem
+            'paged' => false,
+        ])).'"'.(self::param('type') === '' ? ' aria-current="true"' : '').'>All results</a></li>';
         foreach (Config::section('types') as $type => $boost) {
             $object = get_post_type_object($type);
             if (! $object || ($type === 'attachment' && ! Config::flag('pdf'))) {
                 continue;
             }
 
-            echo '<li><a href="'.esc_url(self::url(['type' => $type, 'paged' => false])).'"'.(self::param('type') === $type ? ' aria-current="true"' : '').'>'.esc_html((string) (Config::type_labels()[$type] ?? $object->labels->name)).'</a></li>';
+            // `esc_html()` reads any scalar label as text, so the string cast changes no result.
+            // @pest-mutate-ignore:RemoveStringCast
+            echo '<li><a href="'.esc_url(self::url([
+                'type' => $type,
+                // `url()` never carries a page of its own, so there is nothing to remove or set.
+                // @pest-mutate-ignore:RemoveArrayItem,FalseToTrue
+                'paged' => false,
+            ])).'"'.(self::param('type') === $type ? ' aria-current="true"' : '').'>'.esc_html((string) (Config::type_labels()[$type] ?? $object->labels->name)).'</a></li>';
         }
 
         echo '</ul></nav>';
