@@ -75,6 +75,10 @@ namespace UAMS_Search\Tests\Integration {
 
     /**
      * The `wp uams-search` commands, run through the command class with WP-CLI's output captured.
+     *
+     * Mutants no test can tell apart, each annotated in `includes/CLI.php` with its reason: `(int)` casts that an int parameter or `Query` repeats, the
+     * seconds budget of `process-queue` (default, clamp and casts, which differ only in how long a run may last), loose against strict `in_array()` on an
+     * int site, and a made-up default type that `Query` ignores. The class closes on a macOS hand-mutation record (Linux follow-up #208).
      */
     final class CLITest extends IntegrationTestCase
     {
@@ -409,6 +413,91 @@ namespace UAMS_Search\Tests\Integration {
             WP_CLI::$logged = [];
             (new CLI)->query(['uamsfixtureclitypes'], ['type' => 'page']);
             $this->assertCount(1, json_decode(WP_CLI::$logged[0], true)['results'], 'The page type finds the page');
+        }
+
+        public function test_index_creates_a_missing_table_first(): void
+        {
+            global $wpdb;
+            $table = DB::table('misses');
+            $wpdb->query("DROP TABLE `$table`");
+            try {
+                (new CLI)->index([], ['post-type' => 'page']);
+                $this->assertSame($table, $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table))));
+            } finally {
+                DB::install();
+            }
+        }
+
+        public function test_process_queue_takes_a_hundred_entries_by_default(): void
+        {
+            global $wpdb;
+            $table = DB::table('queue');
+            $wpdb->query("DELETE FROM `$table`");
+            foreach (range(910001, 910101) as $id) {
+                Queue::push($id);
+            }
+
+            (new CLI)->process_queue([], []);
+
+            $this->assertSame(100, json_decode(WP_CLI::$logged[0], true)['processed']);
+            $this->assertSame(1, (int) $wpdb->get_var("SELECT COUNT(*) FROM `$table`"), 'One entry is left for the next run');
+            $wpdb->query("DELETE FROM `$table`");
+        }
+
+        public function test_reindex_accepts_the_first_post_id_and_refuses_text(): void
+        {
+            (new CLI)->reindex(['1'], ['site' => (string) $this->site]);
+            $this->assertCount(1, WP_CLI::$logged, 'Post 1 is a valid ID');
+
+            $this->assertSame('Invalid site or post', $this->failure(fn () => (new CLI)->reindex(['abc'], ['site' => (string) $this->site])));
+        }
+
+        public function test_query_prints_indented_json_with_unescaped_characters(): void
+        {
+            $page = $this->make_page(['post_title' => "Uamsfixturecaf\u{e9}query"]);
+            Indexer::one($this->site, $page);
+
+            (new CLI)->query(['uamsfixturecafequery'], []);
+
+            $this->assertStringContainsString("\n    ", WP_CLI::$logged[0], 'The JSON is indented');
+            $this->assertStringContainsString("caf\u{e9}query", WP_CLI::$logged[0], 'Characters are not escaped');
+        }
+
+        public function test_query_reads_the_site_and_scope_it_is_given(): void
+        {
+            global $wpdb;
+            if (! is_multisite()) {
+                $this->markTestSkipped('Needs a multisite.');
+            }
+
+            $blog = (int) self::factory()->blog->create(['public' => 1]);
+            try {
+                switch_to_blog($blog);
+                $remote = wp_insert_post(['post_title' => 'Uamsfixtureremotequery', 'post_status' => 'publish', 'post_type' => 'page']);
+                restore_current_blog();
+                Indexer::one($blog, $remote);
+
+                // From inside the second site, which offers the "This site" scope
+                switch_to_blog($blog);
+                try {
+                    (new CLI)->query(['uamsfixtureremotequery'], []);
+                    $this->assertCount(1, json_decode(WP_CLI::$logged[0], true)['results'], 'The current site is searched by default');
+
+                    WP_CLI::$logged = [];
+                    (new CLI)->query(['uamsfixtureremotequery'], ['site' => '1']);
+                    $this->assertSame([], json_decode(WP_CLI::$logged[0], true)['results'], 'The given site is searched alone');
+
+                    WP_CLI::$logged = [];
+                    (new CLI)->query(['uamsfixtureremotequery'], ['site' => '1', 'scope' => 'install']);
+                    $this->assertCount(1, json_decode(WP_CLI::$logged[0], true)['results'], 'The given scope reaches every site');
+                } finally {
+                    restore_current_blog();
+                }
+            } finally {
+                $wpdb->delete(DB::table(), ['site_id' => $blog]);
+                $wpdb->delete(DB::table('word_docs'), ['site_id' => $blog]);
+                wpmu_delete_blog($blog, true);
+            }
         }
 
         public function test_doctor_prints_what_the_server_supports(): void
