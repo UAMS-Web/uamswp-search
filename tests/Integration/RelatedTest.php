@@ -268,16 +268,7 @@ final class RelatedTest extends IntegrationTestCase
     /** @return array<string, mixed> */
     private function search(string $word, array $args = []): array
     {
-        try {
-            return Query::run(array_replace(['s' => $word, 'site' => $this->site, 'scope' => 'site', 'suggest' => false, 'per_page' => 100], $args));
-        } catch (RuntimeException $runtimeException) {
-            // On MariaDB 10.6 the ranking query fails (#114). The test stays incomplete, not green, until that is fixed.
-            if (str_contains($runtimeException->getMessage(), 'DOUBLE value is out of range')) {
-                $this->markTestIncomplete('MariaDB ranking error (#114): '.$runtimeException->getMessage());
-            }
-
-            throw $runtimeException;
-        }
+        return Query::run(array_replace(['s' => $word, 'site' => $this->site, 'scope' => 'site', 'suggest' => false, 'per_page' => 100], $args));
     }
 
     /** @return list<int> */
