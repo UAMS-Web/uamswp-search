@@ -104,6 +104,8 @@ final class NameChoices
         // Names starting with an underscore are WordPress's and ACF's own keys, such as the
         // reference ACF stores beside each field.
         $internal = $wpdb->esc_like('_').'%';
+        // Only the values of the filled array reach implode(), so its first key changes nothing.
+        // @pest-mutate-ignore:IncrementInteger,DecrementInteger
         $marks = implode(',', array_fill(0, \count($types), '%s'));
         foreach ($sites as $site) {
             $p = $wpdb->get_blog_prefix($site);
@@ -115,6 +117,8 @@ final class NameChoices
             self::check($site);
             foreach (['fields' => $fields, 'taxonomies' => $taxonomies] as $group => $rows) {
                 foreach (\is_array($rows) ? $rows : [] as $row) {
+                    // lists() renumbers keys and reads each name as text, so these casts change nothing.
+                    // @pest-mutate-ignore:RemoveStringCast
                     $found[$group][(string) ($row['type'] ?? '')][] = (string) ($row['name'] ?? '');
                 }
             }
@@ -182,8 +186,8 @@ final class NameChoices
 
         // Try each leading part of the name as the field that holds the rest, shortest first
         $position = 0;
-        // Searching from the same offset would find the same underscore forever, so that mutant never ends and is a timeout, not a score.
-        // @pest-mutate-ignore: DecrementInteger
+        // Each of these makes the search start from the same underscore again, so the loop never ends and the run times out.
+        // @pest-mutate-ignore:DecrementInteger,NotIdenticalToIdentical,FalseToTrue
         while (($position = strpos($name, '_', $position + 1)) !== false) {
             $parent = $field(substr($name, 0, $position));
             if (\is_array($parent)) {
@@ -245,7 +249,11 @@ final class NameChoices
     {
         $clean = [];
         foreach (\is_array($labels) ? $labels : [] as $name => $label) {
+            // A numeric key is an integer already, and trim() reads an integer as text, so the cast changes nothing.
+            // @pest-mutate-ignore:RemoveStringCast
             if (\is_string($label) && trim($label) !== '' && trim((string) $name) !== '') {
+                // An array key that is a numeric string is an integer already, so the cast changes nothing.
+                // @pest-mutate-ignore:RemoveStringCast
                 $clean[(string) $name] = trim($label);
             }
         }
@@ -263,13 +271,19 @@ final class NameChoices
     {
         $clean = [];
         foreach ($names as $type => $list) {
+            // trim() reads any scalar as text, so the cast changes nothing.
+            // @pest-mutate-ignore:RemoveStringCast
             $list = array_filter(array_map(static fn (mixed $name): string => \is_scalar($name) ? trim((string) $name) : '', \is_array($list) ? $list : []), static fn (string $name): bool => $name !== '' && ! str_starts_with($name, '_'));
             if ($type === '' || $list === []) {
                 continue;
             }
 
+            // The array_values() after natcasesort() renumbers the list either way, so this one changes nothing.
+            // @pest-mutate-ignore:UnwrapArrayValues
             $list = array_values(array_unique($list));
             natcasesort($list);
+            // An array key that is a numeric string is an integer already, so the cast changes nothing.
+            // @pest-mutate-ignore:RemoveStringCast
             $clean[(string) $type] = array_values($list);
         }
 
