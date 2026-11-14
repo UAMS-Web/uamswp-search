@@ -14,6 +14,7 @@ final class PhoneticTest extends TestCase
     {
         // Each word was picked because changing one rule, number or list entry in a way the published examples miss changes its keys
         $expected = [
+            'XAVIER' => ['SF', 'SFR'],
             'OWSKIZZACHYMN' => ['ASKSKMN', 'AFSKTSKM'],
             'MCCHIATIAZHCCC' => ['MKXJKK', 'MKXJKK'],
             'WICZMACZGJSIO' => ['AKSMSKS', 'FKTSMXKS'],

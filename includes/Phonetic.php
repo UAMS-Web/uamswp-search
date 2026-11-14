@@ -227,6 +227,8 @@ final class Phonetic
                         $add('J');
                     }
 
+                    // A step of 0 never leaves a letter that adds no key, so the loop never ends.
+                    // @pest-mutate-ignore:DecrementInteger
                     $i += $next === 'J' ? 2 : 1;
                     break;
                 case 'K': $add('K');
@@ -261,6 +263,8 @@ final class Phonetic
                     break;
                 case 'S':
                     if ($at($i - 1, ['ISL', 'YSL'])) {
+                        // A step back lands on a letter that adds no key, and the loop never ends.
+                        // @pest-mutate-ignore:PostIncrementToPostDecrement
                         $i++;
                     } elseif ($i === 0 && $at(0, ['SUGAR'])) {
                         $add('X', 'S');
@@ -332,11 +336,17 @@ final class Phonetic
                         $add('TS', 'FX');
                         $i += 4;
                     } else {
+                        // A step back lands on a letter that adds no key, and the loop never ends.
+                        // @pest-mutate-ignore:PostIncrementToPostDecrement
                         $i++;
                     } break;
                 case 'X': if ($i !== $n - 1 || ! $at($i - 2, ['AU', 'OU'])) {
                     $add('KS');
-                } $i += $at($i + 1, ['C', 'X']) ? 2 : 1;
+                }
+
+                    // A step of 0 or a step back lands on a letter that adds no key, and the loop never ends.
+                    // @pest-mutate-ignore:DecrementInteger,PlusEqualToMinusEqual
+                    $i += $at($i + 1, ['C', 'X']) ? 2 : 1;
                     break;
                 case 'Z': if ($next === 'H') {
                     $add('J');
