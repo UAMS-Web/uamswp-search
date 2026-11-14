@@ -6,6 +6,7 @@ namespace UAMS_Search\Tests;
 
 use PHPUnit\Framework\TestCase;
 
+use function UAMS_Search\HandMutation\finishedPattern;
 use function UAMS_Search\HandMutation\killControl;
 use function UAMS_Search\HandMutation\lints;
 use function UAMS_Search\HandMutation\mutants;
@@ -135,6 +136,26 @@ use Foo\Bar;", $namespaced);
         self::assertTrue($stopped['timed_out']);
         self::assertNotSame(0, $stopped['code']);
         self::assertLessThan(10, $stopped['seconds']);
+    }
+
+    public function test_a_run_that_exits_with_status_zero_before_reporting_is_not_a_pass(): void
+    {
+        // A mutant such as `defined('ABSPATH') && exit` ends the suite with status 0 and no report.
+        $silent = runSuite('php -r "exit(0);"', 30, '/^OK[ ,]/m');
+        self::assertSame(125, $silent['code']);
+        self::assertSame('The suite stopped before it reported a result.', $silent['killer']);
+
+        $reported = runSuite('php -r "echo \"OK (3 tests, 5 assertions)\";"', 30, '/^OK[ ,]/m');
+        self::assertSame(0, $reported['code']);
+
+        self::assertMatchesRegularExpression(finishedPattern('php vendor/bin/pest --bail'), '  Tests:    4 failed, 7 passed (68 assertions)
+');
+        self::assertMatchesRegularExpression(finishedPattern('php tests/Integration/vendor/bin/phpunit --x'), 'OK, but incomplete, skipped, or risky tests!
+');
+        self::assertDoesNotMatchRegularExpression(finishedPattern('php tests/Integration/vendor/bin/phpunit --x'), 'FAILURES!
+Tests: 3, Assertions: 4, Failures: 1.
+');
+        self::assertSame('', finishedPattern('php -r "exit(0);"'));
     }
 
     public function test_shards_partition_the_mutants_with_none_dropped_or_repeated(): void

@@ -58,6 +58,11 @@ const DEFAULT_COMMAND = 'php -d pcov.enabled=0 tests/Integration/vendor/bin/phpu
 
 const EQUIVALENTS_FILE = 'tests/Integration/hand-mutation-equivalents.json';
 
+/** The line a finished PHPUnit run prints on success, and the line a finished Pest run prints. */
+const PHPUNIT_FINISHED = '/^OK[ ,]/m';
+
+const PEST_FINISHED = '/^\s*Tests:.*\bpassed\b/m';
+
 const SURVIVE_CONTROL = "\n// hand-mutation control: a comment changes no behavior\n";
 
 /**
@@ -266,9 +271,12 @@ throw new \RuntimeException('hand-mutation control');
 /**
  * Run `$command` and return its exit code, the first failing test it names, and whether it timed out.
  *
+ * `$finished` is a pattern the output of a finished run matches. A mutant can make the suite call `exit` and end with status 0
+ * before it reports anything, which would read as a pass, so a run with status 0 and no match is returned as code 125.
+ *
  * @return array{code: int, killer: string, timed_out: bool, seconds: float}
  */
-function runSuite(string $command, int $timeout): array
+function runSuite(string $command, int $timeout, string $finished = ''): array
 {
     $started = microtime(true);
     // The output goes to a file rather than a pipe: a pipe read can block past the timeout on Windows.
@@ -304,7 +312,25 @@ function runSuite(string $command, int $timeout): array
         $killer = trim($match[0]);
     }
 
+    if ($code === 0 && $finished !== '' && preg_match($finished, $output) !== 1) {
+        $code = 125;
+        $killer = 'The suite stopped before it reported a result.';
+    }
+
     return ['code' => $code, 'killer' => $killer, 'timed_out' => $timedOut, 'seconds' => microtime(true) - $started];
+}
+
+/**
+ * The pattern a finished run of `$command` matches: Pest's summary when the command names Pest, otherwise PHPUnit's `OK` line.
+ * A command that is neither (a test double in the unit tests) gets none, so its exit code alone decides.
+ */
+function finishedPattern(string $command): string
+{
+    if (str_contains($command, 'pest')) {
+        return PEST_FINISHED;
+    }
+
+    return str_contains($command, 'phpunit') ? PHPUNIT_FINISHED : '';
 }
 
 /**
@@ -439,7 +465,7 @@ function main(array $argv): int
     $unitCommand = ($options['unit'] ?? UNIT_COMMAND) === 'none' ? null : ($options['unit'] ?? UNIT_COMMAND);
 
     // The unmutated suite must pass: otherwise every mutant reads as killed.
-    $baseline = runSuite($command, 3600);
+    $baseline = runSuite($command, 3600, finishedPattern($command));
     if ($baseline['code'] !== 0) {
         fwrite(STDERR, "The unmutated suite failed (exit {$baseline['code']}); no mutant can be scored.\n");
 
@@ -488,9 +514,9 @@ function main(array $argv): int
     $controlPath = CLASSES[$names[0]];
     $controlSource = (string) file_get_contents($controlPath);
     $controls = [];
-    $survive = $withSource($controlPath, $controlSource.SURVIVE_CONTROL, static fn (): array => runSuite($command, $timeout));
+    $survive = $withSource($controlPath, $controlSource.SURVIVE_CONTROL, static fn (): array => runSuite($command, $timeout, finishedPattern($command)));
     $controls['Planted survivor'] = ['result' => $survive['code'] === 0 ? 'survived' : 'killed', 'killer' => $survive['killer']];
-    $kill = $withSource($controlPath, killControl($controlSource), static fn (): array => runSuite($command, $timeout));
+    $kill = $withSource($controlPath, killControl($controlSource), static fn (): array => runSuite($command, $timeout, finishedPattern($command)));
     $controls['Planted kill (throws on load)'] = ['result' => $kill['code'] !== 0 ? 'killed' : 'survived', 'killer' => $kill['killer']];
     echo "Control, planted survivor in {$controlPath}: {$controls['Planted survivor']['result']}\n";
     echo "Control, throw on load in {$controlPath}: {$controls['Planted kill (throws on load)']['result']}\n";
@@ -505,7 +531,7 @@ function main(array $argv): int
             foreach ($list as $number => $mutant) {
                 $row = ['operator' => $mutant['operator'], 'line' => $mutant['line'], 'from' => $mutant['from'], 'to' => $mutant['to'], 'killer' => '', 'suite' => 'integration', 'reason' => '', 'result' => ''];
                 $outcome = $withSource($path, $mutant['source'], static function () use ($path, $command, $timeout): ?array {
-                    return lints($path) ? runSuite($command, $timeout) : null;
+                    return lints($path) ? runSuite($command, $timeout, finishedPattern($command)) : null;
                 });
                 if ($outcome === null) {
                     $row['result'] = 'invalid';
@@ -514,7 +540,7 @@ function main(array $argv): int
                     $row['result'] = 'killed';
                     $row['killer'] = $outcome['timed_out'] ? 'timeout' : $outcome['killer'];
                     $data['killed']++;
-                } elseif ($unitCommand !== null && ($unit = $withSource($path, $mutant['source'], static fn (): array => runSuite($unitCommand, $timeout)))['code'] !== 0) {
+                } elseif ($unitCommand !== null && ($unit = $withSource($path, $mutant['source'], static fn (): array => runSuite($unitCommand, $timeout, finishedPattern($unitCommand))))['code'] !== 0) {
                     $row['result'] = 'killed';
                     $row['suite'] = 'unit';
                     $row['killer'] = $unit['timed_out'] ? 'timeout' : $unit['killer'];
