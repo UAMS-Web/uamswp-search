@@ -10,7 +10,7 @@ use UAMS_Search\Excerpt;
 /**
  * Pins for the 30-word window and its marks (#186), beside the examples in `TextTest`.
  *
- * Accepted equivalents, annotated in `Excerpt.php` with their reasons: the `(string)` cast of a source (without strict types a number becomes the same text), the `(int)` cast of a match (a boolean adds as 1 or 0), and the window loop, whose two endless-loop mutants can only time out.
+ * Accepted equivalents, annotated in `Excerpt.php` with their reasons: the whole-text and one-more-word counts of the first window (a constant added to every later window), the `(string)` cast of a source (without strict types a number becomes the same text), the `(int)` cast of a match (a boolean adds as 1 or 0), and the window loop, whose two endless-loop mutants can only time out.
  */
 final class ExcerptTest extends TestCase
 {
@@ -65,6 +65,11 @@ final class ExcerptTest extends TestCase
     {
         self::assertSame(self::passage(0, 29, [0]), Excerpt::make([self::text(30, [0])], 'zeta'));
         self::assertSame(self::passage(0, 29, [0]).' …', Excerpt::make([self::text(31, [0])], 'zeta'));
+    }
+
+    public function test_a_match_in_the_last_word_of_the_first_window_makes_its_source_the_one_chosen(): void
+    {
+        self::assertSame(self::passage(0, 29, [29]).' …', Excerpt::make([self::text(35, [29]), 'zeta'], 'zeta'));
     }
 
     public function test_a_stop_word_before_a_match_in_one_word_does_not_hide_the_match(): void

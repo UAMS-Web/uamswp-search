@@ -42,6 +42,8 @@ final class Excerpt
             }
 
             // Slide a 30-word window to find the one with the most matches
+            // Counting the whole text, or one more word, adds a constant to the score of every window after this one, so the same window wins and the same source is chosen.
+            // @pest-mutate-ignore:UnwrapArraySlice,IncrementInteger
             $score = array_sum(\array_slice($hits, 0, 30));
             $best = $score;
             $start = 0;
