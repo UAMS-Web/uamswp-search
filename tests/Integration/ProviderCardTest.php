@@ -182,6 +182,25 @@ final class ProviderCardTest extends IntegrationTestCase
         $this->assertTrue(str_contains($html, 'Keep this page excerpt') && ! str_contains($html, 'Old provider excerpt'), 'Only provider presentation changes; ordinary excerpts remain');
     }
 
+    public function test_a_provider_that_is_no_longer_eligible_is_left_out_of_the_page(): void
+    {
+        $gone = $this->make_page(['post_type' => 'provider', 'post_title' => 'Gone provider']);
+        $result = $this->snapshot($gone);
+        wp_update_post(['ID' => $gone, 'post_status' => 'private']);
+        $out = ['results' => [$result, $this->snapshot($this->provider)], 'total' => 2, 'pages' => 1, 'fallback' => false, 'suggestion' => null];
+        $query = new WP_Query;
+        $query->set('s', 'Barnes');
+        $query->set('uams_search_results', $out);
+        $GLOBALS['wp_query'] = $query;
+        ob_start();
+        Integration::render();
+        $html = (string) ob_get_clean();
+
+        $this->assertStringNotContainsString('Gone provider', $html);
+        $this->assertStringContainsString('Barnes', $html);
+        $this->assertSame(1, $this->xpath($html)->query('//article//h3')->length, 'Only the eligible provider prints a card');
+    }
+
     public function test_same_id_providers_resolve_on_the_result_site(): void
     {
         if (! is_multisite()) {
