@@ -43,7 +43,8 @@ jobs:
     uses: UAMS-Web/uams-ci-workflows/.github/workflows/ci.yml@v0.11.0
     with:
       linux-only: true
-      mutate: false
+      mutate: true
+      mutate-paths: includes uams-search.php
       mutate-ignore: true
       global-test-symbols: false
       floor-lint: true
