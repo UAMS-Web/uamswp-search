@@ -1,17 +1,5 @@
 <?php
 
-namespace UAMS_Search {
-    // Records whether each post meta read asks for one value, then reads through the plain stand-in. A test turns the record on with `uams_test_meta_record`.
-    function get_post_meta($id, $key, $single = false)
-    {
-        if (! empty($GLOBALS['uams_test_meta_record'])) {
-            $GLOBALS['uams_test_meta_reads'][] = [$key, $single];
-        }
-
-        return \get_post_meta($id, $key, $single);
-    }
-}
-
 namespace {
 
     if (! class_exists('WP_Error')) {
