@@ -182,6 +182,8 @@ final class NameChoices
 
         // Try each leading part of the name as the field that holds the rest, shortest first
         $position = 0;
+        // Searching from the same offset would find the same underscore forever, so that mutant never ends and is a timeout, not a score.
+        // @pest-mutate-ignore: DecrementInteger
         while (($position = strpos($name, '_', $position + 1)) !== false) {
             $parent = $field(substr($name, 0, $position));
             if (\is_array($parent)) {

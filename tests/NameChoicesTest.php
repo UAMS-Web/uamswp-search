@@ -105,6 +105,7 @@ namespace UAMS_Search\Tests {
                     ['name' => 'phone', 'label' => 'Phone Number'],
                     ['name' => 'hours', 'label' => 'Hours', 'type' => 'repeater', 'sub_fields' => [['name' => 'day', 'label' => 'Day Of Week']]],
                 ]],
+                'mixed' => ['name' => 'mixed', 'label' => 'Mixed', 'type' => 'group', 'sub_fields' => ['not a field', ['name' => '', 'label' => 'Nameless'], ['label' => 'No name'], ['name' => 'ok', 'label' => 'Okay']]],
                 'slides' => ['name' => 'slides', 'label' => 'Slides', 'type' => 'repeater', 'sub_fields' => [['name' => 'caption', 'label' => 'Slide Caption']]],
                 'blocks' => ['name' => 'blocks', 'label' => 'Blocks', 'type' => 'flexible_content', 'layouts' => [
                     ['name' => 'quote', 'sub_fields' => [['name' => 'speaker', 'label' => 'Speaker']]],
@@ -133,6 +134,12 @@ namespace UAMS_Search\Tests {
                 'contact_phone' => 'Phone Number',
                 'slides_0_caption' => 'Slide Caption',
             ], $labels['fields']);
+        }
+
+        public function test_a_sub_field_that_is_not_a_usable_field_is_skipped_and_the_search_goes_on(): void
+        {
+            $labels = NameChoices::labels(['fields' => ['page' => ['mixed_ok']], 'taxonomies' => []], $this->acf(), get_taxonomy(...));
+            self::assertSame(['mixed_ok' => 'Okay'], $labels['fields']);
         }
 
         public function test_a_name_acf_does_not_know_has_no_label(): void
@@ -179,6 +186,40 @@ namespace UAMS_Search\Tests {
             self::assertSame(['post' => ['subtitle']], $saved['fields']);
             self::assertSame(['fields' => [], 'taxonomies' => ['category' => 'Categories']], $saved['labels']);
             self::assertSame($saved, $GLOBALS['uams_test_options'][NameChoices::OPTION]);
+        }
+
+        public function test_a_failed_refresh_after_a_rebuild_is_logged_with_its_reason_and_does_not_throw(): void
+        {
+            $log = tempnam(sys_get_temp_dir(), 'uams-nc-');
+            $previous = ini_set('error_log', $log);
+            $this->db->fail['wp_postmeta'] = 'Table missing';
+            try {
+                NameChoices::refresh_after_rebuild();
+                $logged = (string) file_get_contents($log);
+            } finally {
+                ini_set('error_log', (string) $previous);
+                unlink($log);
+            }
+
+            self::assertStringContainsString('UAMS Search: could not refresh the Name suggestions after the rebuild. Could not read the names in use on site 1: Table missing', $logged);
+            self::assertArrayNotHasKey(NameChoices::OPTION, $GLOBALS['uams_test_options'], 'Nothing is saved when the lookup fails.');
+        }
+
+        public function test_a_refresh_after_a_rebuild_saves_the_choices_and_logs_nothing(): void
+        {
+            $log = tempnam(sys_get_temp_dir(), 'uams-nc-');
+            $previous = ini_set('error_log', $log);
+            $this->db->rows['wp_postmeta'] = [['type' => 'post', 'name' => 'subtitle']];
+            try {
+                NameChoices::refresh_after_rebuild();
+                $logged = (string) file_get_contents($log);
+            } finally {
+                ini_set('error_log', (string) $previous);
+                unlink($log);
+            }
+
+            self::assertSame('', $logged);
+            self::assertSame(['post' => ['subtitle']], NameChoices::get()['fields']);
         }
 
         public function test_a_cache_saved_before_labels_existed_reads_with_none(): void
