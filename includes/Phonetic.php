@@ -82,7 +82,7 @@ final class Phonetic
                     $i += $next === 'B' ? 2 : 1;
                     break;
                 case 'C':
-                    if ($at($i, ['CHIA']) || ($i > 1 && ! $vowel($i - 2) && $at($i - 1, ['ACH']) && ! \in_array($s[$i + 2], ['I', 'E'], true))) {
+                    if ($at($i, ['CHIA']) || ($i > 1 && ! $vowel($i - 2) && $at($i - 1, ['ACH']) && ! $at($i + 2, ['I', 'E']))) {
                         $add('K');
                         // The letter a shorter skip stops on is an H after a consonant, which the loop passes over without a key.
                         // @pest-mutate-ignore:DecrementInteger
@@ -347,6 +347,10 @@ final class Phonetic
                     $add('S', $at($i + 1, ['ZO', 'ZI', 'ZA']) || ($slavo && $i > 0 && $prev !== 'T') ? 'TS' : 'S');
                     $i += $next === 'Z' ? 2 : 1;
                 } break;
+                default:
+                    // Every letter has a case above, so none reaches this step. It keeps the loop moving past a character a changed rule could leave in place.
+                    // @pest-mutate-ignore:PostIncrementToPostDecrement
+                    $i++;
             }
         }
 
