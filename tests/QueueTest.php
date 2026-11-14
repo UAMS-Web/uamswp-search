@@ -17,9 +17,12 @@ namespace {
     }
 
     if (! function_exists('wp_convert_hr_to_bytes')) {
+        /** Unlimited, unless a test sets `uams_test_memory_bytes` to a limit or to a list of limits handed out one per call. */
         function wp_convert_hr_to_bytes($value)
         {
-            return -1;
+            $limit = $GLOBALS['uams_test_memory_bytes'] ?? -1;
+
+            return is_array($limit) ? array_shift($GLOBALS['uams_test_memory_bytes']) : $limit;
         }
     }
 
@@ -201,6 +204,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_multisite'] = false;
             $GLOBALS['uams_test_revisions'] = [];
             $GLOBALS['uams_test_autosaves'] = [];
+            unset($GLOBALS['uams_test_memory_bytes']);
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
         }
@@ -211,6 +215,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_options'] = [];
             $GLOBALS['uams_test_revisions'] = [];
             $GLOBALS['uams_test_autosaves'] = [];
+            unset($GLOBALS['uams_test_memory_bytes']);
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
         }
 
@@ -403,6 +408,97 @@ namespace UAMS_Search\Tests {
             $dependents = $this->db->matching("'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM `wp_uams_search_index`");
             self::assertCount(1, $dependents);
             self::assertStringContainsString('site_id=2 AND object_id<>8', $dependents[0]);
+        }
+
+        public function test_the_smallest_real_post_id_is_queued(): void
+        {
+            Queue::push(1);
+
+            self::assertStringContainsString("VALUES (1,1,'upsert',", $this->inserts()[0]);
+        }
+
+        public function test_a_run_without_arguments_reads_one_hundred_rows(): void
+        {
+            Queue::process();
+
+            self::assertStringContainsString('LIMIT 100', $this->db->matching('SELECT * FROM')[0]);
+        }
+
+        public function test_term_without_a_taxonomy_id_argument_does_nothing(): void
+        {
+            Queue::term(3);
+
+            self::assertSame([], $this->db->queries);
+        }
+
+        /** @return list<array<string, int>> */
+        private static function rows(): array
+        {
+            return [
+                ['site_id' => 2, 'object_id' => 8, 'revision' => 4],
+                ['site_id' => 2, 'object_id' => 9, 'revision' => 5],
+                ['site_id' => 2, 'object_id' => 10, 'revision' => 6],
+            ];
+        }
+
+        public function test_an_unlimited_memory_limit_never_stops_a_run(): void
+        {
+            $this->db->entries = self::rows();
+            $GLOBALS['uams_test_memory_bytes'] = -1;
+
+            self::assertSame(['processed' => 3, 'failed' => 0, 'busy' => false], Queue::process());
+        }
+
+        public function test_a_memory_limit_of_zero_is_no_limit(): void
+        {
+            $this->db->entries = self::rows();
+            $GLOBALS['uams_test_memory_bytes'] = 0;
+
+            self::assertSame(3, Queue::process()['processed']);
+        }
+
+        public function test_a_run_stops_once_memory_in_use_passes_eighty_percent_of_the_limit(): void
+        {
+            $this->db->entries = self::rows();
+            $GLOBALS['uams_test_memory_bytes'] = memory_get_usage(true);
+
+            self::assertSame(0, Queue::process()['processed']);
+
+            // A limit of one byte is already passed
+            $GLOBALS['uams_test_memory_bytes'] = 1;
+            self::assertSame(0, Queue::process()['processed']);
+        }
+
+        public function test_a_limit_far_above_the_memory_in_use_lets_the_run_finish(): void
+        {
+            $this->db->entries = self::rows();
+            $GLOBALS['uams_test_memory_bytes'] = memory_get_usage(true) * 100;
+
+            self::assertSame(3, Queue::process()['processed']);
+        }
+
+        public function test_the_memory_check_counts_the_memory_the_process_has_taken_from_the_system(): void
+        {
+            $reserved = memory_get_usage(true);
+            $used = memory_get_usage(false);
+            if ($reserved - $used < 262144) {
+                self::markTestSkipped('The allocated and the used memory are too close to tell apart.');
+            }
+
+            $this->db->entries = self::rows();
+            // Eighty percent of this limit sits just below the reserved memory and far above the memory in use
+            $GLOBALS['uams_test_memory_bytes'] = (int) (($reserved - 65536) / 0.8);
+
+            self::assertSame(0, Queue::process()['processed']);
+        }
+
+        public function test_the_run_ends_where_the_memory_runs_out_and_does_not_skip_that_row_alone(): void
+        {
+            $this->db->entries = self::rows();
+            // No limit for the first row, a passed limit for the second and no limit again for the third
+            $GLOBALS['uams_test_memory_bytes'] = [-1, 1, -1];
+
+            self::assertSame(1, Queue::process()['processed']);
         }
     }
 }

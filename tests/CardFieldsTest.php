@@ -33,9 +33,13 @@ namespace {
     }
 
     if (! function_exists('get_term')) {
-        function get_term($id, $taxonomy = ''): ?WP_Term
+        function get_term($id, $taxonomy = '')
         {
             $GLOBALS['uams_test_term_calls'][] = $id;
+            // WordPress also answers with a WP_Error; a test sets what comes back in place of the term
+            if (array_key_exists('uams_test_get_term', $GLOBALS)) {
+                return $GLOBALS['uams_test_get_term'];
+            }
 
             return $id === 501 && $taxonomy === 'degree' ? uams_test_term(501) : null;
         }
@@ -54,6 +58,8 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_meta'] = [];
             $GLOBALS['uams_test_term_meta'] = [];
             $GLOBALS['uams_test_term_calls'] = [];
+            $GLOBALS['uams_test_meta_reads'] = [];
+            unset($GLOBALS['uams_test_get_term'], $GLOBALS['uams_test_meta_record']);
         }
 
         public function test_text_keeps_scalars_as_plain_text_and_drops_every_other_type(): void
@@ -69,6 +75,8 @@ namespace UAMS_Search\Tests {
 
         public function test_id_accepts_only_positive_whole_numbers(): void
         {
+            self::assertSame(1, CardFields::id(1));
+            self::assertSame(1, CardFields::id('1'));
             self::assertSame(7, CardFields::id(7));
             self::assertSame(7, CardFields::id('7'));
             self::assertSame(0, CardFields::id(0));
@@ -104,6 +112,15 @@ namespace UAMS_Search\Tests {
             self::assertSame([501, 501, 501, 999], $GLOBALS['uams_test_term_calls'], 'An unusable ID never reaches the lookup.');
         }
 
+        public function test_term_returns_null_for_anything_the_lookup_answers_that_is_not_a_term(): void
+        {
+            // WordPress answers a failed lookup with a WP_Error, or with an array or a row object on some paths
+            foreach ([new stdClass, ['term_id' => 501], false, 'error'] as $answer) {
+                $GLOBALS['uams_test_get_term'] = $answer;
+                self::assertNull(CardFields::term(501, 'degree'));
+            }
+        }
+
         public function test_field_reads_meta_until_acf_is_active_and_then_reads_through_acf(): void
         {
             // One method on purpose: a function cannot be undefined, so the meta branch must run before get_field exists.
@@ -112,8 +129,11 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_term_meta'][9]['title'] = 'term value';
 
             self::assertFalse(function_exists('get_field'), 'Another test defined get_field first; this test needs the meta branch.');
+            $GLOBALS['uams_test_meta_record'] = true;
             self::assertSame('post value', CardFields::field('title', 5));
             self::assertSame('term value', CardFields::field('title', uams_test_term(9)));
+            self::assertSame([['title', true], ['title', true]], $GLOBALS['uams_test_meta_reads'], 'Each read asks for one value.');
+            unset($GLOBALS['uams_test_meta_record']);
 
             eval('function get_field($name, $object, $format = true) {
             if (empty($GLOBALS["uams_test_acf"])) {
