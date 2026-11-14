@@ -99,6 +99,65 @@ namespace UAMS_Search\Tests {
             self::assertSame('', Text::flatten($value));
         }
 
+        public function test_plain_decodes_quote_and_html5_entities(): void
+        {
+            self::assertSame('say "hi" \'x\' \'y\' &', Text::plain('say &quot;hi&quot; &#039;x&#039; &apos;y&apos; &amp;'));
+        }
+
+        public function test_words_longer_than_64_characters_are_dropped_and_the_rest_keep_a_list(): void
+        {
+            $edge = str_repeat('x', 64);
+            self::assertSame(['bbb', str_repeat('y', 63), $edge, 'ccc'], Text::words('bbb '.str_repeat('y', 63).' '.$edge.' '.str_repeat('z', 65).' ccc'));
+        }
+
+        public function test_stop_words_are_flagged_true_and_include_the_configured_ones(): void
+        {
+            self::assertTrue(Text::stops()['the']);
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['stopwords' => ['clinic']];
+            self::assertTrue(Text::stops()['clinic']);
+        }
+
+        public function test_tokens_come_back_as_a_list_without_gaps_where_stop_words_were(): void
+        {
+            self::assertSame(['cat', 'dog'], Text::tokens('cat the dog'));
+        }
+
+        public function test_a_search_is_cut_at_200_characters(): void
+        {
+            // 'zeta' opens the text, filler stop words carry it to character 198, and 'zz9' straddles the cut
+            $search = 'zeta '.str_repeat('a ', 96).' zz9';
+            self::assertSame(198, strpos($search, 'zz9'));
+            self::assertSame([['zeta*'], ['uamsshort'.bin2hex('zz').'zz*']], Text::groups($search));
+        }
+
+        public function test_a_synonym_that_repeats_the_word_is_listed_once_and_the_list_has_no_gaps(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['synonyms' => ['cat' => ['cat', 'kitten']]];
+            self::assertSame([['cat*', 'kitten*']], Text::groups('cat'));
+        }
+
+        public function test_boolean_wraps_a_group_of_two_alternatives_and_marks_required_groups(): void
+        {
+            self::assertSame('+(cat* kitten*) +dog*', Text::boolean([['cat*', 'kitten*'], ['dog*']], true));
+            self::assertSame('(cat* kitten*) dog*', Text::boolean([['cat*', 'kitten*'], ['dog*']], false));
+        }
+
+        public function test_flatten_reads_twelve_levels_down_and_no_further(): void
+        {
+            $twelve = 'deep';
+            for ($i = 0; $i < 12; $i++) {
+                $twelve = [$twelve];
+            }
+
+            self::assertSame('deep', Text::flatten($twelve));
+            self::assertSame('', Text::flatten([$twelve]));
+        }
+
+        public function test_flatten_leaves_out_empty_items(): void
+        {
+            self::assertSame('a b', Text::flatten(['a', '', [], ['', null], 'b']));
+        }
+
         public function test_excerpt_finds_best_window_and_escapes(): void
         {
             $source = implode(' ', array_fill(0, 40, 'filler')).' cardiology care cardiologist '.implode(' ', array_fill(0, 40, 'end'));
