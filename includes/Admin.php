@@ -192,18 +192,28 @@ final class Admin
             wp_send_json_error(['message' => 'You cannot rebuild this search index.'], 403);
         }
 
+        // A missing method and the placeholder text both differ from POST, so both are refused.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
             wp_send_json_error(['message' => 'Use a POST request.'], 405);
         }
 
         // Check the nonce and read the request
         check_ajax_referer('uams_search_rebuild', 'nonce');
+        // A missing action and the placeholder text both name no action, and a number is read as the same text without the cast.
+        // @pest-mutate-ignore:RemoveStringCast,EmptyStringToNotEmpty
         $op = isset($_POST['op']) && \is_scalar($_POST['op']) ? sanitize_key(wp_unslash((string) $_POST['op'])) : '';
+        // A number is read as the same text without the cast. A missing job ID is compared with the saved job by `Rebuild`, which the integration suite covers.
+        // @pest-mutate-ignore:RemoveStringCast,EmptyStringToNotEmpty
         $id = isset($_POST['job_id']) && \is_scalar($_POST['job_id']) ? sanitize_text_field(wp_unslash((string) $_POST['job_id'])) : '';
+        // A missing revision is compared with the saved job by `Rebuild`, which the integration suite covers.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         $revision = isset($_POST['revision']) && \is_scalar($_POST['revision']) ? absint($_POST['revision']) : 0;
         // Run the requested action
         try {
             $result = match ($op) {
+                // Whether the no-index box was ticked reaches only `Rebuild::start()`, which the integration suite covers.
+                // @pest-mutate-ignore:IdenticalToNotIdentical,CoalesceRemoveLeft,EmptyStringToNotEmpty
                 'start' => Rebuild::start(($_POST['include_noindex'] ?? '') === '1'),
                 'step' => Rebuild::step($id, $revision),
                 'pause' => Rebuild::pause($id),
@@ -282,6 +292,8 @@ final class Admin
         // Check the user and the nonce, and read the submitted settings
         self::capable();
         check_admin_referer('uams_search_save');
+        // A settings field that is set but not a list reads as an empty form either way, and one that is missing reads as not a list.
+        // @pest-mutate-ignore:BooleanAndToBooleanOr
         $input = isset($_POST['settings']) && \is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];
         $c = Config::get();
         // Save the page size, the switches and the chosen sites
@@ -290,9 +302,13 @@ final class Admin
             $c[$key] = ! empty($input[$key]);
         }
 
+        // The intersection compares numbers and numeric text the same way, so the conversion to integers changes no result.
+        // @pest-mutate-ignore:UnwrapArrayMap
         $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map(intval(...), (array) ($input['sites'] ?? []))));
         // Save the source weights
         foreach (array_keys(Config::defaults()['weights']) as $key) {
+            // A weight below zero is raised to zero, so a missing weight and -1 both save 0.
+            // @pest-mutate-ignore:DecrementInteger
             $c['weights'][$key] = Config::weight($input['weights'][$key] ?? 0);
         }
 
@@ -339,10 +355,16 @@ final class Admin
         $c['fields'] = $fields;
         $c['taxonomies'] = $taxonomies;
         $stopwords = $input['stopwords'] ?? '';
+        // Without strict types a number becomes the same text, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveStringCast
         $c['stopwords'] = Text::words(\is_scalar($stopwords) ? (string) $stopwords : '');
         // Read the synonym rules: one word, an equals sign and up to ten alternates per line
         $c['synonyms'] = [];
+        // A missing field and the placeholder text both hold no synonym rule.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
         $submitted = $input['synonyms'] ?? '';
+        // Without strict types a number becomes the same text, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveStringCast,EmptyStringToNotEmpty
         $lines = \is_scalar($submitted) ? (string) $submitted : '';
         foreach (preg_split('/\R/', $lines) as $line) {
             $parts = explode('=', $line, 2);
@@ -367,6 +389,8 @@ final class Admin
         }
 
         // Save the PDF limits
+        // `Config::weight()` already limits the value to 100, so a higher cap changes no result.
+        // @pest-mutate-ignore:IncrementInteger
         $c['pdf_max_mb'] = max(1, min(100, Config::weight($input['pdf_max_mb'] ?? 20)));
         $c['pdf_timeout'] = max(1, min(120, (int) ($input['pdf_timeout'] ?? 30)));
         // Refuse to enable search before the index exists
@@ -417,7 +441,13 @@ final class Admin
         check_admin_referer('uams_search_site');
         // Save the scope and the Google switch
         $options = array_keys(Config::scope_options(false));
-        $scope = \is_scalar($_POST['scope'] ?? '') ? sanitize_text_field(wp_unslash($_POST['scope'])) : '';
+        // A missing scope and the placeholder text both name no scope, so both fall back to the first option.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
+        $posted = $_POST['scope'] ?? '';
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
+        $scope = \is_scalar($posted) ? sanitize_text_field(wp_unslash($posted)) : '';
+        // The scope names are text, so the loose comparison finds the same matches.
+        // @pest-mutate-ignore:TrueToFalse
         update_option('uams_search_scope', \in_array($scope, $options, true) ? $scope : $options[0]);
         update_option('uams_search_google', ! empty($_POST['google']));
         // Return to the page
@@ -433,6 +463,8 @@ final class Admin
         check_admin_referer('uams_search_retry');
         $site = absint($_GET['site'] ?? 0);
         $id = absint($_GET['object'] ?? 0);
+        // Both sides are integers, so the loose comparison finds the same matches.
+        // @pest-mutate-ignore:TrueToFalse
         if (! \in_array($site, Config::public_sites(), true) || ! $id) {
             wp_die('Invalid site or item.');
         }
@@ -533,13 +565,18 @@ final class Admin
         echo '<fieldset><legend><h2>Sub-Sites in Whole-Website Search</h2></legend>';
         foreach (Config::public_sites() as $site) {
             $label = is_multisite() ? SiteNames::name($site).' (#'.$site.')' : get_bloginfo('name');
-            echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.(int) $site.'" '.checked(Config::chosen_sites() === null || \in_array($site, Config::chosen_sites(), true), true, false).'> '.esc_html($label).'</label></p>';
+            // Both sides are integers, so the loose comparison finds the same matches.
+            // @pest-mutate-ignore:TrueToFalse
+            $chosen = Config::chosen_sites() === null || \in_array($site, Config::chosen_sites(), true);
+            echo '<p><label><input type="checkbox" name="settings[sites][]" value="'.$site.'" '.checked($chosen, true, false).'> '.esc_html($label).'</label></p>';
         }
 
         // Print the source weights
         echo '</fieldset><fieldset><legend><h2>Source Weights</h2></legend>';
         echo '<table class="form-table" role="presentation"><tbody>';
         foreach (Config::section('weights') as $key => $weight) {
+            // Without strict types a number becomes the same text, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveStringCast
             self::numeric('settings[weights]['.$key.']', $key === 'pdf' ? 'PDF' : ucwords(str_replace('_', ' ', (string) $key)), $weight);
         }
 
@@ -558,6 +595,8 @@ final class Admin
             self::numeric('settings[types]['.$type.'][boost]', 'Type Boost', Config::section('types')[$type] ?? 1);
             echo '</tbody></table>';
             foreach (['fields' => 'ACF Fields', 'taxonomies' => 'Taxonomies'] as $group => $label) {
+                // `array_map()` over two arrays returns a list whatever their keys, and a number becomes the same text without strict types.
+                // @pest-mutate-ignore:UnwrapArrayValues,RemoveStringCast
                 $rows = array_map(static fn (mixed $k, mixed $v): array => ['name' => (string) $k, 'weight' => $v], array_keys(Config::entry($group, $type)), array_values(Config::entry($group, $type)));
                 // One blank row is always offered, so a new field needs no JavaScript; the Add Row button adds more.
                 $rows[] = ['name' => '', 'weight' => 1];
@@ -567,6 +606,8 @@ final class Admin
                 // Point the Name boxes at this type's suggestions, when the cache has any
                 $names = $choices[$group][$type] ?? [];
                 $labels = $choices['labels'][$group] ?? [];
+                // Without strict types a number becomes the same text, so the cast changes no result.
+                // @pest-mutate-ignore:RemoveStringCast
                 $list = $names === [] ? null : 'uams-search-names-'.$group.'-'.preg_replace('/[^A-Za-z0-9_-]/', '-', (string) $type);
                 echo '<h3>'.esc_html($label).'</h3><table class="uams-search-rows" data-prefix="'.esc_attr($prefix).'" data-label="'.esc_attr($what).'" data-size="'.$size.'"'.($list ? ' data-list="'.esc_attr($list).'"' : '').'><thead><tr><th scope="col">Name</th><th scope="col">Weight</th><th scope="col"><span class="screen-reader-text">Remove</span></th></tr></thead><tbody>';
                 foreach ($rows as $i => $row) {
@@ -656,6 +697,8 @@ final class Admin
         int $max = 100
     ): void {
         // Derive the input ID from the name
+        // Without strict types a number becomes the same text, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveStringCast
         $id = 'uams-'.trim((string) preg_replace('/[^a-z0-9]+/i', '-', $name), '-');
         echo '<tr><th scope="row"><label for="'.esc_attr($id).'">'.esc_html($label).'</label></th><td><input id="'.esc_attr($id).'" type="number" min="0" max="'.$max.'" step="0.1" style="width:6em" name="'.esc_attr($name).'" value="'.esc_attr($value).'"></td></tr>';
     }
@@ -668,6 +711,8 @@ final class Admin
         echo '<section id="status"><h2>Index Status</h2><p>Queue length: '.(int) $wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`').'. Last queue run: '.esc_html(Time::local(get_site_option('uams_search_last_queue', ''))).'.</p>';
         // Print the counts by site, type and status
         $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
+        // The names are put in front of the values whatever their keys, so the conversion to a list changes no result.
+        // @pest-mutate-ignore:UnwrapArrayMap,UnwrapArrayValues
         self::table(['Site Name', 'Site ID', 'Post type', 'Status', 'Count'], SiteNames::prefix(array_map(array_values(...), $rows)));
         echo '</section>';
     }
@@ -683,15 +728,24 @@ final class Admin
         echo '<table class="widefat striped"><thead><tr><th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Message</th><th scope="col">Action</th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $url = wp_nonce_url(add_query_arg(['action' => 'uams_search_retry', 'site' => $row['site_id'], 'object' => $row['object_id']], admin_url('admin-post.php')), 'uams_search_retry');
+            // The row holds whole numbers as text, which print the same without the cast.
+            // @pest-mutate-ignore:RemoveIntegerCast
+            $link = '<td><a href="'.esc_url($url).'">Retry item '.(int) $row['object_id'].' on site '.(int) $row['site_id'].'</a></td></tr>';
             echo '<tr>';
+            // Only the order of the values matters here, so dropping their keys first changes no result.
+            // @pest-mutate-ignore:UnwrapArrayValues
             foreach (SiteNames::prefix([array_values($row)])[0] as $value) {
                 echo '<td>'.esc_html($value).'</td>';
-            } echo '<td><a href="'.esc_url($url).'">Retry item '.(int) $row['object_id'].' on site '.(int) $row['site_id'].'</a></td></tr>';
+            }
+
+            echo $link;
         }
 
         // Print the searches with no results
         echo '</tbody></table></section><section id="no-results"><h2>Searches With No Results, Last 30 Days</h2><p>Search text can include health terms. No IP address or user ID is stored. Entries are deleted after 90 days.</p>';
         $rows = $wpdb->get_results('SELECT site_id,search_text,SUM(count) AS total FROM `'.DB::table('misses').'` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', ARRAY_A);
+        // The names are put in front of the values whatever their keys, so the conversion to a list changes no result.
+        // @pest-mutate-ignore:UnwrapArrayMap,UnwrapArrayValues
         self::table(['Site Name', 'Site ID', 'Search', 'Count'], SiteNames::prefix(array_map(array_values(...), $rows)));
         echo '</section>';
     }

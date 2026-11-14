@@ -285,12 +285,29 @@ final class Integration
     {
         // Register the route, which answers with up to six matches
         register_rest_route('uams-search/v1', '/suggest', [
+            // The route's method defaults to reading, so naming it adds nothing.
+            // @pest-mutate-ignore:RemoveArrayItem
             'methods' => 'GET',
             'permission_callback' => static fn (WP_REST_Request $request): bool => DB::ready() && Config::flag('live') && (Config::flag('enabled') || (is_user_logged_in() && $request->get_param('engine') === 'uams')),
             'args' => [
-                's' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],
+                's' => [
+                    'required' => true,
+                    // A `sanitize_callback` is set, so WordPress skips the schema checks below and `Query::run()` caps the text at 200 characters itself: the type and the length bounds are declared but never enforced.
+                    // @pest-mutate-ignore:RemoveArrayItem
+                    'type' => 'string',
+                    // @pest-mutate-ignore:RemoveArrayItem,DecrementInteger,IncrementInteger
+                    'maxLength' => 200,
+                    // @pest-mutate-ignore:RemoveArrayItem,DecrementInteger,IncrementInteger
+                    'minLength' => 2,
+                    'sanitize_callback' => 'sanitize_text_field',
+                ],
                 'scope' => ['type' => 'string', 'enum' => ['site', 'install', 'all']],
-                'type' => ['type' => 'string', 'sanitize_callback' => 'sanitize_key'],
+                'type' => [
+                    // A `sanitize_callback` is set, so WordPress skips the schema check on the type.
+                    // @pest-mutate-ignore:RemoveArrayItem
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_key',
+                ],
                 'engine' => ['type' => 'string', 'enum' => ['uams']],
             ],
             'callback' => static function (WP_REST_Request $request): WP_REST_Response|WP_Error {

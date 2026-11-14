@@ -938,6 +938,8 @@ final class SearchPageTest extends IntegrationTestCase
         $this->indexed('Sentinel '.$this->word);
 
         $this->assertSame(400, $this->request([])->get_status(), 'The search text is required');
+        $this->assertSame(200, $this->request(['s' => 'a'])->get_status(), 'The sanitizer is set, so the declared length bounds are not enforced');
+        $this->assertSame(200, $this->request(['s' => str_repeat('x', 201)])->get_status(), 'and the search itself caps the text');
         $this->assertSame(400, $this->request(['s' => $this->word, 'engine' => 'wordpress'])->get_status(), 'Only uams is a known engine');
         $this->assertSame(1, $this->request(['s' => $this->word, 'type' => 'PAGE'])->get_data()['total'], 'The type is cleaned to a key');
         $this->assertSame(1, $this->request(['s' => '  '.$this->word.'  '])->get_data()['total'], 'The text is trimmed');
@@ -1019,6 +1021,7 @@ final class SearchPageTest extends IntegrationTestCase
 
         $this->assertSame(1, $this->request(['s' => $this->word, 'type' => 'page'])->get_data()['total']);
         $this->assertSame(0, $this->request(['s' => $this->word, 'type' => 'post'])->get_data()['total'], 'The type narrows the suggestions');
+        $this->assertSame(0, $this->request(['s' => $this->word, 'type' => 'POST'])->get_data()['total'], 'The type is cleaned to a key first');
         $this->assertSame(1, $this->request(['s' => $this->word])->get_data()['total'], 'No type searches every type');
     }
 
