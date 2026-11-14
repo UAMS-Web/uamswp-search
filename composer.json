@@ -15,6 +15,7 @@
   },
   "scripts": {
     "test": "pest",
+    "mutate": "pest --mutate",
     "setup:integration": "@composer install --working-dir=tests/Integration",
     "test:integration": "@php tests/Integration/vendor/bin/phpunit --configuration tests/Integration/phpunit.xml",
     "build": "node scripts/build-zip.mjs",
