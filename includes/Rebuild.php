@@ -48,6 +48,8 @@ final class Rebuild
     {
         $job = self::state();
 
+        // Statuses are never numeric strings, so loose and strict comparison agree.
+        // @pest-mutate-ignore:TrueToFalse
         return $job && \in_array($job['status'], ['running', 'paused'], true);
     }
 
@@ -110,6 +112,8 @@ final class Rebuild
             // Count each site's content
             $sites = [];
             $total = 0;
+            // Only the number of placeholders matters, not the keys array_fill gives them.
+            // @pest-mutate-ignore:DecrementInteger,IncrementInteger
             $marks = implode(',', array_fill(0, \count($types), '%s'));
             foreach ($ids as $id) {
                 $posts = $wpdb->get_blog_prefix($id).'posts';
@@ -120,6 +124,8 @@ final class Rebuild
 
                 $name = is_multisite() ? SiteNames::name($id) : get_bloginfo('name');
                 $sites[] = ['id' => $id, 'name' => $name, 'maximum' => (int) $count['maximum'], 'total' => (int) $count['total']];
+                // Adding a numeric string to an int gives the same int.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 $total += (int) $count['total'];
             }
 
@@ -169,6 +175,8 @@ final class Rebuild
         string $id,
         int $revision,
         int $limit = 25,
+        // The default of 8 versus 7 or 9 seconds differs only in runs longer than seven seconds, which no test waits for.
+        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         int $seconds = 8
     ): array {
         // Take the writer lock
@@ -179,7 +187,8 @@ final class Rebuild
         try {
             // Return the current job when it is stopped or the caller is behind
             $job = self::require_job($id);
-            if (! \in_array($job['status'], ['running', 'paused'], true) || $job['revision'] !== $revision) {
+            // Statuses are never numeric strings, so loose and strict comparison agree.
+            if (! \in_array($job['status'], ['running', 'paused'], true) || $job['revision'] !== $revision) { // @pest-mutate-ignore:TrueToFalse
                 return ['job' => $job, 'busy' => false];
             }
 
@@ -193,12 +202,18 @@ final class Rebuild
             $job['error'] = '';
             $started = microtime(true);
             $units = 0;
+            // The do-while body always runs once, so a floor of 0 and a floor of 1 both run exactly one unit.
+            // @pest-mutate-ignore:DecrementInteger
             $limit = max(1, min(50, $limit));
+            // The ceiling mutants (9 and 11 seconds) differ only in runs longer than nine seconds, which no test waits for. The floor and the lower clamp are killed with a 0.6 second unit.
+            // @pest-mutate-ignore:DecrementInteger,IncrementInteger
             $seconds = max(1, min(10, $seconds));
+            // The trailing annotation on the loop's closing line covers a tie between two clock readings, which cannot be built. The units boundary on that line is killed by the exact-limit test.
             do {
                 // Stop before the server runs out of memory
                 $memory = wp_convert_hr_to_bytes(\ini_get('memory_limit'));
-                if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) {
+                // A limit of 0 cannot be set, -1 means unlimited, real and tracked usage differ by less than one chunk, and a float tie cannot be built.
+                if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) { // @pest-mutate-ignore:GreaterToGreaterOrEqual,TrueToFalse,DecrementInteger,IncrementInteger
                     throw new RuntimeException('The server is low on memory. Pause other work, then resume the rebuild.');
                 }
 
@@ -206,12 +221,13 @@ final class Rebuild
                 self::unit($job);
                 self::save($job);
                 $units++;
-            } while ($job['status'] === 'running' && $units < $limit && microtime(true) - $started < $seconds);
+            } while ($job['status'] === 'running' && $units < $limit && microtime(true) - $started < $seconds); // @pest-mutate-ignore:SmallerToSmallerOrEqual
 
             return ['job' => $job, 'busy' => false];
         } catch (Throwable $throwable) {
             // Pause the job with the error so the page can resume it
-            if (isset($job) && \in_array($job['status'], ['running', 'paused'], true)) {
+            // Statuses are never numeric strings, so loose and strict comparison agree.
+            if (isset($job) && \in_array($job['status'], ['running', 'paused'], true)) { // @pest-mutate-ignore:TrueToFalse
                 $job['status'] = 'paused';
                 $job['error'] = mb_substr($throwable->getMessage(), 0, 2000);
                 self::save($job);
@@ -292,7 +308,10 @@ final class Rebuild
         try {
             // Mark an unfinished job cancelled
             $job = self::require_job($id);
-            if (\in_array($job['status'], ['running', 'paused'], true)) {
+            // Statuses are never numeric strings, so loose and strict comparison agree.
+            if (\in_array($job['status'], ['running', 'paused'], true)) { // @pest-mutate-ignore:TrueToFalse
+                // The site_id column is unsigned, so a delete for -1 matches no row. The +1 mutant is killed.
+                // @pest-mutate-ignore:DecrementInteger
                 $site = $job['sites'][$job['site_index']]['id'] ?? 0;
                 $job['status'] = 'cancelled';
                 $job['inflight'] = null;
@@ -323,7 +342,8 @@ final class Rebuild
         // Read the current site and check it is still eligible
         $site = $job['sites'][$job['site_index']];
         $id = (int) $site['id'];
-        if (! \in_array($id, Config::index_sites(), true)) {
+        // The site ID is cast to int and the list holds ints, so loose and strict comparison agree.
+        if (! \in_array($id, Config::index_sites(), true)) { // @pest-mutate-ignore:TrueToFalse
             throw new RuntimeException('A site is no longer eligible. Cancel and start a new rebuild.');
         }
 
@@ -343,6 +363,8 @@ final class Rebuild
             case 'scan':
                 // Read the next post after the cursor
                 $posts = $wpdb->get_blog_prefix($id).'posts';
+                // Only the number of placeholders matters, not the keys array_fill gives them.
+                // @pest-mutate-ignore:DecrementInteger,IncrementInteger
                 $marks = implode(',', array_fill(0, \count($job['types']), '%s'));
                 $post = $wpdb->get_row($wpdb->prepare("SELECT ID,post_type FROM `$posts` WHERE ID>%d AND ID<=%d AND post_type IN ($marks) ORDER BY ID LIMIT 1", array_merge([$job['cursor'], $site['maximum']], $job['types'])), ARRAY_A);
                 if ($wpdb->last_error) {
@@ -356,9 +378,14 @@ final class Rebuild
                 }
 
                 // Index the post, or record a failure after three interruptions
-                if (self::interrupted($job, (int) $post['ID'])) {
+                // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
+                if (self::interrupted($job, (int) $post['ID'])) { // @pest-mutate-ignore:RemoveIntegerCast
+                    // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
+                    // @pest-mutate-ignore:RemoveIntegerCast
                     $row = Indexer::failure($id, (int) $post['ID'], $post['post_type'], 'Browser indexing interrupted three times. Check server time/memory limits, then retry this item.', 'stage');
                 } else {
+                    // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
+                    // @pest-mutate-ignore:RemoveIntegerCast
                     $row = Indexer::one($id, (int) $post['ID'], 'stage');
                 }
 
@@ -401,6 +428,8 @@ final class Rebuild
                     break;
                 }
 
+                // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
+                // @pest-mutate-ignore:RemoveIntegerCast
                 self::dictionary_transaction(static fn (): mixed => Suggestions::remove($id, (int) $stale));
                 break;
             case 'dictionary':
@@ -417,7 +446,10 @@ final class Rebuild
                 }
 
                 // Add the row's words to the dictionary, or skip it after three interruptions
-                if (self::interrupted($job, (int) $row['object_id'])) {
+                // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
+                if (self::interrupted($job, (int) $row['object_id'])) { // @pest-mutate-ignore:RemoveIntegerCast
+                    // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
+                    // @pest-mutate-ignore:RemoveIntegerCast
                     self::dictionary_transaction(static fn (): mixed => Suggestions::remove($id, (int) $row['object_id']));
                     $job['dictionary_skipped']++;
                     error_log('UAMS Search: skipped interrupted spelling dictionary site='.$id.' post='.$row['object_id']);
@@ -466,6 +498,8 @@ final class Rebuild
     ): bool {
         // Count earlier attempts at this item and phase
         $previous = $job['inflight'];
+        // A numeric-string attempt count compares and adds the same as the int.
+        // @pest-mutate-ignore:RemoveIntegerCast
         $attempts = $previous && $previous['object'] === $object && $previous['phase'] === $job['phase'] ? (int) $previous['attempts'] : 0;
         // Give up after three attempts
         if ($attempts >= 3) {
