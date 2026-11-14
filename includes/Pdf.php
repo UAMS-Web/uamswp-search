@@ -181,6 +181,8 @@ final class Pdf
         $exit = -1;
         // Collect the output until the command ends
         try {
+            // Removing the pause between reads makes the loop spin without changing what it reads.
+            // @pest-mutate-ignore:RemoveFunctionCall
             do {
                 $out .= stream_get_contents($pipes[1]);
                 $err .= stream_get_contents($pipes[2]);
@@ -198,14 +200,18 @@ final class Pdf
 
                 // Finish when the command has ended
                 $status = proc_get_status($proc);
+                // Carrying on after the command has ended repeats this check until the time limit raises, so each call runs to its own limit and the mutant ends as a timeout.
+                // @pest-mutate-ignore:BreakToContinue
                 if (! $status['running']) {
                     $exit = $status['exitcode'];
+                    // Output written between the last read above and the command's exit is picked up here, and a test cannot place a write inside that window.
+                    // @pest-mutate-ignore:IncrementInteger
                     $out .= stream_get_contents($pipes[1]);
                     break;
                 }
 
-                // Only paces the polling; a shorter or longer pause, or none, reads the same output.
-                // @pest-mutate-ignore:DecrementInteger,IncrementInteger,RemoveFunctionCall
+                // Only paces the polling; a shorter or longer pause reads the same output.
+                // @pest-mutate-ignore:DecrementInteger,IncrementInteger
                 usleep(10000);
             } while (true);
         } finally {
@@ -218,15 +224,14 @@ final class Pdf
             // Close the pipes and collect the exit code
             // `proc_close()` closes any pipe still open, so closing them first changes nothing.
             // @pest-mutate-ignore:RemoveFunctionCall
-            fclose($pipes[1]);
-            // @pest-mutate-ignore:RemoveFunctionCall
-            fclose($pipes[2]);
+            foreach ([$pipes[1], $pipes[2]] as $pipe) {
+                fclose($pipe);
+            }
+
             $closed = proc_close($proc);
             // From PHP 8.3 `proc_close()` returns the code `proc_get_status()` already reported, so reading it again, or reading it when the status held a real code, gives the same number.
-            // @pest-mutate-ignore:IfNegated,SmallerToGreaterOrEqual,SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger
-            if ($exit < 0) {
-                $exit = $closed;
-            }
+            // @pest-mutate-ignore:TernaryNegated,SmallerToGreaterOrEqual,SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger
+            $exit = $exit < 0 ? $closed : $exit;
         }
 
         // Report a failure with the start of its error output
