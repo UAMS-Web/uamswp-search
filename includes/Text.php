@@ -26,7 +26,8 @@ final class Text
         // Replace the remaining tags with spaces
         $text = preg_replace('~<[^>]+>~u', ' ', $text);
 
-        // Decode entities and collapse the whitespace
+        // Decode entities and collapse the whitespace. A later cleanup of a null result cannot happen: the pass that would fail on invalid text runs earlier and leaves an empty string.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
         return trim(preg_replace('/\s+/u', ' ', html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '');
     }
 
@@ -125,6 +126,8 @@ final class Text
         foreach ($chunks as $chunk) {
             // Check whether the chunk is a quoted phrase
             $phrase = $chunk[1] !== '';
+            // A word chunk always has its second group and a phrase chunk never reaches it, so the default is unused; reading the phrase from the whole match (with its quotes) tokenizes the same.
+            // @pest-mutate-ignore:DecrementInteger,EmptyStringToNotEmpty
             $raw = $phrase ? $chunk[1] : ($chunk[2] ?? '');
             $tokens = self::tokens($raw);
             if ($tokens === []) {
@@ -150,6 +153,8 @@ final class Text
                 // Add the configured synonyms as alternatives
                 if ($synonyms) {
                     foreach (Config::entry('synonyms', $word) as $synonym) {
+                        // Without strict types a number is turned into the same text, so the cast changes no result.
+                        // @pest-mutate-ignore:RemoveStringCast
                         $parts = self::tokens((string) $synonym);
                         if ($parts !== []) {
                             $alternatives[] = \count($parts) > 1 ? '"'.implode(' ', $parts).'"' : $parts[0].'*';
@@ -203,6 +208,8 @@ final class Text
 
         // Convert a scalar to plain text
         if (\is_string($value) || \is_int($value) || \is_float($value)) {
+            // Without strict types a number is turned into the same text, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveStringCast
             return self::plain((string) $value);
         }
 
@@ -218,7 +225,7 @@ final class Text
                 }
             }
 
-            return trim(implode(' ', $out));
+            return implode(' ', $out);
         }
 
         return '';

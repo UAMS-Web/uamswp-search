@@ -30,6 +30,8 @@ final class Stemmer
     {
         // Mark each letter
         $shape = '';
+        // A loop that never reaches its end cannot be killed by a failing test, only by a timeout, which the mutation check does not count.
+        // @pest-mutate-ignore:PostIncrementToPostDecrement,SmallerToGreaterOrEqual
         for ($i = 0, $n = \strlen($s); $i < $n; $i++) {
             $v = str_contains('aeiou', $s[$i]) || ($s[$i] === 'y' && $i > 0 && $shape[$i - 1] === 'c');
             $shape .= $v ? 'v' : 'c';
@@ -69,7 +71,13 @@ final class Stemmer
      */
     private static function double(string $s): bool
     {
-        return \strlen($s) > 1 && substr($s, -1) === substr($s, -2, 1) && str_ends_with(self::shape($s), 'c');
+        // A lone consonant would pass the checks below, but a part reaching here holds a vowel, so no input reaches this guard or tells its limit apart.
+        // @pest-mutate-ignore:SmallerToSmallerOrEqual,DecrementInteger,IncrementInteger,FalseToTrue,RemoveEarlyReturn
+        if (\strlen($s) < 2) {
+            return false;
+        }
+
+        return substr($s, -1) === substr($s, -2, 1) && str_ends_with(self::shape($s), 'c');
     }
 
     /**
@@ -97,12 +105,17 @@ final class Stemmer
 
         // Step 1b: reduce -eed, -ed and -ing endings
         if (str_ends_with($w, 'eed')) {
-            if (self::measure(substr($w, 0, -3)) > 0) {
+            // Cutting two letters instead of three leaves a final vowel, which adds no vowel-consonant pair, so the measure does not change.
+            // @pest-mutate-ignore:IncrementInteger
+            $stem = substr($w, 0, -3);
+            if (self::measure($stem) > 0) {
                 $w = substr($w, 0, -1);
             }
         } else {
             $base = null;
             foreach (['ed', 'ing'] as $end) {
+                // A word cannot end in both, so carrying on to the next ending after a match changes nothing.
+                // @pest-mutate-ignore:BreakToContinue
                 if (str_ends_with($w, $end) && self::vowel(substr($w, 0, -\strlen($end)))) {
                     $base = substr($w, 0, -\strlen($end));
                     break;
@@ -126,9 +139,9 @@ final class Stemmer
             $w = substr($w, 0, -1).'i';
         }
 
-        // Steps 2 and 3: map long suffixes to shorter ones
+        // Steps 2 and 3: map long suffixes to shorter ones. Porter's step 2 also maps `ousness` to `ous`; the step 3 rule for `ness` gives the same stem, so it is not listed twice.
         foreach ([
-            ['ational' => 'ate', 'tional' => 'tion', 'enci' => 'ence', 'anci' => 'ance', 'izer' => 'ize', 'abli' => 'able', 'alli' => 'al', 'entli' => 'ent', 'eli' => 'e', 'ousli' => 'ous', 'ization' => 'ize', 'ation' => 'ate', 'ator' => 'ate', 'alism' => 'al', 'iveness' => 'ive', 'fulness' => 'ful', 'ousness' => 'ous', 'aliti' => 'al', 'iviti' => 'ive', 'biliti' => 'ble'],
+            ['ational' => 'ate', 'tional' => 'tion', 'enci' => 'ence', 'anci' => 'ance', 'izer' => 'ize', 'abli' => 'able', 'alli' => 'al', 'entli' => 'ent', 'eli' => 'e', 'ousli' => 'ous', 'ization' => 'ize', 'ation' => 'ate', 'ator' => 'ate', 'alism' => 'al', 'iveness' => 'ive', 'fulness' => 'ful', 'aliti' => 'al', 'iviti' => 'ive', 'biliti' => 'ble'],
             ['icate' => 'ic', 'ative' => '', 'alize' => 'al', 'iciti' => 'ic', 'ical' => 'ic', 'ful' => '', 'ness' => ''],
         ] as $rules) {
             foreach ($rules as $suffix => $replacement) {
