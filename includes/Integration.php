@@ -315,7 +315,7 @@ final class Integration
         }
 
         // Print the count, the partial-match notice and the spelling suggestion
-        echo '<h2>'.esc_html(number_format_i18n($out['total']).' results').'</h2>';
+        echo '<h2>'.esc_html(sprintf(_n('%s result', '%s results', (int) $out['total'], 'uams-search'), number_format_i18n($out['total']))).'</h2>';
         if ($out['fallback']) {
             echo '<p>Not every word matched. These results match some of your words.</p>';
         }

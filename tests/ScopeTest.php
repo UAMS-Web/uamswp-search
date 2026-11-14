@@ -98,6 +98,13 @@ if (! function_exists('number_format_i18n')) {
     }
 }
 
+if (! function_exists('_n')) {
+    function _n($single, $plural, $number, $domain = 'default')
+    {
+        return $number === 1 ? $single : $plural;
+    }
+}
+
 if (! function_exists('get_query_var')) {
     function get_query_var($name, $default = '')
     {
@@ -380,6 +387,35 @@ final class ScopeTest extends TestCase
         self::assertStringNotContainsString('Result type', $all);
         self::assertStringNotContainsString('gcse-searchresults-only', $other, 'The block below the results is gone for the other options.');
         self::assertStringContainsString('0 results', $other);
+        unset($GLOBALS['wp_query']);
+    }
+
+    public function test_the_result_count_is_singular_for_one_result_and_plural_otherwise(): void
+    {
+        $GLOBALS['wp_query'] = new class
+        {
+            public array $out = [];
+
+            public function get($name): array
+            {
+                return $this->out;
+            }
+        };
+        $_GET = ['scope' => 'install'];
+
+        foreach ([[0, '0 results'], [1, '1 result'], [2, '2 results'], [1234, '1,234 results']] as [$total, $expected]) {
+            $GLOBALS['wp_query']->out = ['results' => [], 'total' => $total, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
+            $html = '';
+            ob_start();
+            try {
+                Integration::render();
+            } finally {
+                $html = (string) ob_get_clean();
+            }
+
+            self::assertStringContainsString('<h2>'.$expected.'</h2>', $html, 'A total of '.$total);
+        }
+
         unset($GLOBALS['wp_query']);
     }
 }
