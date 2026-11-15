@@ -18,10 +18,10 @@ on:
   workflow_dispatch:
   # The mutate job mutates only the changed files on a pull request and on a push, and everything on a scheduled
   # or manual run, under the `mutate-full-timeout-minutes` input (default 180). To catch drift from a dependency
-  # or tooling change, uncomment a schedule (UAMS-Web/uams-claude-skills#532). A schedule runs on the default
-  # branch, and GitHub disables it after 60 days without repository activity.
-  # schedule:
-  #   - cron: '17 7 * * 1'
+  # or tooling change, this schedule runs the full pass weekly (UAMS-Web/uams-claude-skills#532). A schedule runs on the
+  # default branch, and GitHub disables it after 60 days without repository activity.
+  schedule:
+    - cron: '17 7 * * 1'
 
 # A new push to a pull request cancels that pull request's stale run, so a pull request keeps
 # one group. Every other run (a push to the default branch, a manual run) gets a group of its
