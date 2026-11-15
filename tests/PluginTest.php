@@ -260,7 +260,8 @@ namespace UAMS_Search\Tests {
             $db = $this->database();
             $this->tableReady(false);
             $job();
-            self::assertSame([], $db->queries);
+            $before = $db->queries;
+            self::assertSame([], $before);
 
             $this->tableReady(true);
             $job();
