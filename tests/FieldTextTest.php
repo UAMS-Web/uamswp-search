@@ -209,9 +209,19 @@ namespace UAMS_Search\Tests {
 
         // --- pins added for the full coverage bar (#189) ----------------------
 
-        public function test_the_version_is_one_and_the_settings_fingerprint_depends_on_it(): void
+        public function test_the_version_is_two_and_the_settings_fingerprint_depends_on_it(): void
         {
-            self::assertSame(1, FieldText::VERSION);
+            self::assertSame(2, FieldText::VERSION);
+        }
+
+        public function test_a_field_type_is_read_by_key_then_by_name_and_is_none_when_acf_does_not_know_the_field(): void
+        {
+            $this->field('relationship');
+            $GLOBALS['uams_test_acf_fields']['by_name'] = ['type' => 'taxonomy'];
+
+            self::assertSame('relationship', FieldText::type('field_1', 'ignored'));
+            self::assertSame('taxonomy', FieldText::type('', 'by_name'));
+            self::assertNull(FieldText::type('field_9', 'unknown'));
         }
 
         /**

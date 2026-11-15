@@ -43,6 +43,7 @@ The scope links depend on the network layout. A subdirectory network offers This
 = 0.3.0 =
 * Find linked locations, expertise, conditions, and treatments by provider name.
 * Refresh related pages after provider edits, with live guards against stale hidden or private names.
+* Index the titles of posts and the names of terms that relationship, post object and taxonomy fields link to, refreshed when the linked post or term changes.
 * Rebuild the index after updating to include related provider names.
 
 = 0.2.0 =

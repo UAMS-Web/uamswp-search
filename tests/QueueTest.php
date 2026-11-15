@@ -86,6 +86,8 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_multisite'] = false;
             $GLOBALS['uams_test_revisions'] = [];
             $GLOBALS['uams_test_autosaves'] = [];
+            // No post exists for a processed row, so the pages that link to it are the only work it queues.
+            $GLOBALS['uams_test_posts_default'] = null;
             unset($GLOBALS['uams_test_memory_bytes']);
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
@@ -97,6 +99,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_options'] = [];
             $GLOBALS['uams_test_revisions'] = [];
             $GLOBALS['uams_test_autosaves'] = [];
+            unset($GLOBALS['uams_test_posts_default']);
             unset($GLOBALS['uams_test_memory_bytes']);
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
         }
@@ -149,16 +152,19 @@ namespace UAMS_Search\Tests {
 
         public function test_term_queues_every_object_in_the_term_taxonomy(): void
         {
-            Queue::term(3, 9, 'category');
+            Queue::term(3, 9);
 
             $sql = $this->inserts()[0];
             self::assertStringContainsString('FROM `wp_term_relationships` WHERE term_taxonomy_id=9', $sql);
             self::assertStringContainsString('SELECT 1,object_id,', $sql);
+            // The pages that copied the term's name through a field are queued by the term's marker, in the same call
+            self::assertCount(2, $this->inserts());
+            self::assertStringContainsString('weighted_data LIKE', $this->inserts()[1]);
         }
 
         public function test_term_without_a_taxonomy_id_does_nothing(): void
         {
-            Queue::term(3, 0, 'category');
+            Queue::term(3, 0);
 
             self::assertSame([], $this->db->queries);
         }
@@ -166,7 +172,7 @@ namespace UAMS_Search\Tests {
         public function test_term_does_nothing_before_the_schema_is_installed(): void
         {
             $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
-            Queue::term(3, 9, 'category');
+            Queue::term(3, 9);
 
             self::assertSame([], $this->db->queries);
         }
@@ -288,8 +294,10 @@ namespace UAMS_Search\Tests {
             Queue::process();
 
             $dependents = $this->db->matching("'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM `wp_uams_search_index`");
-            self::assertCount(1, $dependents);
+            // One insert for the pages that list a provider, one for the pages whose linked post or term changed.
+            self::assertCount(2, $dependents);
             self::assertStringContainsString('site_id=2 AND object_id<>8', $dependents[0]);
+            self::assertStringContainsString('site_id=2 AND object_id<>8', $dependents[1]);
         }
 
         public function test_the_smallest_real_post_id_is_queued(): void

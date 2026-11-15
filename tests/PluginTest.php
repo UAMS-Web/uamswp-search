@@ -297,10 +297,15 @@ namespace UAMS_Search\Tests {
 
             $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, ['50', 51]);
             self::assertSame([50, 51], $this->queuedIds($db));
+            // The pages that copied the deleted term's name through a field are queued too, by the term's marker
+            $linked = array_values(array_filter($db->queries, static fn (string $q): bool => str_contains($q, 'linked\_term\_id')));
+            self::assertCount(1, $linked);
+            self::assertStringStartsWith('Q[1,1,%', (string) reset($linked));
 
             $db->queries = [];
             $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, null);
-            self::assertSame([], $db->queries);
+            self::assertCount(1, $db->queries);
+            self::assertStringContainsString('linked\_term\_id', implode('', $db->queries));
         }
 
         public function test_the_queue_job_logs_a_failure_with_its_reason_and_does_not_stop(): void
@@ -345,7 +350,10 @@ namespace UAMS_Search\Tests {
         /** @return array<int, int> The object IDs of the recorded queue inserts. */
         private function queuedIds(PluginDb $db): array
         {
-            return array_map(static fn (string $q): int => (int) explode(',', substr($q, 2, strpos($q, ']') - 2))[1], $db->queries);
+            // The pages that copied a term's name are queued by a marker, not by an object ID, so they are counted apart.
+            $posts = array_filter($db->queries, static fn (string $q): bool => ! str_contains($q, 'linked\_term\_id'));
+
+            return array_map(static fn (string $q): int => (int) explode(',', substr($q, 2, strpos($q, ']') - 2))[1], array_values($posts));
         }
 
         /** @return array<int, string> The actions of the recorded queue inserts. */
@@ -378,7 +386,15 @@ namespace UAMS_Search\Tests {
 
         public function prepare(string $query, mixed ...$args): string
         {
-            return 'Q['.implode(',', $args).'] '.substr($query, 0, 30);
+            // A list of arguments in one array reads as the arguments themselves, as `$wpdb` does.
+            $list = \is_array($args[0] ?? null) ? $args[0] : $args;
+
+            return 'Q['.implode(',', $list).'] '.substr($query, 0, 30);
+        }
+
+        public function esc_like(string $text): string
+        {
+            return addcslashes($text, '_%\\');
         }
 
         public function query(string $query): int
