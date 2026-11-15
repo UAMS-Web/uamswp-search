@@ -83,11 +83,7 @@ if (! function_exists('get_term')) {
             return $GLOBALS['uams_test_get_term'];
         }
 
-        if (isset($GLOBALS['uams_test_term_objects'][$id])) {
-            return $GLOBALS['uams_test_term_objects'][$id];
-        }
-
-        return $id === 501 && $taxonomy === 'degree' && function_exists('uams_test_term') ? uams_test_term(501) : null;
+        return $GLOBALS['uams_test_term_objects'][$id] ?? ($id === 501 && $taxonomy === 'degree' && function_exists('uams_test_term') ? uams_test_term(501) : null);
     }
 }
 

@@ -56,6 +56,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\Attributes\DataProvider;
     use PHPUnit\Framework\TestCase;
     use ReflectionClass;
+    use RuntimeException;
     use UAMS_Search\Linked;
     use WP_Post;
     use WP_Term;
@@ -228,6 +229,29 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString("ON DUPLICATE KEY UPDATE action='upsert'", $db->queries[0]);
             self::assertSame('[1,77,"%\"linked\\\\_post\\\\_id\":77,%","%\"linked\\\\_post\\\\_id\":77,\"linked\\\\_post\\\\_title\":\"Heart 50\\\\%\",%"]', $db->queries[1]);
             self::assertSame('prepared', $db->queries[2]);
+        }
+
+        public function test_a_filter_that_fails_on_the_post_is_logged_and_every_page_that_holds_the_id_is_queued(): void
+        {
+            $GLOBALS['uams_test_posts'] = [77 => $this->post(77)];
+            $GLOBALS['uams_test_filters']['uams_search_include_post'][] = static function (): bool {
+                throw new RuntimeException('Intentional fixture failure');
+            };
+            $db = $this->database();
+            $log = (string) tempnam(sys_get_temp_dir(), 'uamslog');
+            $previous = ini_set('error_log', $log);
+
+            try {
+                Linked::queue_post_dependents(1, 77);
+                $logged = (string) file_get_contents($log);
+            } finally {
+                ini_set('error_log', (string) $previous);
+                unlink($log);
+            }
+
+            self::assertStringContainsString('UAMS Search: could not read linked post site=1 post=77: Intentional fixture failure', $logged);
+            self::assertStringNotContainsString('NOT (weighted_data', $db->queries[0]);
+            self::assertSame('[1,77,"%\"linked\\\\_post\\\\_id\":77,%"]', $db->queries[1]);
         }
 
         public function test_a_post_read_for_another_site_is_read_on_that_site_and_the_site_is_restored(): void

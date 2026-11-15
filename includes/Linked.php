@@ -2,6 +2,7 @@
 
 namespace UAMS_Search;
 
+use Throwable;
 use WP_Post;
 use WP_Term;
 
@@ -94,6 +95,9 @@ final class Linked
      * link to each other do not requeue each other without end. The queue writer holds
      * the lock.
      *
+     * When a filter fails while the post's state is read, the failure is logged and every page
+     * that holds the ID is queued, so the run goes on and the pages drop the copy.
+     *
      * @param  int  $site  Site ID.
      * @param  int  $id  Linked post ID.
      */
@@ -109,6 +113,10 @@ final class Linked
 
         try {
             $state = self::post_state($id);
+        } catch (Throwable $throwable) {
+            // A filter that fails on this post must not end the queue run: refresh every page that holds the ID, and leave the post's own failure to its indexing
+            error_log('UAMS Search: could not read linked post site='.$site.' post='.$id.': '.$throwable->getMessage());
+            $state = '';
         } finally {
             if ($changed) {
                 restore_current_blog();
