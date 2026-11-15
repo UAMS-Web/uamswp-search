@@ -12,118 +12,118 @@ class PreviewDB
 {
     public string $base_prefix = 'wp_';
 
-    public function prepare($query, ...$args)
+    public function prepare(mixed $query, mixed ...$args): mixed
     {
         return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], $query), $args);
     }
 
-    public function esc_like($s)
+    public function esc_like(mixed $s): mixed
     {
         return addcslashes($s, '_%\\');
     }
 
-    public function get_var($query)
+    public function get_var(mixed $query): mixed
     {
         return 'wp_uams_search_index';
     }
 }
 
 $wpdb = new PreviewDB;
-function wp_unique_id($prefix)
+function wp_unique_id(mixed $prefix): mixed
 {
     static $i = 0;
 
     return $prefix.++$i;
 }
 
-function is_scalar_string($v)
+function is_scalar_string(mixed $v): mixed
 {
     return is_scalar($v) ? (string) $v : '';
 }
 
-function sanitize_text_field($s)
+function sanitize_text_field(mixed $s): mixed
 {
     return trim(strip_tags($s));
 }
 
-function wp_unslash($s)
+function wp_unslash(mixed $s): mixed
 {
     return stripslashes($s);
 }
 
-function esc_html($s)
+function esc_html(mixed $s): mixed
 {
     return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function esc_attr($s)
+function esc_attr(mixed $s): mixed
 {
     return esc_html($s);
 }
 
-function esc_url($s, $_protocols = null)
+function esc_url(mixed $s, mixed $_protocols = null): mixed
 {
     return esc_html($s);
 }
 
-function home_url($suffix = '')
+function home_url(mixed $suffix = ''): mixed
 {
     return 'https://uams-search.test'.$suffix;
 }
 
-function get_search_query($_escaped = true)
+function get_search_query(mixed $_escaped = true): mixed
 {
     return 'heart';
 }
 
-function get_query_var($_key, $default = '')
+function get_query_var(mixed $_key, mixed $default = ''): mixed
 {
     return $default;
 }
 
-function number_format_i18n($n)
+function number_format_i18n(mixed $n): mixed
 {
     return number_format($n);
 }
 
-function _n($single, $plural, $number, $_domain = 'default')
+function _n(mixed $single, mixed $plural, mixed $number, mixed $_domain = 'default'): mixed
 {
     return $number === 1 ? $single : $plural;
 }
 
-function wp_kses($s, $_allow)
+function wp_kses(mixed $s, mixed $_allow): mixed
 {
     return strip_tags($s, '<mark>');
 }
 
-function wp_kses_post($s)
+function wp_kses_post(mixed $s): mixed
 {
     return $s;
 }
 
-function add_query_arg($args, $url)
+function add_query_arg(mixed $args, mixed $url): mixed
 {
     return $url.'?'.http_build_query(array_filter($args, static fn ($v): bool => $v !== false));
 }
 
-function get_post_type_object($type)
+function get_post_type_object(mixed $type): mixed
 {
     return (object) ['labels' => (object) ['name' => ucfirst($type).'s']];
 }
 
-function size_format($size)
+function size_format(mixed $size): mixed
 {
     return number_format($size / 1024).' KB';
 }
 
-function paginate_links($_args)
+function paginate_links(mixed $_args): mixed
 {
     return '';
 }
 
 class PreviewQuery
 {
-    public function get($key)
+    public function get(mixed $key): mixed
     {
         $results = $GLOBALS['uams_preview_results'] ?? [
             (object) ['title' => 'Heart care', 'url' => 'https://uams-search.test/heart-care/', 'post_type' => 'page', 'excerpt' => Excerpt::make(['Find heart care and cardiology services at UAMS.'], 'heart')],

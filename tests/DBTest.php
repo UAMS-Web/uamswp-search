@@ -53,7 +53,7 @@ namespace UAMS_Search\Tests {
                     return $text;
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;
@@ -78,7 +78,8 @@ namespace UAMS_Search\Tests {
                     };
                 }
 
-                public function get_row(string $query, $output = null): ?array
+                /** @return array<mixed> */
+                public function get_row(string $query, mixed $output = null): ?array
                 {
                     $this->queries[] = $query;
                     preg_match('/FROM `([^`]+)`/', $query, $m);
@@ -290,6 +291,7 @@ namespace UAMS_Search\Tests {
             {
                 public function __construct(private object $inner) {}
 
+                /** @param array<mixed> $args */
                 public function __call(string $name, array $args): mixed
                 {
                     return $this->inner->$name(...$args);

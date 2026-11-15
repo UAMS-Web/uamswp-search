@@ -5,17 +5,17 @@ namespace {
     if (! class_exists('WP_Post')) {
         #[AllowDynamicProperties] class WP_Post
         {
-            public $post_mime_type = '';
+            public mixed $post_mime_type = '';
 
-            public $post_parent = 0;
+            public mixed $post_parent = 0;
 
-            public $post_content = '';
+            public mixed $post_content = '';
 
-            public $post_date_gmt = '0000-00-00 00:00:00';
+            public mixed $post_date_gmt = '0000-00-00 00:00:00';
 
-            public $post_modified_gmt = '0000-00-00 00:00:00';
+            public mixed $post_modified_gmt = '0000-00-00 00:00:00';
 
-            public $post_type = 'post';
+            public mixed $post_type = 'post';
 
             public int $ID = 42;
         }
@@ -90,6 +90,7 @@ namespace UAMS_Search\Tests {
                     return addcslashes($text, '_%\\');
                 }
 
+                /** @param array<mixed> $args */
                 public function prepare(string $query, array $args): string
                 {
                     $this->queries[] = $query;

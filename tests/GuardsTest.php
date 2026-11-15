@@ -4,14 +4,14 @@ namespace {
 
     // Stand-ins for the WordPress functions the settings save and the result filters call.
     if (! function_exists('wp_die')) {
-        function wp_die($message = ''): never
+        function wp_die(mixed $message = ''): never
         {
             throw new RuntimeException('wp_die: '.$message);
         }
     }
 
     if (! function_exists('check_admin_referer')) {
-        function check_admin_referer($action = -1, $query_arg = '_wpnonce')
+        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): mixed
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
@@ -20,21 +20,21 @@ namespace {
     }
 
     if (! function_exists('wp_unslash')) {
-        function wp_unslash($s)
+        function wp_unslash(mixed $s): mixed
         {
             return $s;
         }
     }
 
     if (! function_exists('sanitize_key')) {
-        function sanitize_key($key)
+        function sanitize_key(mixed $key): mixed
         {
             return strtolower(preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
         }
     }
 
     if (! function_exists('update_site_option')) {
-        function update_site_option($name, $value)
+        function update_site_option(mixed $name, mixed $value): mixed
         {
             $GLOBALS['uams_test_options'][$name] = $value;
 
@@ -43,7 +43,7 @@ namespace {
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): bool
+        function wp_safe_redirect(mixed $url): bool
         {
             $GLOBALS['uams_test_redirect'] = $url;
 
@@ -52,56 +52,56 @@ namespace {
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$_args): bool
+        function current_user_can(mixed $capability, mixed ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url($path = '')
+        function admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('get_search_query')) {
-        function get_search_query($_escaped = true)
+        function get_search_query(mixed $_escaped = true): mixed
         {
             return '';
         }
     }
 
     if (! function_exists('add_query_arg')) {
-        function add_query_arg($args, $url)
+        function add_query_arg(mixed $args, mixed $url): mixed
         {
             return $url.'?'.http_build_query($args);
         }
     }
 
     if (! function_exists('home_url')) {
-        function home_url($path = '')
+        function home_url(mixed $path = ''): mixed
         {
             return 'https://example.test'.$path;
         }
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url($url)
+        function esc_url(mixed $url): mixed
         {
             return $url;
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html($s)
+        function esc_html(mixed $s): mixed
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('get_post_type_object')) {
-        function get_post_type_object($type)
+        function get_post_type_object(mixed $type): mixed
         {
             return $GLOBALS['uams_test_types'][$type] ?? null;
         }
@@ -233,7 +233,10 @@ namespace UAMS_Search\Tests {
             self::assertArrayNotHasKey('removed_row', $saved['fields']['post']);
         }
 
-        /** @param array<string, mixed> $settings */
+        /**
+         * @param  array<string, mixed>  $settings
+         * @return array<mixed>
+         */
         private function save(array $settings): array
         {
             $_POST['settings'] = $settings + ['types' => ['post' => ['include' => '1']]];

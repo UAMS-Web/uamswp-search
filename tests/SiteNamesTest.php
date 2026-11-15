@@ -3,14 +3,14 @@
 namespace {
 
     if (! function_exists('esc_html')) {
-        function esc_html($s)
+        function esc_html(mixed $s): mixed
         {
             return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
     }
 
     // Stand-in for the multisite lookup: counts calls so per-site caching can be asserted.
-    function get_blog_details($id)
+    function get_blog_details(mixed $id): mixed
     {
         $GLOBALS['uams_test_blog_lookups'][] = $id;
         $sites = $GLOBALS['uams_test_sites'] ?? [];

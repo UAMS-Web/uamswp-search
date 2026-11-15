@@ -3,7 +3,7 @@
 namespace {
 
     if (! function_exists('size_format')) {
-        function size_format($size, $_decimals = 0)
+        function size_format(mixed $size, mixed $_decimals = 0): mixed
         {
             return round($size / 1024).' KB';
         }
@@ -39,7 +39,8 @@ namespace UAMS_Search\Tests {
             {
                 public function __construct(private readonly object $result) {}
 
-                public function get($name): array
+                /** @return array<mixed> */
+                public function get(mixed $name): array
                 {
                     return ['results' => [$this->result], 'total' => 1, 'pages' => 1, 'fallback' => false, 'suggestion' => null];
                 }

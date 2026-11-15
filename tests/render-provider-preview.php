@@ -4,15 +4,15 @@ use UAMS_Search\Result;
 
 class WP_Post
 {
-    public $post_mime_type = '';
+    public mixed $post_mime_type = '';
 
-    public $post_parent = 0;
+    public mixed $post_parent = 0;
 
-    public $post_content = '';
+    public mixed $post_content = '';
 
-    public $post_date_gmt = '0000-00-00 00:00:00';
+    public mixed $post_date_gmt = '0000-00-00 00:00:00';
 
-    public $post_modified_gmt = '0000-00-00 00:00:00';
+    public mixed $post_modified_gmt = '0000-00-00 00:00:00';
 
     public string $post_type = 'provider';
 
@@ -31,56 +31,56 @@ class WP_Post
 
 class WP_Term
 {
-    public $slug = '';
+    public mixed $slug = '';
 
     public function __construct(public int $term_id, public string $name) {}
 }
 
-function get_post($id)
+function get_post(mixed $id): mixed
 {
     return new WP_Post((int) $id);
 }
 
-function get_post_meta($id, $key, $_single = true)
+function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
 {
     $fields = [101 => ['physician_first_name' => 'C.', 'physician_middle_name' => 'Lowry', 'physician_last_name' => 'Barnes', 'physician_degree' => [501], 'physician_title' => 502], 102 => ['physician_first_name' => 'Alex', 'physician_last_name' => 'Resident', 'physician_resident' => 1]];
 
     return $GLOBALS['uams_preview_fields'][$id][$key] ?? $fields[$id][$key] ?? '';
 }
 
-function get_term_meta($id, $key, $_single = true)
+function get_term_meta(mixed $id, mixed $key, mixed $_single = true): mixed
 {
     return $id === 502 && $key === 'clinical_specialization_title' ? 'Adult Reconstructive Orthopaedic Surgeon' : '';
 }
 
-function get_term($id, $_taxonomy = ''): ?WP_Term
+function get_term(mixed $id, mixed $_taxonomy = ''): ?WP_Term
 {
     return $id === 501 ? new WP_Term(501, 'M.D.') : ($id === 502 ? new WP_Term(502, 'Orthopaedic Surgeon') : null);
 }
 
-function is_post_status_viewable($status): bool
+function is_post_status_viewable(mixed $status): bool
 {
     return $status === 'publish';
 }
 
-function is_post_type_viewable($_type)
+function is_post_type_viewable(mixed $_type): mixed
 {
     return true;
 }
 
-function get_post_thumbnail_id($id)
+function get_post_thumbnail_id(mixed $id): mixed
 {
     return $GLOBALS['uams_preview_thumbnails'][$id] ?? ($id === 101 ? 801 : 0);
 }
 
-function wp_get_attachment_image($_id, $_size, $_icon, $attrs)
+function wp_get_attachment_image(mixed $_id, mixed $_size, mixed $_icon, mixed $attrs): mixed
 {
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="253" height="337"><rect width="253" height="337" fill="#dedbd8"/></svg>';
 
     return '<img src="data:image/svg+xml;base64,'.base64_encode($svg).'" alt="'.htmlspecialchars($attrs['alt'] ?? 'Location exterior', ENT_QUOTES).'" width="253" height="337">';
 }
 
-function get_permalink($post)
+function get_permalink(mixed $post): mixed
 {
     return 'https://uams-search.test/'.$post->post_type.'/'.$post->ID.'/';
 }

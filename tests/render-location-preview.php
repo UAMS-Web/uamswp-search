@@ -2,22 +2,22 @@
 
 use UAMS_Search\Result;
 
-function wp_timezone()
+function wp_timezone(): mixed
 {
     return new DateTimeZone('America/Chicago');
 }
 
-function current_datetime()
+function current_datetime(): mixed
 {
     return new DateTimeImmutable('2026-10-30 12:00:00', wp_timezone());
 }
 
-function get_field($name, $object, $_format = true)
+function get_field(mixed $name, mixed $object, mixed $_format = true): mixed
 {
     return $object instanceof WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
 }
 
-function get_field_object($_name, $_id, $_format = true)
+function get_field_object(mixed $_name, mixed $_id, mixed $_format = true): mixed
 {
     return ['choices' => ['2' => 'Second Floor']];
 }

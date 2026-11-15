@@ -35,7 +35,7 @@ namespace UAMS_Search\Tests {
                     return $text;
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;

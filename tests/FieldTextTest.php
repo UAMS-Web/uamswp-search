@@ -6,7 +6,7 @@ namespace {
 
     // A stand-in for the ACF definitions FieldText reads. It answers from a global the test sets and records each lookup.
     if (! function_exists('acf_get_field')) {
-        function acf_get_field($selector)
+        function acf_get_field(mixed $selector): mixed
         {
             $GLOBALS['uams_test_acf_lookups'][] = $selector;
 

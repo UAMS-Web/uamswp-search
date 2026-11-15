@@ -9,33 +9,33 @@ defined('UAMS_SEARCH_SCHEMA_VERSION') || define('UAMS_SEARCH_SCHEMA_VERSION', '0
 // Unit tests need only the option/filter seam, not a running WordPress database.
 $GLOBALS['uams_test_options'] = [];
 $GLOBALS['uams_test_filters'] = [];
-function get_site_option($name, $default = false)
+function get_site_option(mixed $name, mixed $default = false): mixed
 {
     return $GLOBALS['uams_test_options'][$name] ?? $default;
 }
 
-function get_option($name, $default = false)
+function get_option(mixed $name, mixed $default = false): mixed
 {
     return get_site_option($name, $default);
 }
 
-function get_current_blog_id()
+function get_current_blog_id(): mixed
 {
     return 1;
 }
 
-function is_multisite()
+function is_multisite(): mixed
 {
     return $GLOBALS['uams_test_multisite'] ?? false;
 }
 
 /** Signed out unless a test sets `$GLOBALS['uams_test_logged_in']`. */
-function is_user_logged_in()
+function is_user_logged_in(): mixed
 {
     return $GLOBALS['uams_test_logged_in'] ?? false;
 }
 
-function apply_filters($name, $value, ...$args)
+function apply_filters(mixed $name, mixed $value, mixed ...$args): mixed
 {
     foreach ($GLOBALS['uams_test_filters'][$name] ?? [] as $fn) {
         $value = $fn($value, ...$args);
@@ -45,12 +45,12 @@ function apply_filters($name, $value, ...$args)
 }
 
 /** The part of WordPress's accent folding the tests rely on: the common accented Latin letters. */
-function remove_accents($text)
+function remove_accents(mixed $text): mixed
 {
     return strtr($text, ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'í' => 'i', 'ï' => 'i', 'ó' => 'o', 'ö' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'É' => 'E', 'Á' => 'A', 'Ö' => 'O', 'Ü' => 'U']);
 }
 
-function wp_json_encode($value, $flags = 0)
+function wp_json_encode(mixed $value, mixed $flags = 0): mixed
 {
     return json_encode($value, $flags);
 }
@@ -58,15 +58,15 @@ function wp_json_encode($value, $flags = 0)
 if (! class_exists('WP_Post')) {
     #[AllowDynamicProperties] class WP_Post
     {
-        public $post_mime_type = '';
+        public mixed $post_mime_type = '';
 
-        public $post_parent = 0;
+        public mixed $post_parent = 0;
 
-        public $post_content = '';
+        public mixed $post_content = '';
 
-        public $post_date_gmt = '0000-00-00 00:00:00';
+        public mixed $post_date_gmt = '0000-00-00 00:00:00';
 
-        public $post_modified_gmt = '0000-00-00 00:00:00';
+        public mixed $post_modified_gmt = '0000-00-00 00:00:00';
 
         public int $ID = 42;
 
@@ -75,14 +75,14 @@ if (! class_exists('WP_Post')) {
 }
 
 if (! function_exists('get_post')) {
-    function get_post($id)
+    function get_post(mixed $id): mixed
     {
         return array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : new WP_Post;
     }
 }
 
 if (! function_exists('update_site_option')) {
-    function update_site_option($name, $value)
+    function update_site_option(mixed $name, mixed $value): mixed
     {
         $GLOBALS['uams_test_options'][$name] = $value;
 

@@ -8,56 +8,56 @@ namespace {
 
     // Stand-ins for the WordPress functions the screens call.
     if (! function_exists('esc_attr')) {
-        function esc_attr($s)
+        function esc_attr(mixed $s): mixed
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_textarea')) {
-        function esc_textarea($s)
+        function esc_textarea(mixed $s): mixed
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html($s)
+        function esc_html(mixed $s): mixed
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url($url)
+        function esc_url(mixed $url): mixed
         {
             return $url;
         }
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url($path = '')
+        function admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('network_admin_url')) {
-        function network_admin_url($path = '')
+        function network_admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/network/'.$path;
         }
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$_args): bool
+        function current_user_can(mixed $capability, mixed ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
     }
 
     if (! function_exists('wp_nonce_field')) {
-        function wp_nonce_field($action = -1, $name = '_wpnonce', $_referer = true, $display = true)
+        function wp_nonce_field(mixed $action = -1, mixed $name = '_wpnonce', mixed $_referer = true, mixed $display = true): mixed
         {
             $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
             if ($display) {
@@ -69,14 +69,14 @@ namespace {
     }
 
     if (! function_exists('submit_button')) {
-        function submit_button($text = null, $_type = 'primary', $_name = 'submit', $_wrap = true, $_other_attributes = null): void
+        function submit_button(mixed $text = null, mixed $_type = 'primary', mixed $_name = 'submit', mixed $_wrap = true, mixed $_other_attributes = null): void
         {
             echo '<input type="submit" value="'.htmlspecialchars((string) $text).'">';
         }
     }
 
     if (! function_exists('checked')) {
-        function checked($checked, $current = true, $display = true)
+        function checked(mixed $checked, mixed $current = true, mixed $display = true): mixed
         {
             // The same comparison, output and return as WordPress's helper
             $result = (string) $checked === (string) $current ? " checked='checked'" : '';
@@ -89,28 +89,28 @@ namespace {
     }
 
     if (! function_exists('get_post_types')) {
-        function get_post_types($_args = [])
+        function get_post_types(mixed $_args = []): mixed
         {
             return ['post' => 'post'];
         }
     }
 
     if (! function_exists('get_post_type_object')) {
-        function get_post_type_object($type)
+        function get_post_type_object(mixed $type): mixed
         {
             return $GLOBALS['uams_test_types'][$type] ?? null;
         }
     }
 
     if (! function_exists('get_bloginfo')) {
-        function get_bloginfo($_show = '')
+        function get_bloginfo(mixed $_show = ''): mixed
         {
             return 'Main Site';
         }
     }
 
     if (! function_exists('wp_enqueue_script')) {
-        function wp_enqueue_script($handle, $src = '', $deps = [], $ver = false, $args = []): void
+        function wp_enqueue_script(mixed $handle, mixed $src = '', mixed $deps = [], mixed $ver = false, mixed $args = []): void
         {
             $GLOBALS['uams_test_enqueued'][] = $handle;
             $GLOBALS['uams_test_enqueue_args'][] = ['script', $handle, $src, $deps, $ver, $args];
@@ -118,7 +118,7 @@ namespace {
     }
 
     if (! function_exists('wp_enqueue_style')) {
-        function wp_enqueue_style($handle, $src = '', $deps = [], $ver = false, $media = 'all'): void
+        function wp_enqueue_style(mixed $handle, mixed $src = '', mixed $deps = [], mixed $ver = false, mixed $media = 'all'): void
         {
             $GLOBALS['uams_test_enqueued'][] = $handle;
             $GLOBALS['uams_test_enqueue_args'][] = ['style', $handle, $src, $deps, $ver, $media];
@@ -126,7 +126,7 @@ namespace {
     }
 
     if (! function_exists('wp_localize_script')) {
-        function wp_localize_script($handle, $object_name, $l10n)
+        function wp_localize_script(mixed $handle, mixed $object_name, mixed $l10n): mixed
         {
             $GLOBALS['uams_test_localized'][] = [$handle, $object_name, $l10n];
 
@@ -135,28 +135,28 @@ namespace {
     }
 
     if (! function_exists('plugins_url')) {
-        function plugins_url($path = '', $_plugin = '')
+        function plugins_url(mixed $path = '', mixed $_plugin = ''): mixed
         {
             return 'https://example.test/'.$path;
         }
     }
 
     if (! function_exists('maybe_unserialize')) {
-        function maybe_unserialize($value)
+        function maybe_unserialize(mixed $value): mixed
         {
             return $value;
         }
     }
 
     if (! function_exists('wp_nonce_url')) {
-        function wp_nonce_url($url, $action = -1)
+        function wp_nonce_url(mixed $url, mixed $action = -1): mixed
         {
             return $url.'&_wpnonce=nonce-for-'.$action;
         }
     }
 
     if (! function_exists('wp_create_nonce')) {
-        function wp_create_nonce($_action = '')
+        function wp_create_nonce(mixed $_action = ''): mixed
         {
             return 'nonce';
         }
@@ -184,24 +184,24 @@ namespace UAMS_Search\Tests {
         /** @var list<string> Every query the screen ran. */
         public array $queries = [];
 
-        public function prepare($sql)
+        public function prepare(mixed $sql): mixed
         {
             return $sql;
         }
 
-        public function esc_like($s)
+        public function esc_like(mixed $s): mixed
         {
             return $s;
         }
 
-        public function get_var($sql)
+        public function get_var(mixed $sql): mixed
         {
             $this->queries[] = (string) $sql;
 
             return str_starts_with($sql, 'SHOW TABLES') ? 'wp_uams_search_index' : 0;
         }
 
-        public function get_results($sql = '')
+        public function get_results(mixed $sql = ''): mixed
         {
             $this->queries[] = (string) $sql;
 
@@ -386,14 +386,14 @@ namespace UAMS_Search\Tests {
             {
                 public ?int $count = 7;
 
-                public function get_var($sql)
+                public function get_var(mixed $sql): mixed
                 {
                     $this->queries[] = (string) $sql;
 
                     return str_starts_with($sql, 'SHOW TABLES') ? 'wp_uams_search_index' : $this->count;
                 }
 
-                public function get_results($sql = '')
+                public function get_results(mixed $sql = ''): mixed
                 {
                     $this->queries[] = (string) $sql;
                     if (str_contains($sql, 'GROUP BY site_id,post_type,status')) {

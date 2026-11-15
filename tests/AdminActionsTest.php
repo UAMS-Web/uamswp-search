@@ -6,7 +6,7 @@ namespace {
 
     // Stand-ins for the WordPress functions the admin actions call.
     if (! function_exists('add_action')) {
-        function add_action($hook, $callback, $priority = 10, $args = 1): void
+        function add_action(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
             $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
@@ -14,7 +14,7 @@ namespace {
     }
 
     if (! function_exists('add_filter')) {
-        function add_filter($hook, $callback, $priority = 10, $args = 1): void
+        function add_filter(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
             $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
@@ -22,14 +22,14 @@ namespace {
     }
 
     if (! function_exists('wp_die')) {
-        function wp_die($message = ''): never
+        function wp_die(mixed $message = ''): never
         {
             throw new RuntimeException('wp_die: '.$message);
         }
     }
 
     if (! function_exists('check_admin_referer')) {
-        function check_admin_referer($action = -1, $query_arg = '_wpnonce')
+        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): mixed
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
@@ -38,7 +38,7 @@ namespace {
     }
 
     if (! function_exists('check_ajax_referer')) {
-        function check_ajax_referer($action = '', $field = '')
+        function check_ajax_referer(mixed $action = '', mixed $field = ''): mixed
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
@@ -47,70 +47,70 @@ namespace {
     }
 
     if (! function_exists('wp_send_json_error')) {
-        function wp_send_json_error($data = null, $status = 200): never
+        function wp_send_json_error(mixed $data = null, mixed $status = 200): never
         {
             throw new RuntimeException('json_error:'.$status.':'.json_encode($data));
         }
     }
 
     if (! function_exists('wp_send_json_success')) {
-        function wp_send_json_success($data = null): never
+        function wp_send_json_success(mixed $data = null): never
         {
             throw new RuntimeException('json_success:'.json_encode($data));
         }
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$_args): bool
+        function current_user_can(mixed $capability, mixed ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
     }
 
     if (! function_exists('sanitize_key')) {
-        function sanitize_key($key)
+        function sanitize_key(mixed $key): mixed
         {
             return strtolower(preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
         }
     }
 
     if (! function_exists('sanitize_text_field')) {
-        function sanitize_text_field($s)
+        function sanitize_text_field(mixed $s): mixed
         {
             return trim(strip_tags((string) $s));
         }
     }
 
     if (! function_exists('wp_unslash')) {
-        function wp_unslash($s)
+        function wp_unslash(mixed $s): mixed
         {
             return $s;
         }
     }
 
     if (! function_exists('absint')) {
-        function absint($value): int
+        function absint(mixed $value): int
         {
             return abs((int) $value);
         }
     }
 
     if (! function_exists('maybe_unserialize')) {
-        function maybe_unserialize($value)
+        function maybe_unserialize(mixed $value): mixed
         {
             return is_string($value) ? (@unserialize($value) ?: $value) : $value;
         }
     }
 
     if (! function_exists('get_current_network_id')) {
-        function get_current_network_id()
+        function get_current_network_id(): mixed
         {
             return 1;
         }
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): bool
+        function wp_safe_redirect(mixed $url): bool
         {
             $GLOBALS['uams_test_redirect'] = $url;
 
@@ -119,42 +119,42 @@ namespace {
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url($path = '')
+        function admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('network_admin_url')) {
-        function network_admin_url($path = '')
+        function network_admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/network/'.$path;
         }
     }
 
     if (! function_exists('add_query_arg')) {
-        function add_query_arg($args, $url)
+        function add_query_arg(mixed $args, mixed $url): mixed
         {
             return $url.(str_contains($url, '?') ? '&' : '?').http_build_query($args);
         }
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url($url)
+        function esc_url(mixed $url): mixed
         {
             return $url;
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html($s)
+        function esc_html(mixed $s): mixed
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('checked')) {
-        function checked($checked, $current = true, $display = true)
+        function checked(mixed $checked, mixed $current = true, mixed $display = true): mixed
         {
             // The same comparison, output and return as WordPress's helper
             $result = (string) $checked === (string) $current ? " checked='checked'" : '';
@@ -167,14 +167,14 @@ namespace {
     }
 
     if (! function_exists('get_post_meta')) {
-        function get_post_meta($id, $key, $_single = true)
+        function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
             return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
         }
     }
 
     if (! function_exists('update_option')) {
-        function update_option($name, $value)
+        function update_option(mixed $name, mixed $value): mixed
         {
             $GLOBALS['uams_test_options'][$name] = $value;
 
@@ -183,7 +183,7 @@ namespace {
     }
 
     if (! function_exists('update_post_meta')) {
-        function update_post_meta($id, $key, $value)
+        function update_post_meta(mixed $id, mixed $key, mixed $value): mixed
         {
             $GLOBALS['uams_test_meta'][$id][$key] = $value;
 
@@ -249,7 +249,7 @@ namespace UAMS_Search\Tests {
 
                 public function __construct(private readonly ?string $status) {}
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     return $query;
                 }
@@ -404,12 +404,13 @@ namespace UAMS_Search\Tests {
                     return addcslashes($text, '_%\\');
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     return $query;
                 }
 
-                public function get_results(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_results(string $query, mixed $output = null): array
                 {
                     return str_contains($query, 'postmeta') ? [['type' => 'post', 'name' => 'subtitle']] : [];
                 }
@@ -546,7 +547,7 @@ namespace UAMS_Search\Tests {
                     return 'DEFAULT CHARACTER SET utf8mb4';
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;
@@ -565,7 +566,8 @@ namespace UAMS_Search\Tests {
                     return str_contains($query, 'innodb_ft_min_token_size') ? $this->tokenSize : (str_contains($query, 'stopword_table') ? null : '0');
                 }
 
-                public function get_row(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_row(string $query, mixed $output = null): array
                 {
                     $this->queries[] = $query;
 
@@ -630,12 +632,13 @@ namespace UAMS_Search\Tests {
                     return $text;
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     return $query;
                 }
 
-                public function get_results(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_results(string $query, mixed $output = null): array
                 {
                     return [];
                 }
@@ -766,7 +769,7 @@ namespace UAMS_Search\Tests {
                 /** @var list<string> */
                 public array $queries = [];
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $i = 0;
 

@@ -6,7 +6,7 @@ namespace {
     if (! class_exists('WP_Term')) {
         class WP_Term
         {
-            public $slug = '';
+            public mixed $slug = '';
 
             public function __construct(public int $term_id = 0) {}
         }
@@ -21,21 +21,21 @@ namespace {
     }
 
     if (! function_exists('get_post_meta')) {
-        function get_post_meta($id, $key, $_single = true)
+        function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
             return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
         }
     }
 
     if (! function_exists('get_term_meta')) {
-        function get_term_meta($id, $key, $_single = true)
+        function get_term_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
             return $GLOBALS['uams_test_term_meta'][$id][$key] ?? '';
         }
     }
 
     if (! function_exists('get_term')) {
-        function get_term($id, $taxonomy = '')
+        function get_term(mixed $id, mixed $taxonomy = ''): mixed
         {
             $GLOBALS['uams_test_term_calls'][] = $id;
             // WordPress also answers with a WP_Error; a test sets what comes back in place of the term
