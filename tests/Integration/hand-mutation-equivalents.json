@@ -1,0 +1,387 @@
+[
+  {
+    "class": "Admin",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$revision = isset($_POST['revision']) && \\is_scalar($_POST['revision']) ? absint($_POST['revision']) : 0;",
+    "reason": "A missing revision is compared with the saved job by `Rebuild`, which the integration suite covers."
+  },
+  {
+    "class": "Admin",
+    "operator": "BooleanAndToBooleanOr",
+    "ordinal": 1,
+    "line_text": "$input = isset($_POST['settings']) && \\is_array($_POST['settings']) ? wp_unslash($_POST['settings']) : [];",
+    "reason": "A settings field that is set but not a list reads as an empty form either way, and one that is missing reads as not a list."
+  },
+  {
+    "class": "Admin",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$c['pdf_max_mb'] = max(1, min(100, Config::weight($input['pdf_max_mb'] ?? 20)));",
+    "reason": "Save the PDF limits `Config::weight()` already limits the value to 100, so a higher cap changes no result."
+  },
+  {
+    "class": "Admin",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "update_option('uams_search_scope', \\in_array($scope, $options, true) ? $scope : $options[0]);",
+    "reason": "The scope names are text, so the loose comparison finds the same matches."
+  },
+  {
+    "class": "Admin",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! \\in_array($site, Config::public_sites(), true) || ! $id) {",
+    "reason": "Both sides are integers, so the loose comparison finds the same matches."
+  },
+  {
+    "class": "Admin",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "$chosen = Config::chosen_sites() === null || \\in_array($site, Config::chosen_sites(), true);",
+    "reason": "Both sides are integers, so the loose comparison finds the same matches."
+  },
+  {
+    "class": "CLI",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$stats = Queue::process((int) ($assoc['limit'] ?? 100), max(1, min(240, (int) ($assoc['seconds'] ?? 45))));",
+    "reason": "Process the queue within the limits The seconds budget (its default of 45, its 1 to 240 clamp and the casts) changes only how long a run may last, which no test waits for; the casts are read the same by the int parameters. The entry limit and its default of 100 on the same line are killed by the hundred-entry test."
+  },
+  {
+    "class": "CLI",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "$stats = Queue::process((int) ($assoc['limit'] ?? 100), max(1, min(240, (int) ($assoc['seconds'] ?? 45))));",
+    "reason": "Process the queue within the limits The seconds budget (its default of 45, its 1 to 240 clamp and the casts) changes only how long a run may last, which no test waits for; the casts are read the same by the int parameters. The entry limit and its default of 100 on the same line are killed by the hundred-entry test."
+  },
+  {
+    "class": "CLI",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! \\in_array($site, Config::index_sites(), true) || $id < 1) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "The site is cast to int and the list holds ints, so loose and strict comparison agree."
+  },
+  {
+    "class": "CardFields",
+    "operator": "GreaterToGreaterOrEqual",
+    "ordinal": 1,
+    "line_text": "return (\\is_int($value) || (\\is_string($value) && ctype_digit($value))) && (int) $value > 0 ? (int) $value : 0;",
+    "reason": "A digit string compares to 0 like its integer, and the return type turns it into one; `>= 0` and `> -1` also let a zero through, which returns the same 0."
+  },
+  {
+    "class": "Indexer",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! $post || ! \\in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "Remove the post from the table when it should not be indexed The site ID and the indexed site IDs are both integers, so loose matching finds the same sites."
+  },
+  {
+    "class": "Indexer",
+    "operator": "BooleanAndToBooleanOr",
+    "ordinal": 1,
+    "line_text": "return self::failure($site, $id, isset($post) && $post ? $post->post_type : 'page', $throwable->getMessage(), $target);",
+    "reason": "Save the failure as an error row `$post` is unset only when `get_post()` itself throws, which WordPress never does; a null post gives the page type either way."
+  },
+  {
+    "class": "Indexer",
+    "operator": "GreaterToGreaterOrEqual",
+    "ordinal": 1,
+    "line_text": "if ($elapsed > Config::number('extract_warn_seconds')) { // @pest-mutate-ignore:GreaterToGreaterOrEqual",
+    "reason": "A measured time never equals the threshold exactly, so `>=` logs the same runs."
+  },
+  {
+    "class": "Integration",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "'page' => max(1, (int) $query->get('paged')),",
+    "reason": "`Query::run()` casts the page to an integer and keeps it at one or more itself, so the cast and the floor of `max()` here change no result."
+  },
+  {
+    "class": "Integration",
+    "operator": "FalseToTrue",
+    "ordinal": 1,
+    "line_text": "$html = '<form role=\"search\" method=\"get\" action=\"'.esc_url(home_url('/')).'\" class=\"uams-search-form\"><label for=\"'.esc_attr($id).'\">Search This Website</label><div class=\"uams-search-input\"><input type=\"search\" name=\"s\" id=\"'.esc_attr($id).'\" value=\"'.esc_attr(get_search_query(false)).'\" maxlength=\"200\" autocomplete=\"off\" data-uams-live=\"'.(Config::flag('live') ? 'true' : 'false').'\"><button type=\"submit\">Search</button></div><input type=\"hidden\" name=\"scope\" value=\"'.esc_attr($scope).'\">';",
+    "reason": "`esc_attr()` leaves entities that are already escaped alone, so escaping the search text first prints the same value."
+  },
+  {
+    "class": "Integration",
+    "operator": "FalseToTrue",
+    "ordinal": 1,
+    "line_text": "'suggest' => false,",
+    "reason": "The response carries no suggestion, so asking for one only repeats work that is thrown away."
+  },
+  {
+    "class": "Integration",
+    "operator": "FalseToTrue",
+    "ordinal": 1,
+    "line_text": "echo '<h1>Search Results for: '.esc_html(get_search_query(false)).'</h1>';",
+    "reason": "`esc_html()` leaves entities that are already escaped alone, so escaping the search text first prints the same heading."
+  },
+  {
+    "class": "Integration",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "if ((int) get_query_var('paged', 1) <= 1) { // @pest-mutate-ignore:RemoveIntegerCast,DecrementInteger",
+    "reason": "A string page compares as its number, and a default of 0 or 1 is the first page either way."
+  },
+  {
+    "class": "Integration",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "'current' => max(1, (int) get_query_var('paged', 1)),",
+    "reason": "`paginate_links()` reads the same query variable, and a page of 0 or none is its first page, so the default, the cast and this key change no result."
+  },
+  {
+    "class": "Integration",
+    "operator": "DecrementInteger",
+    "ordinal": 2,
+    "line_text": "'current' => max(1, (int) get_query_var('paged', 1)),",
+    "reason": "`paginate_links()` reads the same query variable, and a page of 0 or none is its first page, so the default, the cast and this key change no result."
+  },
+  {
+    "class": "Plugin",
+    "operator": "IncrementInteger",
+    "ordinal": 2,
+    "line_text": "Queue::process(15, 15);",
+    "reason": "The 15 second budget against 14 or 16 differs only in runs longer than fourteen seconds, which no test waits for. The entry limit on the same line is killed by the fifteen-entry test."
+  },
+  {
+    "class": "Plugin",
+    "operator": "DecrementInteger",
+    "ordinal": 2,
+    "line_text": "Queue::process(15, 15);",
+    "reason": "The 15 second budget against 14 or 16 differs only in runs longer than fourteen seconds, which no test waits for. The entry limit on the same line is killed by the fifteen-entry test."
+  },
+  {
+    "class": "Plugin",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! \\in_array($key, ['_edit_lock', '_edit_last'], true)) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "Meta keys are strings and never numeric, so loose and strict comparison agree."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "return $job && \\in_array($job['status'], ['running', 'paused'], true);",
+    "reason": "Statuses are never numeric strings, so loose and strict comparison agree."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$marks = implode(',', array_fill(0, \\count($types), '%s'));",
+    "reason": "Only the number of placeholders matters, not the keys array_fill gives them."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "int $seconds = 8",
+    "reason": "The default of 8 versus 7 or 9 seconds differs only in runs longer than seven seconds, which no test waits for."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "int $seconds = 8",
+    "reason": "The default of 8 versus 7 or 9 seconds differs only in runs longer than seven seconds, which no test waits for."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! \\in_array($job['status'], ['running', 'paused'], true) || $job['revision'] !== $revision) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "Statuses are never numeric strings, so loose and strict comparison agree."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "$limit = max(1, min(50, $limit));",
+    "reason": "The do-while body always runs once, so a floor of 0 and a floor of 1 both run exactly one unit."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$seconds = max(1, min(10, $seconds));",
+    "reason": "The ceiling mutants (9 and 11 seconds) differ only in runs longer than nine seconds, which no test waits for. The floor and the lower clamp are killed with a 0.6 second unit."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "$seconds = max(1, min(10, $seconds));",
+    "reason": "The ceiling mutants (9 and 11 seconds) differ only in runs longer than nine seconds, which no test waits for. The floor and the lower clamp are killed with a 0.6 second unit."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "GreaterToGreaterOrEqual",
+    "ordinal": 1,
+    "line_text": "if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) { // @pest-mutate-ignore:GreaterToGreaterOrEqual,TrueToFalse,DecrementInteger,IncrementInteger",
+    "reason": "A limit of 0 cannot be set, -1 means unlimited, real and tracked usage differ by less than one chunk, and a float tie cannot be built."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) { // @pest-mutate-ignore:GreaterToGreaterOrEqual,TrueToFalse,DecrementInteger,IncrementInteger",
+    "reason": "A limit of 0 cannot be set, -1 means unlimited, real and tracked usage differ by less than one chunk, and a float tie cannot be built."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) { // @pest-mutate-ignore:GreaterToGreaterOrEqual,TrueToFalse,DecrementInteger,IncrementInteger",
+    "reason": "A limit of 0 cannot be set, -1 means unlimited, real and tracked usage differ by less than one chunk, and a float tie cannot be built."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "GreaterToGreaterOrEqual",
+    "ordinal": 2,
+    "line_text": "if ($memory > 0 && memory_get_usage(true) > $memory * 0.8) { // @pest-mutate-ignore:GreaterToGreaterOrEqual,TrueToFalse,DecrementInteger,IncrementInteger",
+    "reason": "A limit of 0 cannot be set, -1 means unlimited, real and tracked usage differ by less than one chunk, and a float tie cannot be built."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (isset($job) && \\in_array($job['status'], ['running', 'paused'], true)) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "Pause the job with the error so the page can resume it Statuses are never numeric strings, so loose and strict comparison agree."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (\\in_array($job['status'], ['running', 'paused'], true)) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "Statuses are never numeric strings, so loose and strict comparison agree."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! \\in_array($id, Config::index_sites(), true)) { // @pest-mutate-ignore:TrueToFalse",
+    "reason": "The site ID is cast to int and the list holds ints, so loose and strict comparison agree."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$marks = implode(',', array_fill(0, \\count($job['types']), '%s'));",
+    "reason": "Only the number of placeholders matters, not the keys array_fill gives them."
+  },
+  {
+    "class": "Indexer",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if (! \\in_array($site, Config::index_sites(), true)) {",
+    "reason": "Both sides are integers, so the loose comparison finds the same matches."
+  },
+  {
+    "class": "Indexer",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "$marks = implode(',', array_fill(0, \\count($types), '%s'));",
+    "reason": "Only the number of placeholders matters, not the keys array_fill gives them."
+  },
+  {
+    "class": "Indexer",
+    "operator": "BooleanOrToBooleanAnd",
+    "ordinal": 1,
+    "line_text": "if ($wpdb->last_error || ! $columns) {",
+    "reason": "A failed SHOW COLUMNS query returns no columns, so an error and an empty list occur together and `||` and `&&` give the same answer."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "BooleanOrToBooleanAnd",
+    "ordinal": 2,
+    "line_text": "if (! \\is_string($value) || $value === '' || \\strlen($value) > 40 || str_contains($value, \"\\0\")) {",
+    "reason": "No date format the method reads is longer than 18 characters, and createFromFormat() refuses an empty text or one with a NUL byte, so this guard only ends the work earlier."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "GreaterToGreaterOrEqual",
+    "ordinal": 1,
+    "line_text": "if (! \\is_string($value) || $value === '' || \\strlen($value) > 40 || str_contains($value, \"\\0\")) {",
+    "reason": "No date format the method reads is longer than 18 characters, and createFromFormat() refuses an empty text or one with a NUL byte, so this guard only ends the work earlier."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "if (! \\is_string($value) || $value === '' || \\strlen($value) > 40 || str_contains($value, \"\\0\")) {",
+    "reason": "No date format the method reads is longer than 18 characters, and createFromFormat() refuses an empty text or one with a NUL byte, so this guard only ends the work earlier."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "if (! \\is_string($value) || $value === '' || \\strlen($value) > 40 || str_contains($value, \"\\0\")) {",
+    "reason": "No date format the method reads is longer than 18 characters, and createFromFormat() refuses an empty text or one with a NUL byte, so this guard only ends the work earlier."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "BooleanOrToBooleanAnd",
+    "ordinal": 1,
+    "line_text": "if (! is_finite($lat) || ! is_finite($lng) || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {",
+    "reason": "A coordinate that is not finite (INF from text such as 1e999) is also outside the range checks that follow, so this test only rejects it earlier."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "BooleanOrToBooleanAnd",
+    "ordinal": 2,
+    "line_text": "if (! is_finite($lat) || ! is_finite($lng) || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180) {",
+    "reason": "A coordinate that is not finite (INF from text such as 1e999) is also outside the range checks that follow, so this test only rejects it earlier."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "if ($site < 1 || $id < 1 || ! \\in_array($site, Config::public_sites(), true)) {",
+    "reason": "A site ID of 0 is not in the public sites list, so the later check rejects it."
+  },
+  {
+    "class": "LocationCard",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if ($site < 1 || $id < 1 || ! \\in_array($site, Config::public_sites(), true)) {",
+    "reason": "Both sides are integers, so the loose comparison finds the same matches."
+  },
+  {
+    "class": "ProviderCard",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "if ($site < 1 || $id < 1 || ! \\in_array($site, Config::public_sites(), true)) {",
+    "reason": "A site ID of 0 is not in the public sites list, so the later check rejects it."
+  },
+  {
+    "class": "ProviderCard",
+    "operator": "TrueToFalse",
+    "ordinal": 1,
+    "line_text": "if ($site < 1 || $id < 1 || ! \\in_array($site, Config::public_sites(), true)) {",
+    "reason": "Both sides are integers, so the loose comparison finds the same matches."
+  },
+  {
+    "class": "Rebuild",
+    "operator": "LessToLessOrEqual",
+    "ordinal": 2,
+    "line_text": "} while ($job['status'] === 'running' && $units < $limit && microtime(true) - $started < $seconds); // @pest-mutate-ignore:SmallerToSmallerOrEqual",
+    "reason": "The annotation on the loop line covers a tie between two clock readings, which cannot be built."
+  },
+  {
+    "class": "Integration",
+    "operator": "IncrementInteger",
+    "ordinal": 1,
+    "line_text": "'s' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],",
+    "reason": "WordPress 7.0.8 never validates an argument that has a sanitize_callback, so the length limits are not enforced; tracked in UAMS-Web/uamswp-search#252."
+  },
+  {
+    "class": "Integration",
+    "operator": "DecrementInteger",
+    "ordinal": 1,
+    "line_text": "'s' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],",
+    "reason": "WordPress 7.0.8 never validates an argument that has a sanitize_callback, so the length limits are not enforced; tracked in UAMS-Web/uamswp-search#252."
+  }
+]

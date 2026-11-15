@@ -361,6 +361,29 @@ final class IndexerTest extends IntegrationTestCase
         $this->assertSame(0, $this->staged(), 'and the stage is empty afterwards');
     }
 
+    public function test_a_rebuild_starts_before_post_id_one(): void
+    {
+        $original = get_post(1);
+        if ($original instanceof \WP_Post) {
+            wp_update_post(['ID' => 1, 'post_type' => 'page', 'post_status' => 'publish']);
+        } else {
+            $this->assertSame(1, wp_insert_post(['import_id' => 1, 'post_type' => 'page', 'post_title' => $this->token.' first', 'post_status' => 'publish']));
+            $this->track(1);
+        }
+
+        try {
+            Indexer::rebuild($this->site, 'page');
+            $this->assertNotNull($this->live_row(1), 'The post with ID 1 is indexed, so the batch read starts below it');
+        } finally {
+            if ($original instanceof \WP_Post) {
+                wp_update_post(['ID' => 1, 'post_type' => $original->post_type, 'post_status' => $original->post_status]);
+            }
+
+            global $wpdb;
+            $wpdb->delete(DB::table(), ['site_id' => $this->site, 'object_id' => 1]);
+        }
+    }
+
     public function test_a_rebuild_of_one_type_indexes_only_that_type(): void
     {
         $this->settings(['enabled' => true, 'types' => ['page' => 1.0, 'post' => 1.0], 'fields' => ['page' => [], 'post' => []], 'taxonomies' => ['page' => [], 'post' => []]]);

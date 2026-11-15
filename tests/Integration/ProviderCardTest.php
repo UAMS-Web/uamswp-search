@@ -123,6 +123,48 @@ final class ProviderCardTest extends IntegrationTestCase
         $this->assertTrue(ProviderCard::data($this->snapshot($fallback))['name'] === 'Fallback & "Quoted"', 'Object-valued and invalid optional fields are ignored safely');
     }
 
+    public function test_a_post_with_id_one_can_have_a_card_and_the_caller_post_never_stands_in_for_id_zero(): void
+    {
+        $original = get_post(1);
+        if ($original instanceof \WP_Post) {
+            wp_update_post(['ID' => 1, 'post_type' => 'provider', 'post_title' => 'First provider']);
+        } else {
+            $this->assertSame(1, wp_insert_post(['import_id' => 1, 'post_type' => 'provider', 'post_title' => 'First provider', 'post_status' => 'publish']));
+            $this->track(1);
+        }
+
+        try {
+            $this->assertSame('First provider', ProviderCard::data($this->snapshot(1))['name'] ?? null, 'ID 1 is a valid post ID');
+        } finally {
+            if ($original instanceof \WP_Post) {
+                wp_update_post(['ID' => 1, 'post_type' => $original->post_type, 'post_title' => $original->post_title]);
+            }
+        }
+
+        $GLOBALS['post'] = get_post($this->provider);
+        $this->assertNull(ProviderCard::data($this->snapshot(0)), 'The caller post is not used for ID 0');
+    }
+
+    public function test_a_thumbnail_that_is_not_an_image_does_not_become_a_file_type_icon(): void
+    {
+        $document = $this->track(wp_insert_attachment(['post_title' => 'Brochure '.$this->token, 'post_status' => 'inherit', 'post_mime_type' => 'application/pdf'], '', $this->provider));
+        update_post_meta($this->provider, '_thumbnail_id', $document);
+        $this->assertStringNotContainsString('images/media/', ProviderCard::data($this->snapshot($this->provider))['image']);
+    }
+
+    public function test_a_card_without_a_subtitle_prints_no_subtitle_line(): void
+    {
+        $card = ['name' => 'Name only', 'subtitle' => '', 'image' => '', 'url' => 'https://example.test/p/'];
+        ob_start();
+        ProviderCard::render($card);
+        $this->assertStringNotContainsString('<span class="subtitle">', (string) ob_get_clean());
+
+        $card['subtitle'] = 'Resident Physician';
+        ob_start();
+        ProviderCard::render($card);
+        $this->assertStringContainsString('<span class="subtitle">Resident Physician</span>', (string) ob_get_clean());
+    }
+
     public function test_portraits_use_the_provider_attachment(): void
     {
         $file = 'provider-card-'.$this->token.'.png';

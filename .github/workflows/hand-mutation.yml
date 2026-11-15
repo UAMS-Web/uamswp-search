@@ -1,0 +1,136 @@
+name: Hand mutation
+
+# The Linux hand-mutation run for the classes the WordPress integration suite covers (#208). The shared `mutate` job
+# scores the Pest unit suite only, so these classes are scored here: scripts/hand-mutate.php applies each mutant to the
+# source, runs the integration suite against it, and records killed or survived per class, with a planted survivor and
+# a planted kill as controls. Each class is its own job, so a long class does not hold up the others.
+#
+# Run it on demand from the Actions tab, or with:
+#   gh workflow run hand-mutation.yml --ref <branch> -f classes=all -f network=0
+# `classes` is `all` or a comma-separated list (for example `Rebuild,Indexer`). `network` is `0` for a single site and `1`
+# for multisite. A change to the runner or to this file runs one small class as a check. The record is each job's step
+# summary and the `hand-mutation-<class>-<network>` artifact; it is not a required check and `CI` does not need it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      classes:
+        description: 'Classes to mutate: all, or a comma-separated list (Admin, CardFields, CLI, Indexer, Integration, LocationCard, Plugin, PluginFile, ProviderCard, Rebuild)'
+        required: true
+        default: all
+      network:
+        description: 'WordPress mode: 0 for a single site, 1 for multisite'
+        required: true
+        default: '0'
+        type: choice
+        options: ['0', '1']
+  pull_request:
+    paths:
+      - scripts/hand-mutate.php
+      - .github/workflows/hand-mutation.yml
+      - tests/Integration/hand-mutation-equivalents.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Choose the classes
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          CLASSES: ${{ inputs.classes }}
+        run: |
+          all="Admin CardFields CLI Indexer Integration LocationCard Plugin PluginFile ProviderCard Rebuild"
+          if [ "$EVENT" = "pull_request" ]; then
+            chosen="CardFields"
+          elif [ "$CLASSES" = "all" ]; then
+            chosen="$all"
+          else
+            chosen=$(echo "$CLASSES" | tr ',' ' ')
+          fi
+          for name in $chosen; do
+            case " $all " in
+              *" $name "*) ;;
+              *) echo "::error::Unknown class $name"; exit 1 ;;
+            esac
+          done
+          matrix=$(printf '%s\n' $chosen | jq -R . | jq -sc '{class: .}')
+          echo "Matrix: $matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  mutate:
+    name: Hand mutation (${{ matrix.class }})
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    env:
+      WP_VERSION: '7.0.8'
+      WP_MULTISITE: ${{ inputs.network || '0' }}
+      WP_TESTS_DB_NAME: uams_search_test
+      WP_TESTS_DB_USER: root
+      WP_TESTS_DB_PASSWORD: root
+      WP_TESTS_DB_HOST: 127.0.0.1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Locate WordPress
+        run: echo "WP_TESTS_ABSPATH=$RUNNER_TEMP/wordpress" >> "$GITHUB_ENV"
+
+      # The same database and WordPress as the `integration` job in ci.yml: MariaDB 10.6, the production host.
+      - name: Start the database
+        run: |
+          docker run -d --name db -p 3306:3306 \
+            -e MYSQL_ROOT_PASSWORD=root -e MARIADB_ROOT_PASSWORD=root -e MYSQL_DATABASE=uams_search_test -e MARIADB_DATABASE=uams_search_test \
+            mariadb:10.6 --innodb-ft-min-token-size=3
+          for i in $(seq 1 60); do
+            if docker exec db sh -c 'exec "$(command -v mariadb || command -v mysql)" -uroot -proot -e "SELECT 1"' > /dev/null 2>&1; then
+              echo "Database ready after $i checks"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs db
+          echo "::error::The database did not start"
+          exit 1
+
+      - name: Download WordPress ${{ env.WP_VERSION }}
+        run: |
+          curl -fsSL "https://wordpress.org/wordpress-${WP_VERSION}.tar.gz" -o "$RUNNER_TEMP/wordpress.tar.gz"
+          mkdir -p "$WP_TESTS_ABSPATH"
+          tar -xzf "$RUNNER_TEMP/wordpress.tar.gz" --strip-components=1 -C "$WP_TESTS_ABSPATH"
+          test -f "$WP_TESTS_ABSPATH/wp-settings.php"
+          mkdir -p "$WP_TESTS_ABSPATH/wp-content/uploads"
+
+      - uses: ./.github/actions/setup
+
+      - name: Install the Integration suite
+        run: composer setup:integration
+
+      - name: Mutate ${{ matrix.class }}
+        env:
+          CLASS: ${{ matrix.class }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/record"
+          php scripts/hand-mutate.php --class="$CLASS" --report="$RUNNER_TEMP/record/$CLASS.md" --json="$RUNNER_TEMP/record/$CLASS.json"
+
+      - name: Keep the record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hand-mutation-${{ matrix.class }}-${{ inputs.network || '0' }}
+          path: ${{ runner.temp }}/record
+          if-no-files-found: warn
