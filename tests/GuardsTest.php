@@ -29,7 +29,7 @@ namespace {
     if (! function_exists('sanitize_key')) {
         function sanitize_key(mixed $key): mixed
         {
-            return strtolower(preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
+            return strtolower((string) preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
         }
     }
 

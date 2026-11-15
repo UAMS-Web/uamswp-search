@@ -27,6 +27,8 @@ namespace UAMS_Search\Tests {
             self::assertSame([], Text::tokens('the and with'));
             self::assertSame('', Text::plain('<script>alert(1)</script><style>bad</style>'));
             self::assertSame('heart care & billing', Text::plain('<p>heart</p><p>care &amp; billing</p>'));
+            // Text that is not valid UTF-8 cannot be stripped of its tags, and leaves no text.
+            self::assertSame('', Text::plain("bad \xC3\x28 text"));
         }
 
         public function test_accents_are_folded_like_wordpress_does(): void

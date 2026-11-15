@@ -27,7 +27,9 @@ final class Phonetic
     {
         // Reduce the word to uppercase letters A to Z
         $s = strtoupper(\function_exists('remove_accents') ? remove_accents($word) : $word);
-        $s = preg_replace('/[^A-Z]/', '', $s);
+        // The pattern is valid and has no flags that can fail, so the fallback is unused.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
+        $s = preg_replace('/[^A-Z]/', '', $s) ?? '';
 
         // A word with no letters never enters the loop below and returns empty keys
         $n = \strlen($s);

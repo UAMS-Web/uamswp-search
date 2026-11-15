@@ -22,9 +22,11 @@ final class Text
     public static function plain(string $text): string
     {
         // Drop script and style blocks
-        $text = preg_replace('~<(script|style)\b[^>]*>.*?</\1>~is', ' ', $text);
+        // The empty string stands in for a failed pass, which the later cleanup treats as no text.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
+        $text = preg_replace('~<(script|style)\b[^>]*>.*?</\1>~is', ' ', $text) ?? '';
         // Replace the remaining tags with spaces
-        $text = preg_replace('~<[^>]+>~u', ' ', $text);
+        $text = preg_replace('~<[^>]+>~u', ' ', $text) ?? '';
 
         // Decode entities and collapse the whitespace. A later cleanup of a null result cannot happen: the pass that would fail on invalid text runs earlier and leaves an empty string.
         // @pest-mutate-ignore:EmptyStringToNotEmpty

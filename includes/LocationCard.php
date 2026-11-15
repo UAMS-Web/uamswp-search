@@ -141,7 +141,9 @@ final class LocationCard
         }
 
         // Check the digit count
-        $digits = preg_replace('/\D/', '', $raw);
+        // The pattern is valid and has no flags that can fail, so the fallback is unused.
+        // @pest-mutate-ignore:EmptyStringToNotEmpty
+        $digits = preg_replace('/\D/', '', $raw) ?? '';
         if (\strlen($digits) < 7 || \strlen($digits) > 15) {
             return null;
         }
