@@ -4,6 +4,16 @@ use UAMS_Search\Result;
 
 class WP_Post
 {
+    public $post_mime_type = '';
+
+    public $post_parent = 0;
+
+    public $post_content = '';
+
+    public $post_date_gmt = '0000-00-00 00:00:00';
+
+    public $post_modified_gmt = '0000-00-00 00:00:00';
+
     public string $post_type = 'provider';
 
     public string $post_status = 'publish';
@@ -21,6 +31,8 @@ class WP_Post
 
 class WP_Term
 {
+    public $slug = '';
+
     public function __construct(public int $term_id, public string $name) {}
 }
 
