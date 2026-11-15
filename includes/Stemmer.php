@@ -16,7 +16,9 @@ final class Stemmer
         // Reduce the word to its vowel and consonant shape
         $s = self::shape($s);
 
-        return preg_match_all('/vc/', $s);
+        // The pattern is valid, so the count is always an integer and the cast changes no result.
+        // @pest-mutate-ignore:RemoveIntegerCast
+        return (int) preg_match_all('/vc/', $s);
     }
 
     /**

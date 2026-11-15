@@ -107,7 +107,7 @@ namespace {
     if (! function_exists('get_permalink')) {
         function get_permalink(mixed $post): mixed
         {
-            return 'https://example.test/?p='.(is_object($post) ? $post->ID : $post);
+            return 'https://example.test/?p='.($post instanceof WP_Post ? $post->ID : $post);
         }
     }
 
@@ -802,7 +802,7 @@ namespace UAMS_Search\Tests {
         /** @return array<string, mixed> The earlier row of the fixture PDF, as the cache of an unchanged file reads it. */
         private function cachedPdfRow(): array
         {
-            $path = realpath(get_attached_file(42));
+            $path = (string) realpath(get_attached_file(42));
 
             return ['file_signature' => hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path)), 'status' => 'ready', 'pdf' => 'cached text', 'error' => ''];
         }

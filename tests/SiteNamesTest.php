@@ -51,7 +51,7 @@ namespace UAMS_Search\Tests {
         {
             // get_blog_details() returns false for a deleted site; SiteNames is the one reader that checks.
             $readers = [];
-            foreach (glob(__DIR__.'/../includes/*.php') as $file) {
+            foreach (glob(__DIR__.'/../includes/*.php') ?: [] as $file) {
                 if (str_contains((string) file_get_contents($file), 'get_blog_details(')) {
                     $readers[] = basename($file);
                 }
@@ -112,7 +112,7 @@ namespace UAMS_Search\Tests {
             $table = new ReflectionMethod(Admin::class, 'table');
             ob_start();
             $table->invoke(null, ['Site Name', 'Site ID', 'Count'], SiteNames::prefix([['4', '2']]));
-            $html = ob_get_clean();
+            $html = (string) ob_get_clean();
             self::assertStringContainsString('<td>Clinics &lt;b&gt;&amp;&lt;/b&gt; &quot;Care&quot;</td><td>4</td><td>2</td>', $html);
             self::assertStringNotContainsString('<b>', $html);
         }

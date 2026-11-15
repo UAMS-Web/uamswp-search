@@ -46,64 +46,14 @@ namespace UAMS_Search\Tests {
      */
     final class NameChoicesTest extends TestCase
     {
-        private object $db;
+        private NameChoicesDb $db;
 
         protected function setUp(): void
         {
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
             $GLOBALS['uams_test_multisite'] = false;
             $GLOBALS['uams_test_options'] = [];
-            $this->db = new class
-            {
-                public string $last_error = '';
-
-                /** @var array<string, string> Error to report for the query whose SQL contains the key. */
-                public array $fail = [];
-
-                /** @var list<array{string, mixed}> Prepared SQL and the arguments it was given. */
-                public array $prepared = [];
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                /** @var array<string, list<array{type: string, name: string}>> Rows by table, such as `wp_2_postmeta`. */
-                public array $rows = [];
-
-                public function get_blog_prefix(int $site): string
-                {
-                    return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
-                }
-
-                public function esc_like(string $text): string
-                {
-                    return addcslashes($text, '_%\\');
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $this->prepared[] = [$query, $args];
-
-                    return $query;
-                }
-
-                /** @return array<mixed> */
-                public function get_results(string $query, mixed $output = null): array
-                {
-                    $this->queries[] = $query;
-                    $this->last_error = '';
-                    foreach ($this->fail as $needle => $error) {
-                        if (str_contains($query, $needle)) {
-                            $this->last_error = $error;
-
-                            return [];
-                        }
-                    }
-
-                    preg_match('/FROM `(wp_(?:\d+_)?)(postmeta|term_relationships)`/', $query, $m);
-
-                    return $this->rows[($m[1] ?? '').($m[2] ?? '')] ?? [];
-                }
-            };
+            $this->db = new NameChoicesDb;
             $GLOBALS['wpdb'] = $this->db;
         }
 
@@ -421,6 +371,58 @@ namespace UAMS_Search\Tests {
             self::assertNull(NameChoices::get());
             $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['b', '_hidden', 'a', 'a', ['nested']]], 'taxonomies' => ['' => ['x']]];
             self::assertSame(['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a', 'b']], 'taxonomies' => [], 'labels' => ['fields' => [], 'taxonomies' => []]], NameChoices::get());
+        }
+    }
+
+    final class NameChoicesDb
+    {
+        public string $last_error = '';
+
+        /** @var array<string, string> Error to report for the query whose SQL contains the key. */
+        public array $fail = [];
+
+        /** @var list<array{string, mixed}> Prepared SQL and the arguments it was given. */
+        public array $prepared = [];
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        /** @var array<string, list<array<string, string>>> Rows by table, such as `wp_2_postmeta`. */
+        public array $rows = [];
+
+        public function get_blog_prefix(int $site): string
+        {
+            return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
+        }
+
+        public function esc_like(string $text): string
+        {
+            return addcslashes($text, '_%\\');
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $this->prepared[] = [$query, $args];
+
+            return $query;
+        }
+
+        /** @return array<mixed> */
+        public function get_results(string $query): array
+        {
+            $this->queries[] = $query;
+            $this->last_error = '';
+            foreach ($this->fail as $needle => $error) {
+                if (str_contains($query, $needle)) {
+                    $this->last_error = $error;
+
+                    return [];
+                }
+            }
+
+            preg_match('/FROM `(wp_(?:\d+_)?)(postmeta|term_relationships)`/', $query, $m);
+
+            return $this->rows[($m[1] ?? '').($m[2] ?? '')] ?? [];
         }
     }
 }

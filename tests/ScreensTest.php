@@ -517,7 +517,7 @@ namespace UAMS_Search\Tests {
                 foreach ([[['public' => [], 'all' => [3]], true], [['public' => [2], 'all' => [2, 3]], false], [['public' => [], 'all' => []], false]] as [$sites, $checked]) {
                     $GLOBALS['uams_test_site_ids'] = $sites;
                     $html = $this->render('rebuild_controls');
-                    self::assertSame($checked, str_contains($html, 'type="checkbox"  checked=\'checked\'>'), json_encode($sites));
+                    self::assertSame($checked, str_contains($html, 'type="checkbox"  checked=\'checked\'>'), json_encode($sites, JSON_THROW_ON_ERROR));
                 }
             } finally {
                 unset($GLOBALS['uams_test_site_ids']);
@@ -596,8 +596,8 @@ namespace UAMS_Search\Tests {
 
             preg_match('/data-prefix="settings\[types\]\[post\]\[fields\]"[^>]*data-size="(\d+)"/', $html, $fields);
             preg_match('/data-prefix="settings\[types\]\[post\]\[taxonomies\]"[^>]*data-size="(\d+)"/', $html, $taxonomies);
-            self::assertGreaterThanOrEqual(strlen('physician_short_clinical_bio_for_the_profile_page') + 2, (int) $fields[1], 'Wide enough for the longest saved name.');
-            self::assertSame('28', $taxonomies[1], 'At least as wide as physician_short_clinical_bio.');
+            self::assertGreaterThanOrEqual(strlen('physician_short_clinical_bio_for_the_profile_page') + 2, (int) ($fields[1] ?? 0), 'Wide enough for the longest saved name.');
+            self::assertSame('28', $taxonomies[1] ?? '', 'At least as wide as physician_short_clinical_bio.');
             self::assertSame(6, substr_count($html, 'name="settings[types][post][fields]['), 'Two saved rows and one blank row, each with a name and a weight.');
             self::assertStringNotContainsString('name="settings[types][post][fields][3]', $html);
             self::assertStringContainsString('name="settings[types][post][taxonomies][0][name]"', $html);

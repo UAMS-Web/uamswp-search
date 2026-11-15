@@ -15,82 +15,11 @@ namespace UAMS_Search\Tests {
     /** Pins for the spelling dictionary (#5). A recording stand-in replaces `$wpdb`; `suggest()` needs the query engine and is only pinned at its early exits. */
     final class SuggestionsTest extends TestCase
     {
-        private object $db;
+        private SuggestionsDb $db;
 
         protected function setUp(): void
         {
-            $this->db = new class
-            {
-                public string $base_prefix = 'wp_';
-
-                public string $last_error = '';
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                /** @var list<array{string, array<string, int>}> */
-                public array $deletes = [];
-
-                public bool $delete_fails = false;
-
-                /** @var list<string> */
-                public array $stale = [];
-
-                /** @var list<list<array<string, mixed>>> */
-                public array $pages = [];
-
-                /** @var list<string> */
-                public array $page_queries = [];
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function query(string $query): int
-                {
-                    $this->queries[] = $query;
-
-                    return 1;
-                }
-
-                /** @param array<mixed> $where */
-                public function delete(string $table, array $where): int|false
-                {
-                    $this->deletes[] = [$table, $where];
-
-                    return $this->delete_fails ? false : 1;
-                }
-
-                /** @return array<mixed> */
-                public function get_col(string $query): array
-                {
-                    $this->queries[] = $query;
-
-                    return $this->stale;
-                }
-
-                /** @return array<mixed> */
-                public function get_results(string $query, mixed $output = null): array
-                {
-                    $this->page_queries[] = $query;
-
-                    return array_shift($this->pages) ?? [];
-                }
-
-                /** @return list<string> */
-                public function matching(string $needle): array
-                {
-                    return array_values(array_filter($this->queries, static fn (string $q): bool => str_contains($q, $needle)));
-                }
-            };
+            $this->db = new SuggestionsDb;
             $GLOBALS['wpdb'] = $this->db;
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => []];
             $GLOBALS['uams_test_filters'] = [];
@@ -265,6 +194,79 @@ namespace UAMS_Search\Tests {
         {
             self::assertNull(Suggestions::suggest('of an ox', []));
             self::assertNull(Suggestions::suggest('the and', []));
+        }
+    }
+
+    final class SuggestionsDb
+    {
+        public string $base_prefix = 'wp_';
+
+        public string $last_error = '';
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        /** @var list<array{string, array<string, int>}> */
+        public array $deletes = [];
+
+        public bool $delete_fails = false;
+
+        /** @var list<string> */
+        public array $stale = [];
+
+        /** @var list<list<array<string, mixed>>> */
+        public array $pages = [];
+
+        /** @var list<string> */
+        public array $page_queries = [];
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function query(string $query): int
+        {
+            $this->queries[] = $query;
+
+            return 1;
+        }
+
+        /** @param array<mixed> $where */
+        public function delete(string $table, array $where): int|false
+        {
+            $this->deletes[] = [$table, $where];
+
+            return $this->delete_fails ? false : 1;
+        }
+
+        /** @return array<mixed> */
+        public function get_col(string $query): array
+        {
+            $this->queries[] = $query;
+
+            return $this->stale;
+        }
+
+        /** @return array<mixed> */
+        public function get_results(string $query): array
+        {
+            $this->page_queries[] = $query;
+
+            return array_shift($this->pages) ?? [];
+        }
+
+        /** @return list<string> */
+        public function matching(string $needle): array
+        {
+            return array_values(array_filter($this->queries, static fn (string $q): bool => str_contains($q, $needle)));
         }
     }
 }

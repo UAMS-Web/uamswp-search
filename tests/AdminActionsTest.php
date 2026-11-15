@@ -523,64 +523,13 @@ namespace UAMS_Search\Tests {
         /**
          * A recording stand-in for the database that lets the table installer run to the end.
          *
-         * @return object The stand-in; `queries` holds what ran.
+         * @return RecordingDb The stand-in; `queries` holds what ran.
          */
-        private function recordingDb(string $tokenSize = '3'): object
+        private function recordingDb(string $tokenSize = '3'): RecordingDb
         {
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
             $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
-            $GLOBALS['wpdb'] = new class($tokenSize)
-            {
-                public string $base_prefix = 'wp_';
-
-                public string $dbname = 'test';
-
-                public string $last_error = '';
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                public function __construct(private readonly string $tokenSize) {}
-
-                public function get_charset_collate(): string
-                {
-                    return 'DEFAULT CHARACTER SET utf8mb4';
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function get_var(string $query): ?string
-                {
-                    $this->queries[] = $query;
-
-                    return str_contains($query, 'innodb_ft_min_token_size') ? $this->tokenSize : (str_contains($query, 'stopword_table') ? null : '0');
-                }
-
-                /** @return array<mixed> */
-                public function get_row(string $query, mixed $output = null): array
-                {
-                    $this->queries[] = $query;
-
-                    return ['Collation' => 'utf8mb4_bin', 'Type' => 'longtext'];
-                }
-
-                public function query(string $query): int
-                {
-                    $this->queries[] = $query;
-
-                    return 1;
-                }
-            };
+            $GLOBALS['wpdb'] = new RecordingDb($tokenSize);
 
             return $GLOBALS['wpdb'];
         }
@@ -746,51 +695,19 @@ namespace UAMS_Search\Tests {
             $this->queueDb();
             foreach ([['object' => '9'], ['site' => '1']] as $get) {
                 $_GET = $get;
-                self::assertSame('wp_die: Invalid site or item.', $this->thrown(Admin::retry(...)), json_encode($get));
+                self::assertSame('wp_die: Invalid site or item.', $this->thrown(Admin::retry(...)), json_encode($get, JSON_THROW_ON_ERROR));
             }
 
             self::assertNull($GLOBALS['uams_test_redirect']);
         }
 
         /** A recording stand-in for the database, for code that queues an item. */
-        private function queueDb(): object
+        private function queueDb(): QueueRecordingDb
         {
             $GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
             $this->tableReady(true);
             $GLOBALS['uams_test_blog_calls'] = [];
-            $GLOBALS['wpdb'] = new class
-            {
-                public string $last_error = '';
-
-                public string $base_prefix = 'wp_';
-
-                public bool $fail = false;
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function query(string $query): int
-                {
-                    if ($this->fail) {
-                        throw new RuntimeException('queue write failed');
-                    }
-
-                    $this->queries[] = $query;
-
-                    return 1;
-                }
-            };
+            $GLOBALS['wpdb'] = new QueueRecordingDb;
 
             return $GLOBALS['wpdb'];
         }
@@ -929,6 +846,93 @@ namespace UAMS_Search\Tests {
                 $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = $stored;
                 self::assertStringNotContainsString('checked', $edit([], $pdf)['uams_search_exclude']['html'], var_export($stored, true));
             }
+        }
+    }
+
+    final class QueueRecordingDb
+    {
+        public string $last_error = '';
+
+        public string $base_prefix = 'wp_';
+
+        public bool $fail = false;
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function query(string $query): int
+        {
+            if ($this->fail) {
+                throw new RuntimeException('queue write failed');
+            }
+
+            $this->queries[] = $query;
+
+            return 1;
+        }
+    }
+
+    final class RecordingDb
+    {
+        public string $base_prefix = 'wp_';
+
+        public string $dbname = 'test';
+
+        public string $last_error = '';
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        public function __construct(private readonly string $tokenSize) {}
+
+        public function get_charset_collate(): string
+        {
+            return 'DEFAULT CHARACTER SET utf8mb4';
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function get_var(string $query): ?string
+        {
+            $this->queries[] = $query;
+
+            return str_contains($query, 'innodb_ft_min_token_size') ? $this->tokenSize : (str_contains($query, 'stopword_table') ? null : '0');
+        }
+
+        /** @return array<mixed> */
+        public function get_row(string $query): array
+        {
+            $this->queries[] = $query;
+
+            return ['Collation' => 'utf8mb4_bin', 'Type' => 'longtext'];
+        }
+
+        public function query(string $query): int
+        {
+            $this->queries[] = $query;
+
+            return 1;
         }
     }
 }

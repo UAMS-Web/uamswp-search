@@ -215,41 +215,12 @@ namespace UAMS_Search\Tests {
         }
 
         /** Make the index tables look present, with a recording stand-in for the database object. */
-        private function database(): object
+        private function database(): PluginDb
         {
             $GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
             $this->tableReady(true);
 
-            return $GLOBALS['wpdb'] = new class
-            {
-                /** @var array<int, string> */
-                public array $queries = [];
-
-                public string $base_prefix = 'wp_';
-
-                public string $posts = 'wp_posts';
-
-                public string $term_relationships = 'wp_term_relationships';
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    return 'Q['.implode(',', $args).'] '.substr($query, 0, 30);
-                }
-
-                public function query(string $query): int
-                {
-                    $this->queries[] = $query;
-
-                    return 1;
-                }
-
-                /** @return array<int, int> */
-                public function get_col(string $query): array
-                {
-                    // Post 13 has one attachment; the next page is empty.
-                    return str_starts_with($query, 'Q[13,0]') ? [60] : [];
-                }
-            };
+            return $GLOBALS['wpdb'] = new PluginDb;
         }
 
         public function test_the_retention_job_purges_only_when_the_tables_exist(): void
@@ -260,13 +231,14 @@ namespace UAMS_Search\Tests {
             $db = $this->database();
             $this->tableReady(false);
             $job();
-            $before = $db->queries;
+            $before = $db->recorded();
             self::assertSame([], $before);
 
             $this->tableReady(true);
             $job();
-            self::assertCount(1, $db->queries);
-            self::assertStringContainsString('DELETE FROM `wp_uams_search_misses`', $db->queries[0]);
+            $after = $db->recorded();
+            self::assertCount(1, $after);
+            self::assertStringContainsString('DELETE FROM `wp_uams_search_misses`', $after[0]);
         }
 
         public function test_content_hooks_queue_the_changed_post(): void
@@ -371,15 +343,56 @@ namespace UAMS_Search\Tests {
         }
 
         /** @return array<int, int> The object IDs of the recorded queue inserts. */
-        private function queuedIds(object $db): array
+        private function queuedIds(PluginDb $db): array
         {
             return array_map(static fn (string $q): int => (int) explode(',', substr($q, 2, strpos($q, ']') - 2))[1], $db->queries);
         }
 
         /** @return array<int, string> The actions of the recorded queue inserts. */
-        private function actions(object $db): array
+        private function actions(PluginDb $db): array
         {
             return array_map(static fn (string $q): string => explode(',', substr($q, 2, strpos($q, ']') - 2))[2], $db->queries);
+        }
+    }
+
+    final class PluginDb
+    {
+        /** @var array<int, string> */
+        public array $queries = [];
+
+        public string $base_prefix = 'wp_';
+
+        public string $posts = 'wp_posts';
+
+        public string $term_relationships = 'wp_term_relationships';
+
+        /**
+         * The statements run so far.
+         *
+         * @return array<int, string>
+         */
+        public function recorded(): array
+        {
+            return $this->queries;
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            return 'Q['.implode(',', $args).'] '.substr($query, 0, 30);
+        }
+
+        public function query(string $query): int
+        {
+            $this->queries[] = $query;
+
+            return 1;
+        }
+
+        /** @return array<int, int> */
+        public function get_col(string $query): array
+        {
+            // Post 13 has one attachment; the next page is empty.
+            return str_starts_with($query, 'Q[13,0]') ? [60] : [];
         }
     }
 }

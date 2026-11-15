@@ -75,133 +75,11 @@ namespace UAMS_Search\Tests {
     /** Pins for the write queue (#5). A recording stand-in replaces `$wpdb`; no database runs. */
     final class QueueTest extends TestCase
     {
-        private object $db;
+        private QueueDb $db;
 
         protected function setUp(): void
         {
-            $this->db = new class
-            {
-                public string $base_prefix = 'wp_';
-
-                public string $dbname = 'test';
-
-                public string $posts = 'wp_posts';
-
-                public string $term_relationships = 'wp_term_relationships';
-
-                public string $options = 'wp_options';
-
-                public string $last_error = '';
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                /** @var list<array{string, array<string, int>}> */
-                public array $deletes = [];
-
-                /** @var list<array<string, mixed>> */
-                public array $replaces = [];
-
-                /** @var list<array<string, mixed>> */
-                public array $entries = [];
-
-                /** @var list<list<int>> */
-                public array $child_pages = [];
-
-                public string $lock = '1';
-
-                public ?string $rebuild = null;
-
-                public bool $delete_fails = false;
-
-                /** An error that only the read of the queue rows reports, as a failing table would. */
-                public string $queue_error = '';
-
-                public function esc_like(string $text): string
-                {
-                    return $text;
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function get_var(string $query): ?string
-                {
-                    $this->queries[] = $query;
-                    if (str_starts_with($query, 'SHOW TABLES')) {
-                        return 'wp_uams_search_index';
-                    }
-
-                    if (str_contains($query, 'GET_LOCK')) {
-                        return $this->lock;
-                    }
-
-                    if (str_contains($query, 'option_value')) {
-                        return $this->rebuild;
-                    }
-
-                    return '0';
-                }
-
-                /** @return array<mixed> */
-                public function get_results(string $query, mixed $output = null): array
-                {
-                    $this->queries[] = $query;
-                    if ($this->queue_error !== '') {
-                        $this->last_error = $this->queue_error;
-
-                        return [];
-                    }
-
-                    return $this->entries;
-                }
-
-                /** @return array<mixed> */
-                public function get_col(string $query): array
-                {
-                    $this->queries[] = $query;
-
-                    return array_shift($this->child_pages) ?? [];
-                }
-
-                public function query(string $query): int
-                {
-                    $this->queries[] = $query;
-
-                    return 1;
-                }
-
-                /** @param array<mixed> $where */
-                public function delete(string $table, array $where): int|false
-                {
-                    $this->deletes[] = [$table, $where];
-
-                    return $this->delete_fails ? false : 1;
-                }
-
-                /** @param array<mixed> $row */
-                public function replace(string $table, array $row): int
-                {
-                    $this->replaces[] = $row;
-
-                    return 1;
-                }
-
-                /** @return list<string> */
-                public function matching(string $needle): array
-                {
-                    return array_values(array_filter($this->queries, static fn (string $q): bool => str_contains($q, $needle)));
-                }
-            };
+            $this->db = new QueueDb;
             $GLOBALS['wpdb'] = $this->db;
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => []];
             $GLOBALS['uams_test_filters'] = [];
@@ -502,6 +380,130 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_memory_bytes'] = [-1, 1, -1];
 
             self::assertSame(1, Queue::process()['processed']);
+        }
+    }
+
+    final class QueueDb
+    {
+        public string $base_prefix = 'wp_';
+
+        public string $dbname = 'test';
+
+        public string $posts = 'wp_posts';
+
+        public string $term_relationships = 'wp_term_relationships';
+
+        public string $options = 'wp_options';
+
+        public string $last_error = '';
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        /** @var list<array{string, array<string, int>}> */
+        public array $deletes = [];
+
+        /** @var list<array<string, mixed>> */
+        public array $replaces = [];
+
+        /** @var list<array<string, mixed>> */
+        public array $entries = [];
+
+        /** @var list<list<int>> */
+        public array $child_pages = [];
+
+        public string $lock = '1';
+
+        public ?string $rebuild = null;
+
+        public bool $delete_fails = false;
+
+        /** An error that only the read of the queue rows reports, as a failing table would. */
+        public string $queue_error = '';
+
+        public function esc_like(string $text): string
+        {
+            return $text;
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function get_var(string $query): ?string
+        {
+            $this->queries[] = $query;
+            if (str_starts_with($query, 'SHOW TABLES')) {
+                return 'wp_uams_search_index';
+            }
+
+            if (str_contains($query, 'GET_LOCK')) {
+                return $this->lock;
+            }
+
+            if (str_contains($query, 'option_value')) {
+                return $this->rebuild;
+            }
+
+            return '0';
+        }
+
+        /** @return array<mixed> */
+        public function get_results(string $query): array
+        {
+            $this->queries[] = $query;
+            if ($this->queue_error !== '') {
+                $this->last_error = $this->queue_error;
+
+                return [];
+            }
+
+            return $this->entries;
+        }
+
+        /** @return array<mixed> */
+        public function get_col(string $query): array
+        {
+            $this->queries[] = $query;
+
+            return array_shift($this->child_pages) ?? [];
+        }
+
+        public function query(string $query): int
+        {
+            $this->queries[] = $query;
+
+            return 1;
+        }
+
+        /** @param array<mixed> $where */
+        public function delete(string $table, array $where): int|false
+        {
+            $this->deletes[] = [$table, $where];
+
+            return $this->delete_fails ? false : 1;
+        }
+
+        /** @param array<mixed> $row */
+        public function replace(string $table, array $row): int
+        {
+            $this->replaces[] = $row;
+
+            return 1;
+        }
+
+        /** @return list<string> */
+        public function matching(string $needle): array
+        {
+            return array_values(array_filter($this->queries, static fn (string $q): bool => str_contains($q, $needle)));
         }
     }
 }

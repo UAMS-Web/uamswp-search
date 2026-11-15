@@ -366,7 +366,7 @@ final class Admin
         // Without strict types a number becomes the same text, so the cast changes no result.
         // @pest-mutate-ignore:RemoveStringCast,EmptyStringToNotEmpty
         $lines = \is_scalar($submitted) ? (string) $submitted : '';
-        foreach (preg_split('/\R/', $lines) as $line) {
+        foreach (preg_split('/\R/', $lines) ?: [] as $line) {
             $parts = explode('=', $line, 2);
             if (\count($parts) !== 2) {
                 continue;

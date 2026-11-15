@@ -50,7 +50,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static function (): never {
                 throw new RuntimeException('Cache should skip extraction');
             }]];
-            $path = realpath(get_attached_file(42));
+            $path = (string) realpath(get_attached_file(42));
             $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
             try {
                 $cached = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'ready', 'pdf' => 'cached text', 'error' => '']);
@@ -318,7 +318,7 @@ namespace UAMS_Search\Tests {
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
             $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
-            $path = realpath(get_attached_file(42));
+            $path = (string) realpath(get_attached_file(42));
             $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
 
             $row = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'failed', 'pdf' => 'stale text', 'error' => 'x']);
@@ -688,7 +688,7 @@ namespace UAMS_Search\Tests {
         /**
          * Run a command to the end and return its exit code and both output streams.
          *
-         * @param  array<int, string>  $command
+         * @param  list<string>  $command
          * @return array{exit: int, out: string, err: string}
          */
         private function worker(array $command): array

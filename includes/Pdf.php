@@ -146,7 +146,7 @@ final class Pdf
      * Run an extractor command and return what it prints, within time and
      * output limits.
      *
-     * @param  array<int, string>  $command  Program and arguments.
+     * @param  list<string>  $command  Program and arguments.
      * @param  int  $timeout  Seconds the command may run.
      * @return string Standard output.
      *
