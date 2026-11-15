@@ -80,9 +80,9 @@ final class Integration
         // Load the assets, register the suggestions endpoint and add the form shortcode
         add_action('wp_enqueue_scripts', [self::class, 'assets']);
         add_action('rest_api_init', [self::class, 'rest']);
-        // `get_search_form(false)` already returns a string, so the cast changes no result.
+        // `get_search_form(['echo' => false])` already returns a string, so the cast changes no result.
         // @pest-mutate-ignore:RemoveStringCast
-        add_shortcode('uams_search_form', static fn (): string => (string) get_search_form(false));
+        add_shortcode('uams_search_form', static fn (): string => (string) get_search_form(['echo' => false]));
     }
 
     /**
