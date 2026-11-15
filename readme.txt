@@ -1,6 +1,6 @@
 === UAMSWP Search ===
 Contributors: uams-web
-Requires at least: 6.4
+Requires at least: 6.8
 Requires PHP: 8.2
 Stable tag: 0.5.1
 License: GPLv3 or later
