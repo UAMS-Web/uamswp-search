@@ -64,6 +64,19 @@ namespace UAMS_Search\Tests {
         }
 
         /**
+         * The saved choices, after checking that they are usable.
+         *
+         * @return array{refreshed: string, fields: array<string, list<string>>, taxonomies: array<string, list<string>>, labels: array{fields: array<string, string>, taxonomies: array<string, string>}}
+         */
+        private function saved(): array
+        {
+            $saved = NameChoices::get();
+            self::assertNotNull($saved, 'The saved choices are usable.');
+
+            return $saved;
+        }
+
+        /**
          * ACF's fields as `acf_get_field()` returns them: a plain field, a group, a repeater and a flexible content field.
          *
          * @return callable(string): mixed A stand-in for `acf_get_field()`.
@@ -174,7 +187,7 @@ namespace UAMS_Search\Tests {
         public function test_saved_choices_are_cleaned_and_ordered_on_read(): void
         {
             $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['b' => ['x'], 'a' => ['y'], 'e' => [], '' => ['z'], 'c' => ['w']], 'taxonomies' => [], 'labels' => ['fields' => ['kept' => ' Padded ', 'blank' => ' ', ' ' => 'No name'], 'taxonomies' => []]];
-            $saved = NameChoices::get();
+            $saved = $this->saved();
             self::assertSame(['a', 'b', 'c'], array_keys($saved['fields']), 'An empty or unnamed type is skipped and the rest are kept, sorted by type.');
             self::assertSame(['kept' => 'Padded'], $saved['labels']['fields']);
         }
@@ -281,15 +294,15 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertSame('', $logged);
-            self::assertSame(['post' => ['subtitle']], NameChoices::get()['fields']);
+            self::assertSame(['post' => ['subtitle']], $this->saved()['fields']);
         }
 
         public function test_a_cache_saved_before_labels_existed_reads_with_none(): void
         {
             $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a']], 'taxonomies' => []];
-            self::assertSame(['fields' => [], 'taxonomies' => []], NameChoices::get()['labels']);
+            self::assertSame(['fields' => [], 'taxonomies' => []], $this->saved()['labels']);
             $GLOBALS['uams_test_options'][NameChoices::OPTION]['labels'] = ['fields' => ['a' => 'A', 'b' => '', 'c' => ['x'], '' => 'No name'], 'taxonomies' => 'x'];
-            self::assertSame(['fields' => ['a' => 'A'], 'taxonomies' => []], NameChoices::get()['labels'], 'Blank and malformed labels are dropped.');
+            self::assertSame(['fields' => ['a' => 'A'], 'taxonomies' => []], $this->saved()['labels'], 'Blank and malformed labels are dropped.');
         }
 
         public function test_each_site_is_asked_for_its_meta_keys_and_taxonomies(): void
@@ -359,7 +372,7 @@ namespace UAMS_Search\Tests {
                 self::assertStringContainsString('site 1: Table missing', $runtimeException->getMessage());
             }
 
-            self::assertSame(['post' => ['kept']], NameChoices::get()['fields'], 'The earlier cache stays in place.');
+            self::assertSame(['post' => ['kept']], $this->saved()['fields'], 'The earlier cache stays in place.');
         }
 
         public function test_a_missing_or_malformed_cache_reads_as_none(): void
