@@ -15,7 +15,7 @@
   },
   "scripts": {
     "test": "pest",
-    "mutate": "@php -d pcov.directory=. vendor/bin/pest --mutate",
+    "mutate": "@php -d pcov.directory=. vendor/bin/pest --mutate --path=includes/Admin.php,includes/autoload.php,includes/CardFields.php,includes/Config.php,includes/DB.php,includes/Excerpt.php,includes/Extractor.php,includes/FieldText.php,includes/Filters.php,includes/helpers.php,includes/Misses.php,includes/NameChoices.php,includes/Pdf.php,includes/Phonetic.php,includes/Query.php,includes/Queue.php,includes/Related.php,includes/Result.php,includes/SiteNames.php,includes/Stemmer.php,includes/Suggestions.php,includes/Text.php,includes/Time.php",
     "setup:integration": "@composer install --working-dir=tests/Integration",
     "test:integration": "@php tests/Integration/vendor/bin/phpunit --configuration tests/Integration/phpunit.xml",
     "build": "node scripts/build-zip.mjs",
