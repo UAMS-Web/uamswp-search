@@ -43,7 +43,7 @@ namespace UAMS_Search\Tests {
                     return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;
@@ -64,7 +64,8 @@ namespace UAMS_Search\Tests {
                     return array_shift($this->totals) ?? 0;
                 }
 
-                public function get_results(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_results(string $query, mixed $output = null): array
                 {
                     if (str_starts_with($query, 'SELECT word,frequency,phonetic')) {
                         $this->candidate_queries[] = $query;
@@ -89,6 +90,7 @@ namespace UAMS_Search\Tests {
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
         }
 
+        /** @return array<mixed> */
         private function candidate(string $word, int $frequency, ?string $phonetic = null): array
         {
             return ['word' => $word, 'frequency' => $frequency, 'phonetic' => $phonetic ?? Phonetic::key($word)];

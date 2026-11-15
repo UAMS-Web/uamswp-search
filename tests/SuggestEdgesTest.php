@@ -25,7 +25,7 @@ namespace {
     }
 
     if (! function_exists('get_blog_option')) {
-        function get_blog_option($_id, $option, $default = false)
+        function get_blog_option(mixed $_id, mixed $option, mixed $default = false): mixed
         {
             return $option === 'blogname' ? 'UAMS Health' : $default;
         }
@@ -33,7 +33,7 @@ namespace {
 
     // The same stand-in `ConfigTest` declares, guarded so whichever file loads first supplies it: one public site.
     if (! function_exists('get_sites')) {
-        function get_sites($_args)
+        function get_sites(mixed $_args): mixed
         {
             return [1];
         }
@@ -89,7 +89,7 @@ namespace UAMS_Search\Tests {
                     return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = \is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;
@@ -108,11 +108,13 @@ namespace UAMS_Search\Tests {
                     return 1;
                 }
 
+                /** @param array<mixed> $where */
                 public function delete(string $table, array $where): int
                 {
                     return 1;
                 }
 
+                /** @return array<mixed> */
                 public function get_col(string $query): array
                 {
                     return [];
@@ -127,7 +129,8 @@ namespace UAMS_Search\Tests {
                     return array_shift($this->totals) ?? 0;
                 }
 
-                public function get_results(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_results(string $query, mixed $output = null): array
                 {
                     if (str_starts_with($query, 'SELECT word,frequency,phonetic')) {
                         $this->candidate_queries[] = $query;

@@ -4,28 +4,28 @@ namespace {
 
     // Stand-ins that record what the menu registration asks WordPress for.
     if (! function_exists('add_menu_page')) {
-        function add_menu_page(...$args): void
+        function add_menu_page(mixed ...$args): void
         {
             $GLOBALS['uams_test_menu'][] = ['add_menu_page', ...$args];
         }
     }
 
     if (! function_exists('add_submenu_page')) {
-        function add_submenu_page(...$args): void
+        function add_submenu_page(mixed ...$args): void
         {
             $GLOBALS['uams_test_menu'][] = ['add_submenu_page', ...$args];
         }
     }
 
     if (! function_exists('add_options_page')) {
-        function add_options_page(...$args): void
+        function add_options_page(mixed ...$args): void
         {
             $GLOBALS['uams_test_menu'][] = ['add_options_page', ...$args];
         }
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): bool
+        function wp_safe_redirect(mixed $url): bool
         {
             $GLOBALS['uams_test_redirect'] = $url;
 
@@ -34,42 +34,42 @@ namespace {
     }
 
     if (! function_exists('is_network_admin')) {
-        function is_network_admin()
+        function is_network_admin(): mixed
         {
             return $GLOBALS['uams_test_network_admin'] ?? false;
         }
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$_args): bool
+        function current_user_can(mixed $capability, mixed ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
     }
 
     if (! function_exists('network_admin_url')) {
-        function network_admin_url($path = '')
+        function network_admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/network/'.$path;
         }
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url($path = '')
+        function admin_url(mixed $path = ''): mixed
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('sanitize_text_field')) {
-        function sanitize_text_field($s)
+        function sanitize_text_field(mixed $s): mixed
         {
             return trim(strip_tags((string) $s));
         }
     }
 
     if (! function_exists('wp_unslash')) {
-        function wp_unslash($s)
+        function wp_unslash(mixed $s): mixed
         {
             return $s;
         }

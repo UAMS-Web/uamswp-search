@@ -4,14 +4,14 @@ namespace {
 
     // Guarded because `ExtractorTest` declares the same stand-ins and loads first.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file($_id)
+        function get_attached_file(mixed $_id): mixed
         {
             return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
         }
     }
 
     if (! function_exists('wp_get_upload_dir')) {
-        function wp_get_upload_dir()
+        function wp_get_upload_dir(): mixed
         {
             return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
         }

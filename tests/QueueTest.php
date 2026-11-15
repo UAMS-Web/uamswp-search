@@ -3,14 +3,14 @@
 namespace {
 
     if (! function_exists('wp_is_post_revision')) {
-        function wp_is_post_revision($id): bool
+        function wp_is_post_revision(mixed $id): bool
         {
             return in_array($id, $GLOBALS['uams_test_revisions'] ?? [], true);
         }
     }
 
     if (! function_exists('wp_is_post_autosave')) {
-        function wp_is_post_autosave($id): bool
+        function wp_is_post_autosave(mixed $id): bool
         {
             return in_array($id, $GLOBALS['uams_test_autosaves'] ?? [], true);
         }
@@ -18,7 +18,7 @@ namespace {
 
     if (! function_exists('wp_convert_hr_to_bytes')) {
         /** Unlimited, unless a test sets `uams_test_memory_bytes` to a limit or to a list of limits handed out one per call. */
-        function wp_convert_hr_to_bytes($_value)
+        function wp_convert_hr_to_bytes(mixed $_value): mixed
         {
             $limit = $GLOBALS['uams_test_memory_bytes'] ?? -1;
 
@@ -27,14 +27,14 @@ namespace {
     }
 
     if (! function_exists('maybe_unserialize')) {
-        function maybe_unserialize($value)
+        function maybe_unserialize(mixed $value): mixed
         {
             return is_string($value) && $value !== '' ? unserialize($value) : $value;
         }
     }
 
     if (! function_exists('update_site_option')) {
-        function update_site_option($name, $value)
+        function update_site_option(mixed $name, mixed $value): mixed
         {
             $GLOBALS['uams_test_options'][$name] = $value;
 
@@ -43,21 +43,21 @@ namespace {
     }
 
     if (! function_exists('switch_to_blog')) {
-        function switch_to_blog($_id)
+        function switch_to_blog(mixed $_id): mixed
         {
             return true;
         }
     }
 
     if (! function_exists('restore_current_blog')) {
-        function restore_current_blog()
+        function restore_current_blog(): mixed
         {
             return true;
         }
     }
 
     if (! function_exists('get_current_network_id')) {
-        function get_current_network_id()
+        function get_current_network_id(): mixed
         {
             return 1;
         }
@@ -122,7 +122,7 @@ namespace UAMS_Search\Tests {
                     return $text;
                 }
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;
@@ -152,7 +152,8 @@ namespace UAMS_Search\Tests {
                     return '0';
                 }
 
-                public function get_results(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_results(string $query, mixed $output = null): array
                 {
                     $this->queries[] = $query;
                     if ($this->queue_error !== '') {
@@ -164,6 +165,7 @@ namespace UAMS_Search\Tests {
                     return $this->entries;
                 }
 
+                /** @return array<mixed> */
                 public function get_col(string $query): array
                 {
                     $this->queries[] = $query;
@@ -178,6 +180,7 @@ namespace UAMS_Search\Tests {
                     return 1;
                 }
 
+                /** @param array<mixed> $where */
                 public function delete(string $table, array $where): int|false
                 {
                     $this->deletes[] = [$table, $where];
@@ -185,6 +188,7 @@ namespace UAMS_Search\Tests {
                     return $this->delete_fails ? false : 1;
                 }
 
+                /** @param array<mixed> $row */
                 public function replace(string $table, array $row): int
                 {
                     $this->replaces[] = $row;

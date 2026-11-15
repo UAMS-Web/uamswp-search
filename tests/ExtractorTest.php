@@ -25,35 +25,35 @@ namespace {
     }
 
     if (! function_exists('get_post_meta')) {
-        function get_post_meta($id, $key, $_single = true)
+        function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
             return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
         }
     }
 
     if (! function_exists('is_post_status_viewable')) {
-        function is_post_status_viewable($status): bool
+        function is_post_status_viewable(mixed $status): bool
         {
             return in_array($status, $GLOBALS['uams_test_viewable_statuses'] ?? ['publish'], true);
         }
     }
 
     if (! function_exists('is_post_type_viewable')) {
-        function is_post_type_viewable($type): bool
+        function is_post_type_viewable(mixed $type): bool
         {
             return ! in_array($type, $GLOBALS['uams_test_hidden_types'] ?? [], true);
         }
     }
 
     if (! function_exists('parse_blocks')) {
-        function parse_blocks($content)
+        function parse_blocks(mixed $content): mixed
         {
             return $GLOBALS['uams_test_blocks'] ?? [['blockName' => null, 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => $content]];
         }
     }
 
     if (! function_exists('serialize_blocks')) {
-        function serialize_blocks($blocks)
+        function serialize_blocks(mixed $blocks): mixed
         {
             $out = '';
             foreach ($blocks as $block) {
@@ -65,21 +65,21 @@ namespace {
     }
 
     if (! function_exists('strip_shortcodes')) {
-        function strip_shortcodes($text)
+        function strip_shortcodes(mixed $text): mixed
         {
             return preg_replace('/\[[a-z_]+[^\]]*\]/', '', $text);
         }
     }
 
     if (! function_exists('taxonomy_exists')) {
-        function taxonomy_exists($taxonomy): bool
+        function taxonomy_exists(mixed $taxonomy): bool
         {
             return array_key_exists($taxonomy, $GLOBALS['uams_test_terms'] ?? []);
         }
     }
 
     if (! function_exists('wp_get_object_terms')) {
-        function wp_get_object_terms($_id, $taxonomy, $args = [])
+        function wp_get_object_terms(mixed $_id, mixed $taxonomy, mixed $args = []): mixed
         {
             $GLOBALS['uams_test_term_args'][] = [$taxonomy, $args];
 
@@ -88,7 +88,7 @@ namespace {
     }
 
     if (! function_exists('is_wp_error')) {
-        function is_wp_error($value): bool
+        function is_wp_error(mixed $value): bool
         {
             return $value instanceof WP_Error;
         }
@@ -96,7 +96,7 @@ namespace {
 
     // The same ACF definition stand-in FieldTextTest declares; whichever file loads first defines it.
     if (! function_exists('acf_get_field')) {
-        function acf_get_field($selector)
+        function acf_get_field(mixed $selector): mixed
         {
             $GLOBALS['uams_test_acf_lookups'][] = $selector;
 
@@ -105,14 +105,14 @@ namespace {
     }
 
     if (! function_exists('get_permalink')) {
-        function get_permalink($post)
+        function get_permalink(mixed $post): mixed
         {
             return 'https://example.test/?p='.(is_object($post) ? $post->ID : $post);
         }
     }
 
     if (! function_exists('wp_get_attachment_url')) {
-        function wp_get_attachment_url($id)
+        function wp_get_attachment_url(mixed $id): mixed
         {
             return 'https://example.test/files/'.$id.'.pdf';
         }
@@ -120,14 +120,14 @@ namespace {
 
     // The same stand-ins `PdfTest` declares; whichever file loads first defines them.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file($_id)
+        function get_attached_file(mixed $_id): mixed
         {
             return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
         }
     }
 
     if (! function_exists('wp_get_upload_dir')) {
-        function wp_get_upload_dir()
+        function wp_get_upload_dir(): mixed
         {
             return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
         }

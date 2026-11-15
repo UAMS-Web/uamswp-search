@@ -30,7 +30,11 @@ final class ExcerptTest extends TestCase
         return implode(' ', array_map(static fn (int $i): string => \in_array($i, $at, true) ? 'zeta' : 'w'.$i, range(0, $n - 1)));
     }
 
-    /** The marked passage the words `w<from>` to `w<to>` make, with the given indexes marked. */
+    /**
+     * The marked passage the words `w<from>` to `w<to>` make, with the given indexes marked.
+     *
+     * @param  array<mixed>  $marked
+     */
     private static function passage(int $from, int $to, array $marked = []): string
     {
         return implode(' ', array_map(static fn (int $i): string => \in_array($i, $marked, true) ? '<mark>zeta</mark>' : 'w'.$i, range($from, $to)));

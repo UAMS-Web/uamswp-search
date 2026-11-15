@@ -2,12 +2,12 @@
 
 namespace {
 
-    function wp_get_environment_type()
+    function wp_get_environment_type(): mixed
     {
         return $GLOBALS['uams_test_environment'] ?? 'production';
     }
 
-    function get_sites($args)
+    function get_sites(mixed $args): mixed
     {
         $GLOBALS['uams_test_sites_args'][] = $args;
         if (isset($GLOBALS['uams_test_sites_return'])) {
@@ -199,7 +199,11 @@ namespace UAMS_Search\Tests {
             self::assertTrue(Config::needs_rebuild());
         }
 
-        /** The defaults every setting starts from, written out so a changed number, type or key is noticed. */
+        /**
+         * The defaults every setting starts from, written out so a changed number, type or key is noticed.
+         *
+         * @return array<mixed>
+         */
         private static function expected_defaults(bool $preview): array
         {
             return [

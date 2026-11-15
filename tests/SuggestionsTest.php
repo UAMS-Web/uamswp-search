@@ -42,7 +42,7 @@ namespace UAMS_Search\Tests {
                 /** @var list<string> */
                 public array $page_queries = [];
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     $args = is_array($args[0] ?? null) ? $args[0] : $args;
                     $i = 0;
@@ -61,6 +61,7 @@ namespace UAMS_Search\Tests {
                     return 1;
                 }
 
+                /** @param array<mixed> $where */
                 public function delete(string $table, array $where): int|false
                 {
                     $this->deletes[] = [$table, $where];
@@ -68,6 +69,7 @@ namespace UAMS_Search\Tests {
                     return $this->delete_fails ? false : 1;
                 }
 
+                /** @return array<mixed> */
                 public function get_col(string $query): array
                 {
                     $this->queries[] = $query;
@@ -75,7 +77,8 @@ namespace UAMS_Search\Tests {
                     return $this->stale;
                 }
 
-                public function get_results(string $query, $output = null): array
+                /** @return array<mixed> */
+                public function get_results(string $query, mixed $output = null): array
                 {
                     $this->page_queries[] = $query;
 
@@ -102,7 +105,10 @@ namespace UAMS_Search\Tests {
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
         }
 
-        /** @param array<string, mixed> $extra */
+        /**
+         * @param  array<string, mixed>  $extra
+         * @return array<mixed>
+         */
         private function row(array $extra = []): array
         {
             return $extra + ['site_id' => 2, 'object_id' => 9, 'title' => '', 'content' => '', 'fields' => '', 'terms' => '', 'pdf' => '', 'url' => 'https://example.test/ignored-words'];

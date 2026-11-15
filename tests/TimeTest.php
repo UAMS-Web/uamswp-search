@@ -3,12 +3,12 @@
 namespace {
 
     // Stand-ins for the WordPress timezone and date seam, mirroring wp_date() semantics.
-    function wp_timezone()
+    function wp_timezone(): mixed
     {
         return new DateTimeZone($GLOBALS['uams_test_timezone'] ?? 'UTC');
     }
 
-    function wp_date($format, $timestamp, $timezone)
+    function wp_date(mixed $format, mixed $timestamp, mixed $timezone): mixed
     {
         return (new DateTimeImmutable('@'.$timestamp))->setTimezone($timezone)->format($format);
     }

@@ -6,7 +6,7 @@ namespace {
 
     // Stand-ins for the WordPress functions the plugin bootstrap calls.
     if (! function_exists('add_action')) {
-        function add_action($hook, $callback, $priority = 10, $args = 1): void
+        function add_action(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
             $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
@@ -14,7 +14,7 @@ namespace {
     }
 
     if (! function_exists('add_filter')) {
-        function add_filter($hook, $callback, $priority = 10, $args = 1): void
+        function add_filter(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
         {
             $GLOBALS['uams_test_hooks'][$hook][] = $callback;
             $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
@@ -22,7 +22,7 @@ namespace {
     }
 
     if (! function_exists('add_shortcode')) {
-        function add_shortcode($tag, $callback): void
+        function add_shortcode(mixed $tag, mixed $callback): void
         {
             $GLOBALS['uams_test_hooks']['shortcode:'.$tag][] = $callback;
         }
@@ -36,14 +36,14 @@ namespace {
     }
 
     if (! function_exists('wp_next_scheduled')) {
-        function wp_next_scheduled($hook)
+        function wp_next_scheduled(mixed $hook): mixed
         {
             return $GLOBALS['uams_test_cron'][$hook] ?? false;
         }
     }
 
     if (! function_exists('wp_schedule_event')) {
-        function wp_schedule_event($time, $recurrence, $hook)
+        function wp_schedule_event(mixed $time, mixed $recurrence, mixed $hook): mixed
         {
             $GLOBALS['uams_test_scheduled'][] = [$hook, $recurrence, $time];
 
@@ -52,7 +52,7 @@ namespace {
     }
 
     if (! function_exists('wp_clear_scheduled_hook')) {
-        function wp_clear_scheduled_hook($hook)
+        function wp_clear_scheduled_hook(mixed $hook): mixed
         {
             $GLOBALS['uams_test_cleared'][] = $hook;
 
@@ -61,28 +61,28 @@ namespace {
     }
 
     if (! function_exists('wp_is_post_revision')) {
-        function wp_is_post_revision($id): bool
+        function wp_is_post_revision(mixed $id): bool
         {
             return in_array($id, $GLOBALS['uams_test_revisions'] ?? [], true);
         }
     }
 
     if (! function_exists('wp_is_post_autosave')) {
-        function wp_is_post_autosave($id): bool
+        function wp_is_post_autosave(mixed $id): bool
         {
             return in_array($id, $GLOBALS['uams_test_autosaves'] ?? [], true);
         }
     }
 
     if (! function_exists('wp_die')) {
-        function wp_die($message = ''): never
+        function wp_die(mixed $message = ''): never
         {
             throw new RuntimeException('wp_die: '.$message);
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html($s)
+        function esc_html(mixed $s): mixed
         {
             return htmlspecialchars((string) $s);
         }
@@ -231,7 +231,7 @@ namespace UAMS_Search\Tests {
 
                 public string $term_relationships = 'wp_term_relationships';
 
-                public function prepare(string $query, ...$args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
                     return 'Q['.implode(',', $args).'] '.substr($query, 0, 30);
                 }

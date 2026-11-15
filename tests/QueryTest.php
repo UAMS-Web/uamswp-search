@@ -5,17 +5,17 @@ namespace {
     if (! class_exists('WP_Post')) {
         #[AllowDynamicProperties] class WP_Post
         {
-            public $post_mime_type = '';
+            public mixed $post_mime_type = '';
 
-            public $post_parent = 0;
+            public mixed $post_parent = 0;
 
-            public $post_content = '';
+            public mixed $post_content = '';
 
-            public $post_date_gmt = '0000-00-00 00:00:00';
+            public mixed $post_date_gmt = '0000-00-00 00:00:00';
 
-            public $post_modified_gmt = '0000-00-00 00:00:00';
+            public mixed $post_modified_gmt = '0000-00-00 00:00:00';
 
-            public $post_type = 'post';
+            public mixed $post_type = 'post';
 
             public int $ID = 42;
         }
@@ -28,16 +28,18 @@ namespace {
 
             public int $max_num_pages = 0;
 
+            /** @var array<mixed> */
             public array $query = [];
 
+            /** @var array<mixed> */
             public array $values = ['s' => 'heart', 'posts_per_page' => 10];
 
-            public function get($key)
+            public function get(mixed $key): mixed
             {
                 return $this->values[$key] ?? '';
             }
 
-            public function set($key, $value): void
+            public function set(mixed $key, mixed $value): void
             {
                 $this->values[$key] = $value;
             }
@@ -54,7 +56,7 @@ namespace {
         }
     }
 
-    function is_admin()
+    function is_admin(): mixed
     {
         return false;
     }
@@ -77,8 +79,10 @@ namespace UAMS_Search\Tests {
 
         public string $last_error = '';
 
+        /** @var array<mixed> */
         public array $counts = [21];
 
+        /** @var array<mixed> */
         public array $queries = [];
 
         /** A fragment of SQL that makes the matching query report a database error. */
@@ -87,12 +91,12 @@ namespace UAMS_Search\Tests {
         /** How many queries matching `$fail_on` run normally before the error. */
         public int $fail_after = 0;
 
-        public function esc_like($s)
+        public function esc_like(mixed $s): mixed
         {
             return addcslashes($s, '_%\\');
         }
 
-        public function prepare($sql, ...$args)
+        public function prepare(mixed $sql, mixed ...$args): mixed
         {
             if (count($args) === 1 && is_array($args[0])) {
                 $args = $args[0];
@@ -105,12 +109,12 @@ namespace UAMS_Search\Tests {
             return $sql;
         }
 
-        public function get_blog_prefix($site)
+        public function get_blog_prefix(mixed $site): mixed
         {
             return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
         }
 
-        public function get_var($sql)
+        public function get_var(mixed $sql): mixed
         {
             $this->queries[] = $sql;
             $this->maybe_fail($sql);
@@ -121,7 +125,7 @@ namespace UAMS_Search\Tests {
             return array_shift($this->counts) ?? 0;
         }
 
-        public function get_results($sql, $format)
+        public function get_results(mixed $sql, mixed $format): mixed
         {
             $this->queries[] = $sql;
             $this->maybe_fail($sql);
@@ -519,7 +523,7 @@ namespace UAMS_Search\Tests {
         {
             $GLOBALS['wpdb'] = new class extends QueryFixtureDB
             {
-                public function get_results($sql, $format)
+                public function get_results(mixed $sql, mixed $format): mixed
                 {
                     return [[
                         'object_id' => '42', 'site_id' => '3', 'relevance' => '8.5', 'title' => 'Heart care', 'url' => 'https://example.test/heart/', 'post_type' => 'page', 'file_size' => '2048',
@@ -592,7 +596,7 @@ namespace UAMS_Search\Tests {
                 {
                     public function __construct(private readonly string $column) {}
 
-                    public function get_results($sql, $format)
+                    public function get_results(mixed $sql, mixed $format): mixed
                     {
                         return [array_replace(['object_id' => 1, 'site_id' => 1, 'relevance' => 1, 'title' => 'T', 'url' => 'u', 'post_type' => 'page', 'file_size' => 0, 'content' => 'nothing relevant', 'fields' => '', 'pdf' => ''], [$this->column => 'a zebra appears here'])];
                     }
@@ -606,7 +610,7 @@ namespace UAMS_Search\Tests {
         {
             $GLOBALS['wpdb'] = new class extends QueryFixtureDB
             {
-                public function get_results($sql, $format)
+                public function get_results(mixed $sql, mixed $format): mixed
                 {
                     return [['object_id' => 1, 'site_id' => 1, 'relevance' => 1, 'title' => null, 'url' => null, 'post_type' => null, 'file_size' => 0, 'content' => '', 'fields' => '', 'pdf' => '']];
                 }
