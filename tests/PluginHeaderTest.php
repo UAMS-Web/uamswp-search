@@ -19,7 +19,7 @@ namespace UAMS_Search\Tests {
             // The pattern `get_file_data()` applies to each header, run over the first 8 KB it reads
             $head = substr($this->main_file(), 0, 8192);
             self::assertSame(1, preg_match('/^[ \t\/*#@]*Version:(.*)$/mi', $head, $found));
-            self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', trim($found[1]));
+            self::assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', trim($found[1] ?? ''));
         }
 
         public function test_the_version_constant_is_read_from_the_header_and_never_written_as_a_literal(): void
@@ -33,7 +33,7 @@ namespace UAMS_Search\Tests {
         public function test_the_unit_bootstrap_holds_the_version_the_header_states(): void
         {
             preg_match('/^[ \t\/*#@]*Version:(.*)$/mi', substr($this->main_file(), 0, 8192), $found);
-            self::assertSame(trim($found[1]), UAMS_SEARCH_VERSION);
+            self::assertSame(trim($found[1] ?? ''), UAMS_SEARCH_VERSION);
         }
 
         public function test_the_plugin_header_and_readme_name_the_plugin_uamswp_search(): void

@@ -14,68 +14,11 @@ namespace UAMS_Search\Tests {
     /** Pins for "did you mean" (#5). A scripted `$wpdb` answers the match counts in order and returns the candidate words; the full-text behavior itself is the integration suite's. */
     final class SuggestTest extends TestCase
     {
-        private object $db;
+        private SuggestDb $db;
 
         protected function setUp(): void
         {
-            $this->db = new class
-            {
-                public string $base_prefix = 'wp_';
-
-                public string $last_error = '';
-
-                /** @var list<int> */
-                public array $totals = [];
-
-                /** @var list<array<string, mixed>> */
-                public array $candidates = [];
-
-                /** @var list<string> */
-                public array $candidate_queries = [];
-
-                public function esc_like(string $s): string
-                {
-                    return addcslashes($s, '_%\\');
-                }
-
-                public function get_blog_prefix(int $site): string
-                {
-                    return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function get_var(string $query): string|int
-                {
-                    if (str_starts_with($query, 'SHOW TABLES')) {
-                        return 'wp_uams_search_index';
-                    }
-
-                    return array_shift($this->totals) ?? 0;
-                }
-
-                /** @return array<mixed> */
-                public function get_results(string $query, mixed $output = null): array
-                {
-                    if (str_starts_with($query, 'SELECT word,frequency,phonetic')) {
-                        $this->candidate_queries[] = $query;
-
-                        return $this->candidates;
-                    }
-
-                    return [];
-                }
-            };
+            $this->db = new SuggestDb;
             $GLOBALS['wpdb'] = $this->db;
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => ['enabled' => true]];
             $GLOBALS['uams_test_filters'] = [];
@@ -264,6 +207,65 @@ namespace UAMS_Search\Tests {
             $this->db->candidates = [$this->candidate('98765', 50, '')];
 
             self::assertNull(Suggestions::suggest('12345', []));
+        }
+    }
+
+    final class SuggestDb
+    {
+        public string $base_prefix = 'wp_';
+
+        public string $last_error = '';
+
+        /** @var list<int> */
+        public array $totals = [];
+
+        /** @var list<array<string, mixed>> */
+        public array $candidates = [];
+
+        /** @var list<string> */
+        public array $candidate_queries = [];
+
+        public function esc_like(string $s): string
+        {
+            return addcslashes($s, '_%\\');
+        }
+
+        public function get_blog_prefix(int $site): string
+        {
+            return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function get_var(string $query): string|int
+        {
+            if (str_starts_with($query, 'SHOW TABLES')) {
+                return 'wp_uams_search_index';
+            }
+
+            return array_shift($this->totals) ?? 0;
+        }
+
+        /** @return array<mixed> */
+        public function get_results(string $query): array
+        {
+            if (str_starts_with($query, 'SELECT word,frequency,phonetic')) {
+                $this->candidate_queries[] = $query;
+
+                return $this->candidates;
+            }
+
+            return [];
         }
     }
 }

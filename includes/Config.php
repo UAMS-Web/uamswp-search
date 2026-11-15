@@ -247,7 +247,9 @@ final class Config
             $args['public'] = 1;
         }
 
-        return array_map(intval(...), get_sites($args));
+        // `get_sites()` returns a list, so its keys are already sequential.
+        // @pest-mutate-ignore:UnwrapArrayValues
+        return array_values(array_map(intval(...), get_sites($args)));
     }
 
     /**

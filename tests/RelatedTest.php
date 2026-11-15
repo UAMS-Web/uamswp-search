@@ -94,7 +94,7 @@ namespace UAMS_Search\Tests {
                 public function prepare(string $query, array $args): string
                 {
                     $this->queries[] = $query;
-                    $this->queries[] = json_encode($args);
+                    $this->queries[] = json_encode($args, JSON_THROW_ON_ERROR);
 
                     return 'prepared';
                 }

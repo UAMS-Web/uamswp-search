@@ -22,7 +22,7 @@ final class LocationCard
         }
 
         // Split at breaks and drop empty lines
-        $lines = preg_split('/(?:<br\s*\/?\s*>|\r?\n)+/i', (string) $value);
+        $lines = preg_split('/(?:<br\s*\/?\s*>|\r?\n)+/i', (string) $value) ?: [];
 
         return array_values(array_filter(array_map(CardFields::text(...), $lines), static fn (string $line): bool => $line !== ''));
     }

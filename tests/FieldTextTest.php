@@ -141,7 +141,7 @@ namespace UAMS_Search\Tests {
                 $value = ['field_nest' => $value];
             }
 
-            self::assertStringNotContainsString('deep', json_encode(FieldText::readable($value, 'field_nest', 'outer')));
+            self::assertStringNotContainsString('deep', json_encode(FieldText::readable($value, 'field_nest', 'outer'), JSON_THROW_ON_ERROR));
             self::assertLessThanOrEqual(14, count($GLOBALS['uams_test_acf_lookups']));
         }
 

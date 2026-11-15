@@ -159,6 +159,7 @@ final class Integration
                     $post = get_post($result->id);
                     if ($post) {
                         $post = clone $post;
+                        // @phpstan-ignore property.notFound (`blog_id` is a dynamic property that the theme's search template reads; WP_Post allows dynamic properties)
                         $post->blog_id = $result->site;
                         $out[] = $post;
                         self::$excerpts[$result->site.':'.$result->id] = $result->excerpt;
@@ -397,8 +398,9 @@ final class Integration
             $type = $result->post_type;
             // Print a provider or location as a card
             if ($type === 'provider' || $type === 'location') {
-                $card = $type === 'provider' ? ProviderCard::data($result) : LocationCard::data($result);
-                if (! $card) {
+                $provider_card = $type === 'provider' ? ProviderCard::data($result) : null;
+                $location_card = $type === 'location' ? LocationCard::data($result) : null;
+                if (! $provider_card && ! $location_card) {
                     continue;
                 }
 
@@ -411,10 +413,10 @@ final class Integration
                     $card_group = $type;
                 }
 
-                if ($type === 'provider') {
-                    ProviderCard::render($card);
-                } else {
-                    LocationCard::render($card);
+                if ($provider_card) {
+                    ProviderCard::render($provider_card);
+                } elseif ($location_card) {
+                    LocationCard::render($location_card);
                 }
 
                 continue;

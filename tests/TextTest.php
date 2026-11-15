@@ -165,7 +165,7 @@ namespace UAMS_Search\Tests {
             self::assertStringStartsWith('… ', $html);
             self::assertStringContainsString('<mark>cardiology</mark>', $html);
             self::assertStringContainsString('<mark>cardiologist</mark>', $html);
-            self::assertCount(30, preg_split('/\s+/', trim(str_replace('…', '', strip_tags($html)))));
+            self::assertCount(30, preg_split('/\s+/', trim(str_replace('…', '', strip_tags($html)))) ?: []);
             self::assertSame('<mark>Heart</mark> &amp; &quot;care&quot;', Excerpt::make(['<script>alert(1)</script>Heart & "care"'], 'heart'));
             self::assertSame('GI, <mark>ENT</mark> &lt;img', Excerpt::make(['GI, ENT &lt;img'], 'ENT'));
             self::assertSame('<mark>Cardiology</mark> clinic', Excerpt::make(['unrelated content', 'Cardiology clinic', 'PDF cardiology'], 'cardiology'));

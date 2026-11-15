@@ -15,91 +15,11 @@ namespace UAMS_Search\Tests {
     /** Pins for the schema installer, readiness check and writer lock (#5). A recording stand-in replaces `$wpdb`. */
     final class DBTest extends TestCase
     {
-        private object $db;
+        private SchemaDb $db;
 
         protected function setUp(): void
         {
-            $this->db = new class
-            {
-                public string $base_prefix = 'wp_';
-
-                public string $dbname = 'test';
-
-                public string $last_error = '';
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                public string $token_size = '3';
-
-                public ?string $old_stopword_table = null;
-
-                public string $table_name = 'wp_uams_search_index';
-
-                public string $lock = '1';
-
-                /** @var array<string, array<string, string>|null> */
-                public array $columns = [];
-
-                public bool|int $query_result = 1;
-
-                public function get_charset_collate(): string
-                {
-                    return 'DEFAULT CHARACTER SET utf8mb4';
-                }
-
-                public function esc_like(string $text): string
-                {
-                    return $text;
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function get_var(string $query): ?string
-                {
-                    $this->queries[] = $query;
-
-                    return match (true) {
-                        str_contains($query, 'innodb_ft_min_token_size') => $this->token_size,
-                        str_contains($query, '@@SESSION.innodb_ft_user_stopword_table') => $this->old_stopword_table,
-                        str_starts_with($query, 'SHOW TABLES') => $this->table_name,
-                        str_contains($query, 'GET_LOCK') => $this->lock,
-                        default => '0',
-                    };
-                }
-
-                /** @return array<mixed> */
-                public function get_row(string $query, mixed $output = null): ?array
-                {
-                    $this->queries[] = $query;
-                    preg_match('/FROM `([^`]+)`/', $query, $m);
-
-                    return $this->columns[$m[1]] ?? null;
-                }
-
-                public function query(string $query): bool|int
-                {
-                    $this->queries[] = $query;
-
-                    return $this->query_result;
-                }
-
-                /** @return list<string> */
-                public function matching(string $needle): array
-                {
-                    return array_values(array_filter($this->queries, static fn (string $q): bool => str_contains($q, $needle)));
-                }
-            };
+            $this->db = new SchemaDb;
             $GLOBALS['wpdb'] = $this->db;
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION];
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
@@ -287,33 +207,7 @@ namespace UAMS_Search\Tests {
             $this->db->old_stopword_table = 'test/previous';
             $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
             $db = $this->db;
-            $failing = new class($db)
-            {
-                public function __construct(private object $inner) {}
-
-                /** @param array<mixed> $args */
-                public function __call(string $name, array $args): mixed
-                {
-                    return $this->inner->$name(...$args);
-                }
-
-                public function __get(string $name): mixed
-                {
-                    return $this->inner->$name;
-                }
-
-                public function query(string $query): bool|int
-                {
-                    $this->inner->queries[] = $query;
-                    if (str_contains($query, 'CREATE TABLE IF NOT EXISTS `wp_uams_search_index`')) {
-                        $this->inner->last_error = 'disk full';
-
-                        return false;
-                    }
-
-                    return 1;
-                }
-            };
+            $failing = new FailingSchemaDb($db);
             $GLOBALS['wpdb'] = $failing;
 
             try {
@@ -439,6 +333,116 @@ namespace UAMS_Search\Tests {
 
             $this->expectExceptionObject(new RuntimeException('Missing short-token column'));
             DB::install();
+        }
+    }
+
+    final class FailingSchemaDb
+    {
+        public function __construct(private SchemaDb $inner) {}
+
+        /** @param array<mixed> $args */
+        public function __call(string $name, array $args): mixed
+        {
+            return $this->inner->$name(...$args);
+        }
+
+        public function __get(string $name): mixed
+        {
+            return $this->inner->$name;
+        }
+
+        public function query(string $query): bool|int
+        {
+            $this->inner->queries[] = $query;
+            if (str_contains($query, 'CREATE TABLE IF NOT EXISTS `wp_uams_search_index`')) {
+                $this->inner->last_error = 'disk full';
+
+                return false;
+            }
+
+            return 1;
+        }
+    }
+
+    final class SchemaDb
+    {
+        public string $base_prefix = 'wp_';
+
+        public string $dbname = 'test';
+
+        public string $last_error = '';
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        public string $token_size = '3';
+
+        public ?string $old_stopword_table = null;
+
+        public string $table_name = 'wp_uams_search_index';
+
+        public string $lock = '1';
+
+        /** @var array<string, array<string, string>|null> */
+        public array $columns = [];
+
+        public bool|int $query_result = 1;
+
+        public function get_charset_collate(): string
+        {
+            return 'DEFAULT CHARACTER SET utf8mb4';
+        }
+
+        public function esc_like(string $text): string
+        {
+            return $text;
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function get_var(string $query): ?string
+        {
+            $this->queries[] = $query;
+
+            return match (true) {
+                str_contains($query, 'innodb_ft_min_token_size') => $this->token_size,
+                str_contains($query, '@@SESSION.innodb_ft_user_stopword_table') => $this->old_stopword_table,
+                str_starts_with($query, 'SHOW TABLES') => $this->table_name,
+                str_contains($query, 'GET_LOCK') => $this->lock,
+                default => '0',
+            };
+        }
+
+        /** @return array<mixed> */
+        public function get_row(string $query): ?array
+        {
+            $this->queries[] = $query;
+            preg_match('/FROM `([^`]+)`/', $query, $m);
+
+            return $this->columns[$m[1] ?? ''] ?? null;
+        }
+
+        public function query(string $query): bool|int
+        {
+            $this->queries[] = $query;
+
+            return $this->query_result;
+        }
+
+        /** @return list<string> */
+        public function matching(string $needle): array
+        {
+            return array_values(array_filter($this->queries, static fn (string $q): bool => str_contains($q, $needle)));
         }
     }
 }

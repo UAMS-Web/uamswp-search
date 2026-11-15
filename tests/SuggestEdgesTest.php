@@ -54,95 +54,11 @@ namespace UAMS_Search\Tests {
      */
     final class SuggestEdgesTest extends TestCase
     {
-        private object $db;
+        private SuggestEdgesDb $db;
 
         protected function setUp(): void
         {
-            $this->db = new class
-            {
-                public string $base_prefix = 'wp_';
-
-                public string $last_error = '';
-
-                /** @var list<int> */
-                public array $totals = [];
-
-                /** @var list<array<string, mixed>> */
-                public array $candidates = [];
-
-                /** @var list<string> */
-                public array $candidate_queries = [];
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                /** @var list<string> */
-                public array $selects = [];
-
-                public function esc_like(string $s): string
-                {
-                    return addcslashes($s, '_%\\');
-                }
-
-                public function get_blog_prefix(int $site): string
-                {
-                    return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = \is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function query(string $query): int
-                {
-                    $this->queries[] = $query;
-
-                    return 1;
-                }
-
-                /** @param array<mixed> $where */
-                public function delete(string $table, array $where): int
-                {
-                    return 1;
-                }
-
-                /** @return array<mixed> */
-                public function get_col(string $query): array
-                {
-                    return [];
-                }
-
-                public function get_var(string $query): string|int
-                {
-                    if (str_starts_with($query, 'SHOW TABLES')) {
-                        return 'wp_uams_search_index';
-                    }
-
-                    return array_shift($this->totals) ?? 0;
-                }
-
-                /** @return array<mixed> */
-                public function get_results(string $query, mixed $output = null): array
-                {
-                    if (str_starts_with($query, 'SELECT word,frequency,phonetic')) {
-                        $this->candidate_queries[] = $query;
-
-                        return $this->candidates;
-                    }
-
-                    $this->selects[] = $query;
-
-                    return [];
-                }
-            };
+            $this->db = new SuggestEdgesDb;
             $GLOBALS['wpdb'] = $this->db;
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => ['enabled' => true]];
             $GLOBALS['uams_test_filters'] = [];
@@ -270,6 +186,91 @@ namespace UAMS_Search\Tests {
 
             self::assertSame('cardiology', Suggestions::suggest('cardiolgy', ['scope' => 'install', 'site' => 3]));
             self::assertStringContainsString('d.site_id IN (1)', $this->db->candidate_queries[0]);
+        }
+    }
+
+    final class SuggestEdgesDb
+    {
+        public string $base_prefix = 'wp_';
+
+        public string $last_error = '';
+
+        /** @var list<int> */
+        public array $totals = [];
+
+        /** @var list<array<string, mixed>> */
+        public array $candidates = [];
+
+        /** @var list<string> */
+        public array $candidate_queries = [];
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        /** @var list<string> */
+        public array $selects = [];
+
+        public function esc_like(string $s): string
+        {
+            return addcslashes($s, '_%\\');
+        }
+
+        public function get_blog_prefix(int $site): string
+        {
+            return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = \is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function query(string $query): int
+        {
+            $this->queries[] = $query;
+
+            return 1;
+        }
+
+        public function delete(): int
+        {
+            return 1;
+        }
+
+        /** @return array<mixed> */
+        public function get_col(): array
+        {
+            return [];
+        }
+
+        public function get_var(string $query): string|int
+        {
+            if (str_starts_with($query, 'SHOW TABLES')) {
+                return 'wp_uams_search_index';
+            }
+
+            return array_shift($this->totals) ?? 0;
+        }
+
+        /** @return array<mixed> */
+        public function get_results(string $query): array
+        {
+            if (str_starts_with($query, 'SELECT word,frequency,phonetic')) {
+                $this->candidate_queries[] = $query;
+
+                return $this->candidates;
+            }
+
+            $this->selects[] = $query;
+
+            return [];
         }
     }
 }

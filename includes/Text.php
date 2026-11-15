@@ -124,8 +124,9 @@ final class Text
         // Split the search into quoted phrases and single words
         preg_match_all('/"([^"]+)"|([^\s"]+)/u', mb_substr($text, 0, 200), $chunks, PREG_SET_ORDER);
         foreach ($chunks as $chunk) {
-            // Check whether the chunk is a quoted phrase
-            $phrase = $chunk[1] !== '';
+            // Check whether the chunk is a quoted phrase. The first group is always present, because a word chunk fills it with an empty string, so the default is unused.
+            // @pest-mutate-ignore:EmptyStringToNotEmpty
+            $phrase = ($chunk[1] ?? '') !== '';
             // A word chunk always has its second group and a phrase chunk never reaches it, so the default is unused; reading the phrase from the whole match (with its quotes) tokenizes the same.
             // @pest-mutate-ignore:DecrementInteger,EmptyStringToNotEmpty
             $raw = $phrase ? $chunk[1] : ($chunk[2] ?? '');

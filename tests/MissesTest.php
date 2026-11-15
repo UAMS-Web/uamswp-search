@@ -13,54 +13,11 @@ namespace UAMS_Search\Tests {
     /** Pins for the recorded no-result searches (#5). A recording stand-in replaces `$wpdb`. */
     final class MissesTest extends TestCase
     {
-        private object $db;
+        private MissesDb $db;
 
         protected function setUp(): void
         {
-            $this->db = new class
-            {
-                public string $base_prefix = 'wp_';
-
-                /** @var list<string> */
-                public array $queries = [];
-
-                public int $update_result = 0;
-
-                public int $day_count = 0;
-
-                public string $table_name = 'wp_uams_search_index';
-
-                public function esc_like(string $text): string
-                {
-                    return $text;
-                }
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    $args = is_array($args[0] ?? null) ? $args[0] : $args;
-                    $i = 0;
-
-                    return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                        $value = $args[$i++];
-
-                        return $m[0] === '%s' ? "'".$value."'" : (string) $value;
-                    }, $query);
-                }
-
-                public function get_var(string $query): string
-                {
-                    $this->queries[] = $query;
-
-                    return str_starts_with($query, 'SHOW TABLES') ? $this->table_name : (string) $this->day_count;
-                }
-
-                public function query(string $query): int
-                {
-                    $this->queries[] = $query;
-
-                    return str_starts_with($query, 'UPDATE') ? $this->update_result : 1;
-                }
-            };
+            $this->db = new MissesDb;
             $GLOBALS['wpdb'] = $this->db;
             $GLOBALS['uams_test_options'] = ['uams_search_version' => UAMS_SEARCH_SCHEMA_VERSION, 'uams_search_settings' => ['logging' => true]];
             $GLOBALS['uams_test_filters'] = [];
@@ -151,6 +108,51 @@ namespace UAMS_Search\Tests {
             Misses::purge();
 
             self::assertSame(['DELETE FROM `wp_uams_search_misses` WHERE day < UTC_DATE() - INTERVAL 90 DAY'], $this->db->queries);
+        }
+    }
+
+    final class MissesDb
+    {
+        public string $base_prefix = 'wp_';
+
+        /** @var list<string> */
+        public array $queries = [];
+
+        public int $update_result = 0;
+
+        public int $day_count = 0;
+
+        public string $table_name = 'wp_uams_search_index';
+
+        public function esc_like(string $text): string
+        {
+            return $text;
+        }
+
+        public function prepare(string $query, mixed ...$args): string
+        {
+            $args = is_array($args[0] ?? null) ? $args[0] : $args;
+            $i = 0;
+
+            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
+                $value = $args[$i++];
+
+                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+            }, $query);
+        }
+
+        public function get_var(string $query): string
+        {
+            $this->queries[] = $query;
+
+            return str_starts_with($query, 'SHOW TABLES') ? $this->table_name : (string) $this->day_count;
+        }
+
+        public function query(string $query): int
+        {
+            $this->queries[] = $query;
+
+            return str_starts_with($query, 'UPDATE') ? $this->update_result : 1;
         }
     }
 }

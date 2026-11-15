@@ -31,7 +31,7 @@ final class Excerpt
             // @pest-mutate-ignore:RemoveStringCast
             $plain = Text::plain((string) $source);
             // Split the text into words. A source with no text has no words and leaves the fallback empty, as if it were skipped.
-            $words = preg_split('/\s+/u', $plain, flags: PREG_SPLIT_NO_EMPTY);
+            $words = preg_split('/\s+/u', $plain, flags: PREG_SPLIT_NO_EMPTY) ?: [];
             $n = \count($words);
             // Mark which words match the search
             $hits = [];
