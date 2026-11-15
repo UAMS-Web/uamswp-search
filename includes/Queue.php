@@ -95,6 +95,8 @@ final class Queue
                 // Re-read current post state even for delete events, so delete/restore races are safe.
                 // @pest-mutate-ignore:RemoveIntegerCast
                 Related::queue_dependents((int) $entry['site_id'], (int) $entry['object_id']);
+                // @pest-mutate-ignore:RemoveIntegerCast
+                Linked::queue_post_dependents((int) $entry['site_id'], (int) $entry['object_id']);
                 // Index the post
                 // @pest-mutate-ignore:RemoveIntegerCast
                 $result = Indexer::one((int) $entry['site_id'], (int) $entry['object_id']);
@@ -151,16 +153,12 @@ final class Queue
     /**
      * Queue every post that uses a term, after the term changes.
      *
-     * @param  int  $term_id  Term ID. Unused; present for the hook signature.
+     * @param  int  $term_id  Term ID.
      * @param  int  $tt_id  Term taxonomy ID.
-     * @param  string  $taxonomy  Taxonomy. Unused; present for the hook signature.
      */
     public static function term(
         int $term_id,
-        int $tt_id = 0,
-        // The taxonomy is never read, so its default cannot show.
-        // @pest-mutate-ignore:EmptyStringToNotEmpty
-        string $taxonomy = ''
+        int $tt_id = 0
     ): void {
         global $wpdb;
         // Check that the change names a term taxonomy
@@ -176,5 +174,7 @@ final class Queue
         // Queue the term's posts
         $q = DB::table('queue');
         $wpdb->query($wpdb->prepare("INSERT INTO `$q` (site_id,object_id,action,queued_at,available_at) SELECT %d,object_id,'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM `$wpdb->term_relationships` WHERE term_taxonomy_id=%d ON DUPLICATE KEY UPDATE queued_at=UTC_TIMESTAMP(),available_at=UTC_TIMESTAMP(),attempts=0,revision=revision+1", get_current_blog_id(), $tt_id));
+        // Queue the pages that copied the term's name through a field
+        Linked::queue_term_dependents(get_current_blog_id(), $term_id);
     }
 }

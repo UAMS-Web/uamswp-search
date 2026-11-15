@@ -8,6 +8,8 @@ namespace {
         {
             public mixed $slug = '';
 
+            public string $name = '';
+
             public function __construct(public int $term_id = 0) {}
         }
     }

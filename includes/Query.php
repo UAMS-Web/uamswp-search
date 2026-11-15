@@ -271,7 +271,7 @@ final class Query
             // Site IDs are integers already, so the cast is defensive only.
             // @pest-mutate-ignore:RemoveIntegerCast
             $clause = '(i.site_id='.(int) $site." AND EXISTS (SELECT 1 FROM `$p` p WHERE p.ID=i.object_id AND p.post_password='' AND BINARY p.post_type=BINARY i.post_type AND $visibility) AND NOT EXISTS (SELECT 1 FROM `$m` m WHERE m.post_id=i.object_id AND ((m.meta_key='_uams_search_exclude' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_hidden' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_searchable' AND m.meta_value='0') OR (i.post_type='location' AND m.meta_key='location_hidden' AND m.meta_value NOT IN ('','0')))))";
-            $clauses[] = '('.$clause.' AND '.Related::public_sql($p, $m).')';
+            $clauses[] = '('.$clause.' AND '.Related::public_sql($p, $m).' AND '.Linked::public_sql($p, $m, $wpdb->get_blog_prefix($site).'terms').')';
         }
 
         return implode(' OR ', $clauses);

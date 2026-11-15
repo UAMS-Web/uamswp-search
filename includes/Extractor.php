@@ -83,21 +83,23 @@ final class Extractor
         // Read the configured custom fields
         $fields = [];
         $terms = [];
+        $links = [];
         $field_list = Filters::array('uams_search_fields', Config::entry('fields', $post->post_type), $post->post_type);
         foreach ($field_list as $name => $weight) {
             $value = \function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             // Index the labels, titles and names ACF stores as keys and IDs, then let a site change the value last
             $key = get_post_meta($post->ID, '_'.$name, true);
-            // `FieldText` reads a key only when it starts with `field_`, so any other text in place of an empty key reads the same.
-            // @pest-mutate-ignore:EmptyStringToNotEmpty
-            $value = FieldText::readable($value, \is_string($key) ? $key : '', $name);
+            $key = \is_string($key) ? $key : '';
+            // Copy the titles of linked posts and the names of linked terms, with the IDs that keep them current
+            $links = array_merge($links, Linked::items(FieldText::type($key, $name), $value, max(0, (float) $weight)));
+            $value = FieldText::readable($value, $key, $name);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
             self::log_skips($value, $post->ID, $name);
             $fields[$name] = ['text' => Text::flatten($value), 'weight' => max(0, (float) $weight), 'source' => 'fields'];
         }
 
         // Add the related providers, and the fields saved inside blocks
-        $fields = array_merge($fields, Related::fields($post));
+        $fields = array_merge($fields, Related::fields($post), $links);
         $blocks = parse_blocks($post->post_content);
         self::blocks($blocks, $field_list, $fields);
         // Read the names of the configured taxonomy terms

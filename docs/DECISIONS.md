@@ -105,3 +105,13 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 **Rejected.** Keep committing to `dist/`: the committed archive drifts from the tag and the history grows by a binary per release. Rely on the bare GitHub download: it offers installers no separate ZIP asset and gives up the checksum.
 
 **Companion.** [#24](https://github.com/UAMS-Web/uamswp-search/issues/24); the build is [#111](https://github.com/UAMS-Web/uamswp-search/issues/111).
+
+## 2026-11-15 Copy linked post titles and term names with dependency markers and a state check on requeue (#162)
+
+**Decision.** A top-level relationship, post object, taxonomy or ACFE taxonomy terms field copies the title of each searchable linked post (never an attachment) and the name of each linked term as its own weighted entry that records the linked ID beside the text, as `Related` does for providers. The queue requeues a page that holds an ID only when its copy no longer matches the live post or term: the exact `linked_post_id` and title (or `linked_term_id` and name) fragment, compared with a binary `LIKE`, decides. The query hides a page whose copied title or name no longer matches a live published, unprotected, non-excluded post or an existing term. `FieldText::VERSION` is 2.
+
+**Why.** The state check is what keeps two pages that link to each other from requeueing each other without end; `Related` avoids the loop only because providers do not link back. It also means a save that leaves a title unchanged queues no dependent page. A term referenced only through field meta is reached through its ID marker, not through `term_relationships`.
+
+**Rejected.** Requeueing every page that holds the ID on every change: a cycle of two linking pages never settles. Copying the titles of attachments: the query rechecks no attachment visibility for a copied title, so a hidden attachment would hide the page for good. Following the same fields inside blocks and repeaters: out of the ticket's scope, so those still add nothing.
+
+**Companion.** [#162](https://github.com/UAMS-Web/uamswp-search/issues/162); [#159](https://github.com/UAMS-Web/uamswp-search/issues/159).

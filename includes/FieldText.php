@@ -10,7 +10,7 @@ final class FieldText
     /** Bump when the text this class produces changes, so the settings fingerprint asks for a rebuild. */
     // The line holds no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins the value.
     // @pest-mutate-ignore:IncrementInteger,DecrementInteger
-    public const VERSION = 1;
+    public const VERSION = 2;
 
     /** Types whose stored value is a choice key. */
     // The array items hold no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins every type.
@@ -19,9 +19,9 @@ final class FieldText
 
     /**
      * Types whose stored value has no searchable text: IDs of media, posts and
-     * terms, flags, link and map arrays. Post titles and term names are not
-     * copied in, because nothing reindexes a page when the linked post or term
-     * changes, so an unpublished or renamed title would stay searchable.
+     * terms, flags, link and map arrays. The titles of linked posts and the
+     * names of linked terms are added by `Linked`, with the IDs that keep the
+     * copy current; inside a block or a container the IDs stay unread.
      */
     // The array items hold no statement a coverage driver records, so the mutants read as uncovered; `FieldTextTest` pins every type.
     // @pest-mutate-ignore:RemoveArrayItem
@@ -93,6 +93,20 @@ final class FieldText
         }
 
         return $value;
+    }
+
+    /**
+     * The ACF type of a field.
+     *
+     * @param  string  $key  The saved field key, or an empty string.
+     * @param  string  $name  The field name.
+     * @return string|null The type, or null when ACF is absent or does not know the field.
+     */
+    public static function type(
+        string $key,
+        string $name
+    ): ?string {
+        return self::definition($key, $name)['type'] ?? null;
     }
 
     /**

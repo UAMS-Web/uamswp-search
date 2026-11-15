@@ -170,7 +170,7 @@ final class PluginWiringTest extends IntegrationTestCase
         $expected = [
             'save_post' => [[100, 1]], 'acf/save_post' => [[30, 1]],
             'added_post_meta' => [[10, 3]], 'updated_post_meta' => [[10, 3]], 'deleted_post_meta' => [[10, 3]],
-            'edited_term' => [[10, 3]], 'delete_term' => [[10, 5]],
+            'edited_term' => [[10, 2]], 'delete_term' => [[10, 5]],
         ];
         foreach ($expected as $hook => $wanted) {
             $mine = [];

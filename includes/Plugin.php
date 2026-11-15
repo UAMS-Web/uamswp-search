@@ -132,11 +132,14 @@ final class Plugin
             Queue::push((int) $id);
         });
         // Queue the posts that use a term when it is renamed or deleted
-        add_action('edited_term', [Queue::class, 'term'], 10, 3);
+        add_action('edited_term', [Queue::class, 'term'], 10, 2);
         add_action('delete_term', static function (mixed $id, mixed $tt, mixed $tax, mixed $term, mixed $objects): void {
             foreach ((array) $objects as $object) {
                 Queue::push((int) $object);
             }
+
+            // Queue the pages that copied the term's name through a field
+            Linked::queue_term_dependents(get_current_blog_id(), (int) $id);
         }, 10, 5);
         // Connect the search integration and the settings screens
         Integration::hooks();

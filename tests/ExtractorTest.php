@@ -104,6 +104,16 @@ namespace {
         }
     }
 
+    // The same term stand-in `LinkedTest` declares; whichever file loads first defines it.
+    if (! class_exists('WP_Term')) {
+        #[AllowDynamicProperties] class WP_Term
+        {
+            public int $term_id = 0;
+
+            public string $name = '';
+        }
+    }
+
     if (! function_exists('get_permalink')) {
         function get_permalink(mixed $post): mixed
         {
@@ -137,12 +147,14 @@ namespace {
 namespace UAMS_Search\Tests {
     use ArrayObject;
     use PHPUnit\Framework\TestCase;
+    use ReflectionClass;
     use RuntimeException;
     use stdClass;
     use UAMS_Search\Extractor;
     use UAMS_Search\Related;
     use WP_Error;
     use WP_Post;
+    use WP_Term;
 
     /**
      * Pins for what the indexer reads from a post (#5). WordPress functions are stood in; a PDF is read from the cache of an unchanged file, so the worker itself is covered by `PdfTest`.
@@ -491,6 +503,55 @@ namespace UAMS_Search\Tests {
             $weighted = json_decode($row['weighted_data'], true);
             self::assertContains(77, array_column($weighted, 'provider_id'));
             self::assertStringContainsString('Barnes', $row['fields']);
+        }
+
+        public function test_extract_copies_linked_post_titles_and_term_names_with_their_ids(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['related_posts' => 2, 'topics' => 3, 'plain' => 1]]];
+            $GLOBALS['uams_test_meta'][42] = ['related_posts' => ['12', '13', '14'], '_related_posts' => 'field_rel', 'topics' => '7', '_topics' => 'field_tax', 'plain' => 'Knees', '_plain' => 'field_plain'];
+            $GLOBALS['uams_test_acf_fields'] = ['field_rel' => ['type' => 'relationship'], 'field_tax' => ['type' => 'taxonomy'], 'field_plain' => ['type' => 'text']];
+            $GLOBALS['uams_test_posts'] = [
+                12 => $this->post(['ID' => 12, 'post_title' => 'Heart <b>Program</b>']),
+                13 => $this->post(['ID' => 13, 'post_title' => 'Private Clinic', 'post_status' => 'private']),
+                14 => null,
+            ];
+            $term = (new ReflectionClass(WP_Term::class))->newInstanceWithoutConstructor();
+            $term->term_id = 7;
+            $term->name = 'Cardiology';
+            $GLOBALS['uams_test_term_objects'] = [7 => $term];
+
+            try {
+                $row = Extractor::extract($this->post());
+            } finally {
+                unset($GLOBALS['uams_test_term_objects']);
+            }
+
+            $linked = array_values(array_filter(json_decode($row['weighted_data'], true), static fn (array $item): bool => isset($item['linked_post_id']) || isset($item['linked_term_id'])));
+            self::assertSame([
+                ['linked_post_id' => 12, 'linked_post_title' => 'Heart <b>Program</b>', 'weight' => 2, 'source' => 'fields', 'stem' => $linked[0]['stem']],
+                ['linked_post_id' => 13, 'weight' => 2, 'source' => 'fields', 'stem' => ''],
+                ['linked_post_id' => 14, 'weight' => 2, 'source' => 'fields', 'stem' => ''],
+                ['linked_term_id' => 7, 'linked_term_name' => 'Cardiology', 'weight' => 3, 'source' => 'fields', 'stem' => $linked[3]['stem']],
+            ], $linked);
+            self::assertNotSame('', $linked[0]['stem']);
+            self::assertNotSame('', $linked[3]['stem']);
+            self::assertStringContainsString('Heart Program', $row['fields']);
+            self::assertStringContainsString('Cardiology', $row['fields']);
+            self::assertStringContainsString('Knees', $row['fields']);
+            self::assertStringNotContainsString('Private Clinic', $row['fields']);
+            self::assertStringNotContainsString('12', $row['fields']);
+        }
+
+        public function test_a_link_field_that_acf_does_not_define_keeps_its_stored_ids_and_adds_no_entries(): void
+        {
+            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['related_posts' => 2]]];
+            $GLOBALS['uams_test_meta'][42] = ['related_posts' => ['12'], '_related_posts' => 'field_gone'];
+            $GLOBALS['uams_test_posts'] = [12 => $this->post(['ID' => 12, 'post_title' => 'Heart Program'])];
+
+            $row = Extractor::extract($this->post());
+
+            self::assertSame([], array_values(array_filter(json_decode($row['weighted_data'], true), static fn (array $item): bool => isset($item['linked_post_id']))));
+            self::assertStringNotContainsString('Heart Program', $row['fields']);
         }
 
         public function test_extract_takes_allowed_field_values_from_block_attributes(): void
