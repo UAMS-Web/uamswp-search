@@ -93,6 +93,8 @@ final class Extractor
             // @pest-mutate-ignore:EmptyStringToNotEmpty
             $key = \is_string($key) ? $key : '';
             // Copy the titles of linked posts and the names of linked terms, with the IDs that keep them current
+            // `Linked::items()` declares a float, so PHP converts a numeric weight the same way the cast does.
+            // @pest-mutate-ignore:RemoveDoubleCast
             $links = array_merge($links, Linked::items(FieldText::type($key, $name), $value, max(0, (float) $weight)));
             $value = FieldText::readable($value, $key, $name);
             $value = apply_filters('uams_search_field_value', $value, $name, $post);
