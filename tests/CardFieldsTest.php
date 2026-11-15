@@ -6,6 +6,8 @@ namespace {
     if (! class_exists('WP_Term')) {
         class WP_Term
         {
+            public $slug = '';
+
             public function __construct(public int $term_id = 0) {}
         }
     }

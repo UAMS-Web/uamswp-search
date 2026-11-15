@@ -58,6 +58,16 @@ function wp_json_encode($value, $flags = 0)
 if (! class_exists('WP_Post')) {
     #[AllowDynamicProperties] class WP_Post
     {
+        public $post_mime_type = '';
+
+        public $post_parent = 0;
+
+        public $post_content = '';
+
+        public $post_date_gmt = '0000-00-00 00:00:00';
+
+        public $post_modified_gmt = '0000-00-00 00:00:00';
+
         public int $ID = 42;
 
         public string $post_type = 'page';
