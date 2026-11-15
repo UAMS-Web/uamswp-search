@@ -542,6 +542,19 @@ namespace UAMS_Search\Tests {
             self::assertStringNotContainsString('12', $row['fields']);
         }
 
+        public function test_a_link_field_weight_is_read_as_a_number_and_never_goes_below_zero(): void
+        {
+            $GLOBALS['uams_test_filters']['uams_search_fields'][] = static fn (): array => ['related_posts' => '2.5', 'more_posts' => -3];
+            $GLOBALS['uams_test_meta'][42] = ['related_posts' => ['12'], '_related_posts' => 'field_rel', 'more_posts' => ['12'], '_more_posts' => 'field_rel'];
+            $GLOBALS['uams_test_acf_fields'] = ['field_rel' => ['type' => 'relationship']];
+            $GLOBALS['uams_test_posts'] = [12 => $this->post(['ID' => 12, 'post_title' => 'Heart Program'])];
+
+            $row = Extractor::extract($this->post());
+
+            $linked = array_values(array_filter(json_decode($row['weighted_data'], true), static fn (array $item): bool => isset($item['linked_post_id'])));
+            self::assertSame([2.5, 0], array_column($linked, 'weight'));
+        }
+
         public function test_a_link_field_that_acf_does_not_define_keeps_its_stored_ids_and_adds_no_entries(): void
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['related_posts' => 2]]];

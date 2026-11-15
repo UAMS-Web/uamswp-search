@@ -89,6 +89,8 @@ final class Extractor
             $value = \function_exists('get_field') ? get_field($name, $post->ID, false) : get_post_meta($post->ID, $name, true);
             // Index the labels, titles and names ACF stores as keys and IDs, then let a site change the value last
             $key = get_post_meta($post->ID, '_'.$name, true);
+            // `FieldText` reads a key only when it starts with `field_`, so any other text in place of an empty key reads the same.
+            // @pest-mutate-ignore:EmptyStringToNotEmpty
             $key = \is_string($key) ? $key : '';
             // Copy the titles of linked posts and the names of linked terms, with the IDs that keep them current
             $links = array_merge($links, Linked::items(FieldText::type($key, $name), $value, max(0, (float) $weight)));
