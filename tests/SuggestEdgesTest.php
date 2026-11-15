@@ -25,7 +25,7 @@ namespace {
     }
 
     if (! function_exists('get_blog_option')) {
-        function get_blog_option($id, $option, $default = false)
+        function get_blog_option($_id, $option, $default = false)
         {
             return $option === 'blogname' ? 'UAMS Health' : $default;
         }
@@ -33,7 +33,7 @@ namespace {
 
     // The same stand-in `ConfigTest` declares, guarded so whichever file loads first supplies it: one public site.
     if (! function_exists('get_sites')) {
-        function get_sites($args)
+        function get_sites($_args)
         {
             return [1];
         }

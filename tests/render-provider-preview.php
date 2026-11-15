@@ -41,19 +41,19 @@ function get_post($id)
     return new WP_Post((int) $id);
 }
 
-function get_post_meta($id, $key, $single = true)
+function get_post_meta($id, $key, $_single = true)
 {
     $fields = [101 => ['physician_first_name' => 'C.', 'physician_middle_name' => 'Lowry', 'physician_last_name' => 'Barnes', 'physician_degree' => [501], 'physician_title' => 502], 102 => ['physician_first_name' => 'Alex', 'physician_last_name' => 'Resident', 'physician_resident' => 1]];
 
     return $GLOBALS['uams_preview_fields'][$id][$key] ?? $fields[$id][$key] ?? '';
 }
 
-function get_term_meta($id, $key, $single = true)
+function get_term_meta($id, $key, $_single = true)
 {
     return $id === 502 && $key === 'clinical_specialization_title' ? 'Adult Reconstructive Orthopaedic Surgeon' : '';
 }
 
-function get_term($id, $taxonomy = ''): ?WP_Term
+function get_term($id, $_taxonomy = ''): ?WP_Term
 {
     return $id === 501 ? new WP_Term(501, 'M.D.') : ($id === 502 ? new WP_Term(502, 'Orthopaedic Surgeon') : null);
 }
@@ -63,7 +63,7 @@ function is_post_status_viewable($status): bool
     return $status === 'publish';
 }
 
-function is_post_type_viewable($type)
+function is_post_type_viewable($_type)
 {
     return true;
 }
@@ -73,7 +73,7 @@ function get_post_thumbnail_id($id)
     return $GLOBALS['uams_preview_thumbnails'][$id] ?? ($id === 101 ? 801 : 0);
 }
 
-function wp_get_attachment_image($id, $size, $icon, $attrs)
+function wp_get_attachment_image($_id, $_size, $_icon, $attrs)
 {
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="253" height="337"><rect width="253" height="337" fill="#dedbd8"/></svg>';
 

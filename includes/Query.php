@@ -84,9 +84,7 @@ final class Query
         $fallback = false;
         $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
         $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
-        if ($wpdb->last_error) {
-            throw new RuntimeException($wpdb->last_error);
-        }
+        self::fail_on_error();
 
         // Fall back to results that match any word
         if ((int) $total === 0) {
@@ -94,9 +92,7 @@ final class Query
             $fallback = true;
             $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
             $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
-            if ($wpdb->last_error) {
-                throw new RuntimeException($wpdb->last_error);
-            }
+            self::fail_on_error();
         }
 
         // Build the weighted relevance score from the column matches
@@ -135,9 +131,7 @@ final class Query
         $columns = ! empty($args['explain']) ? ','.implode(',', $explain) : '';
         $sql = $wpdb->prepare("SELECT i.*, $score AS relevance $columns FROM `$t` i WHERE $where AND $condition ORDER BY relevance DESC,i.modified_at DESC,i.site_id ASC,i.object_id ASC LIMIT %d OFFSET %d", $limit, ($page - 1) * $limit);
         $rows = $wpdb->get_results($sql, ARRAY_A);
-        if ($wpdb->last_error) {
-            throw new RuntimeException($wpdb->last_error);
-        }
+        self::fail_on_error();
 
         // Turn each row into a result
         $results = [];
@@ -168,6 +162,22 @@ final class Query
         }
 
         return $out;
+    }
+
+    /**
+     * Stop when the last database call reported an error.
+     *
+     * The check is read afresh on each call, so a clean read earlier in a query does not make a later one look clean.
+     *
+     * @throws RuntimeException When the database reports an error.
+     */
+    private static function fail_on_error(): void
+    {
+        global $wpdb;
+        // Fail with the database's own message
+        if ($wpdb->last_error) {
+            throw new RuntimeException($wpdb->last_error);
+        }
     }
 
     /**

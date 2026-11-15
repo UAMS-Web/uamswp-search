@@ -3,7 +3,7 @@
 use UAMS_Search\Admin;
 
 require __DIR__.'/bootstrap.php';
-function checked($a, $b, $echo = true)
+function checked($a, $b, $_echo = true)
 {
     return $a == $b ? 'checked="checked"' : '';
 }

@@ -21,14 +21,14 @@ namespace {
     }
 
     if (! function_exists('get_post_meta')) {
-        function get_post_meta($id, $key, $single = true)
+        function get_post_meta($id, $key, $_single = true)
         {
             return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
         }
     }
 
     if (! function_exists('get_term_meta')) {
-        function get_term_meta($id, $key, $single = true)
+        function get_term_meta($id, $key, $_single = true)
         {
             return $GLOBALS['uams_test_term_meta'][$id][$key] ?? '';
         }

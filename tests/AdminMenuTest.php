@@ -25,7 +25,7 @@ namespace {
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): never
+        function wp_safe_redirect($url): bool
         {
             $GLOBALS['uams_test_redirect'] = $url;
 
@@ -41,7 +41,7 @@ namespace {
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$args): bool
+        function current_user_can($capability, ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }

@@ -25,7 +25,7 @@ namespace {
     }
 
     if (! function_exists('get_blog_option')) {
-        function get_blog_option($id, $option, $default = false)
+        function get_blog_option($_id, $option, $default = false)
         {
             return $option === 'blogname' ? 'UAMS Health' : $default;
         }
@@ -67,7 +67,7 @@ namespace {
     }
 
     if (! function_exists('get_search_query')) {
-        function get_search_query($escaped = true)
+        function get_search_query($_escaped = true)
         {
             return 'heart';
         }
@@ -81,7 +81,7 @@ namespace {
     }
 
     if (! function_exists('get_post_type_object')) {
-        function get_post_type_object($type)
+        function get_post_type_object($_type)
         {
             return null;
         }
@@ -95,28 +95,28 @@ namespace {
     }
 
     if (! function_exists('_n')) {
-        function _n($single, $plural, $number, $domain = 'default')
+        function _n($single, $plural, $number, $_domain = 'default')
         {
             return $number === 1 ? $single : $plural;
         }
     }
 
     if (! function_exists('get_query_var')) {
-        function get_query_var($name, $default = '')
+        function get_query_var($_name, $default = '')
         {
             return $default;
         }
     }
 
     if (! function_exists('wp_kses')) {
-        function wp_kses($html, $allowed = [])
+        function wp_kses($html, $_allowed = [])
         {
             return $html;
         }
     }
 
     if (! function_exists('wp_nonce_field')) {
-        function wp_nonce_field($action = -1, $name = '_wpnonce', $referer = true, $display = true)
+        function wp_nonce_field($action = -1, $name = '_wpnonce', $_referer = true, $display = true)
         {
             $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
             if ($display) {
@@ -128,7 +128,7 @@ namespace {
     }
 
     if (! function_exists('submit_button')) {
-        function submit_button($text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null): void
+        function submit_button($text = null, $_type = 'primary', $_name = 'submit', $_wrap = true, $_other_attributes = null): void
         {
             echo '<input type="submit" value="'.htmlspecialchars((string) $text).'">';
         }
@@ -155,7 +155,7 @@ namespace {
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$args): bool
+        function current_user_can($capability, ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
@@ -164,6 +164,8 @@ namespace {
     if (! function_exists('check_admin_referer')) {
         function check_admin_referer($action = -1, $query_arg = '_wpnonce')
         {
+            $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
+
             return true;
         }
     }
@@ -192,7 +194,7 @@ namespace {
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): never
+        function wp_safe_redirect($_url): bool
         {
             throw new RuntimeException('redirect');
         }
@@ -204,6 +206,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionMethod;
     use RuntimeException;
+    use Throwable;
     use UAMS_Search\Admin;
     use UAMS_Search\Config;
     use UAMS_Search\Integration;
@@ -425,12 +428,13 @@ namespace UAMS_Search\Tests {
 
             foreach ([[0, '0 results'], [1, '1 result'], [2, '2 results'], [1234, '1,234 results']] as [$total, $expected]) {
                 $GLOBALS['wp_query']->out = ['results' => [], 'total' => $total, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
-                $html = '';
                 ob_start();
                 try {
                     Integration::render();
-                } finally {
                     $html = (string) ob_get_clean();
+                } catch (Throwable $throwable) {
+                    ob_end_clean();
+                    throw $throwable;
                 }
 
                 self::assertStringContainsString('<h2>'.$expected.'</h2>', $html, 'A total of '.$total);

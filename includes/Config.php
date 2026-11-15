@@ -354,7 +354,7 @@ final class Config
 
         // The same holds for the saved default.
         // @pest-mutate-ignore:TrueToFalse
-        return \is_string($default) && \in_array($default, $options, true) ? $default : $options[0];
+        return \in_array($default, $options, true) ? $default : $options[0];
     }
 
     /**

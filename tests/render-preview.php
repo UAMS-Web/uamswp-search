@@ -61,7 +61,7 @@ function esc_attr($s)
     return esc_html($s);
 }
 
-function esc_url($s, $protocols = null)
+function esc_url($s, $_protocols = null)
 {
     return esc_html($s);
 }
@@ -71,12 +71,12 @@ function home_url($suffix = '')
     return 'https://uams-search.test'.$suffix;
 }
 
-function get_search_query($escaped = true)
+function get_search_query($_escaped = true)
 {
     return 'heart';
 }
 
-function get_query_var($key, $default = '')
+function get_query_var($_key, $default = '')
 {
     return $default;
 }
@@ -86,12 +86,12 @@ function number_format_i18n($n)
     return number_format($n);
 }
 
-function _n($single, $plural, $number, $domain = 'default')
+function _n($single, $plural, $number, $_domain = 'default')
 {
     return $number === 1 ? $single : $plural;
 }
 
-function wp_kses($s, $allow)
+function wp_kses($s, $_allow)
 {
     return strip_tags($s, '<mark>');
 }
@@ -116,7 +116,7 @@ function size_format($size)
     return number_format($size / 1024).' KB';
 }
 
-function paginate_links($args)
+function paginate_links($_args)
 {
     return '';
 }
