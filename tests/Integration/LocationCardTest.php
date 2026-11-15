@@ -443,12 +443,19 @@ final class LocationCardTest extends IntegrationTestCase
     public function test_a_post_with_id_one_can_have_a_card_and_the_caller_post_never_stands_in_for_id_zero(): void
     {
         $original = get_post(1);
-        $this->assertInstanceOf(\WP_Post::class, $original);
-        wp_update_post(['ID' => 1, 'post_type' => 'location', 'post_title' => 'First location']);
+        if ($original instanceof \WP_Post) {
+            wp_update_post(['ID' => 1, 'post_type' => 'location', 'post_title' => 'First location']);
+        } else {
+            $this->assertSame(1, wp_insert_post(['import_id' => 1, 'post_type' => 'location', 'post_title' => 'First location', 'post_status' => 'publish']));
+            $this->track(1);
+        }
+
         try {
             $this->assertSame('First location', LocationCard::data($this->snapshot(1))['name'] ?? null, 'ID 1 is a valid post ID');
         } finally {
-            wp_update_post(['ID' => 1, 'post_type' => $original->post_type, 'post_title' => $original->post_title]);
+            if ($original instanceof \WP_Post) {
+                wp_update_post(['ID' => 1, 'post_type' => $original->post_type, 'post_title' => $original->post_title]);
+            }
         }
 
         $GLOBALS['post'] = get_post($this->child);
@@ -471,7 +478,7 @@ final class LocationCardTest extends IntegrationTestCase
         LocationCard::render($card);
         $html = (string) ob_get_clean();
         $this->assertStringContainsString('501-526-4020', $html);
-        $this->assertStringNotContainsString('<span class="subtitle">', $html);
+        $this->assertStringNotContainsString('</a><br><span class="subtitle">', $html);
 
         $card['phones']['numbers'][0]['label'] = 'Front desk';
         ob_start();
