@@ -353,7 +353,7 @@ final class LocationCardTest extends IntegrationTestCase
     public function test_the_floor_is_named_from_the_field_choices_when_acf_is_active(): void
     {
         if (! function_exists('get_field_object')) {
-            eval('function get_field_object($selector, $post_id = false, $format = true) { return $GLOBALS["uams_floor_object"] ?? false; }');
+            eval('function get_field_object($selector, $post_id = false, $format = true) { $GLOBALS["uams_floor_format"] = $format; return $GLOBALS["uams_floor_object"] ?? false; }');
         }
 
         $child = $this->child;
@@ -362,6 +362,7 @@ final class LocationCardTest extends IntegrationTestCase
 
         $GLOBALS['uams_floor_object'] = ['choices' => ['2' => 'Second Floor']];
         $this->assertSame('Second Floor', LocationCard::data($this->snapshot($child))['address'][1]);
+        $this->assertFalse($GLOBALS['uams_floor_format'], 'The raw stored value is read, not the formatted one');
         $GLOBALS['uams_floor_object'] = ['choices' => ['9' => 'Ninth Floor']];
         $this->assertSame('Child city', LocationCard::data($this->snapshot($child))['address'][1], 'A value with no choice names no floor');
         $GLOBALS['uams_floor_object'] = ['choices' => 'none'];
@@ -383,6 +384,107 @@ final class LocationCardTest extends IntegrationTestCase
         $image = LocationCard::data($this->snapshot($bare))['image'];
         $this->assertStringContainsString('src="'.esc_url(rtrim(UAMS_FAD_ROOT_URL, '/').'/assets/svg/no-image_16-9.svg').'"', $image);
         $this->assertStringContainsString('alt="" loading="lazy" width="512" height="288"', $image);
+    }
+
+    public function test_a_closure_that_starts_today_is_in_effect_and_a_later_one_names_its_kind(): void
+    {
+        $today = current_datetime()->setTime(0, 0);
+        $this->set($this->child, ['location_closing' => '1', 'location_closing_length' => 'permanent', 'location_closing_date' => $today->format('Ymd')]);
+        $this->assertSame('This location is permanently closed.', LocationCard::data($this->snapshot($this->child))['notice']['text'], 'A closure that starts today is already in effect');
+
+        $future = $today->modify('+2 days');
+        $this->assertSame('This location will be closing permanently on '.$future->format('F j, Y').'.', $this->closure('permanent', $future->format('Ymd')), 'A later permanent closure names its date');
+        $this->assertSame('This location will be closing temporarily beginning '.$future->format('F j, Y').'.', $this->closure('temporary', $future->format('Ymd'), $today->modify('+9 days')->format('Ymd')), 'A later temporary closure names its start');
+    }
+
+    public function test_modified_hours_count_from_thirty_days_out_and_through_their_last_day(): void
+    {
+        $today = current_datetime()->setTime(0, 0);
+        $hours = static fn (string $start, string $end): array => ['location_modified_hours' => '1', 'location_modified_hours_start_date' => $start, 'location_modified_hours_end' => '1', 'location_modified_hours_end_date' => $end];
+
+        $edge = $today->modify('+30 days')->format('F j, Y');
+        update_post_meta($this->child, 'location_hours_group', $hours($today->modify('+30 days')->format('Ymd'), $today->modify('+40 days')->format('Ymd')));
+        $this->assertSame("This location's hours will be temporarily modified beginning on ".$edge.'.', LocationCard::data($this->snapshot($this->child))['notice']['text'], 'Hours that start in exactly thirty days are announced');
+
+        update_post_meta($this->child, 'location_hours_group', $hours($today->modify('-5 days')->format('Ymd'), $today->format('Ymd')));
+        $this->assertSame("This location's hours have been temporarily modified.", LocationCard::data($this->snapshot($this->child))['notice']['text'], 'Hours that end today are still in effect');
+    }
+
+    public function test_a_ten_digit_number_that_starts_with_one_is_formatted_and_a_single_number_has_a_singular_heading(): void
+    {
+        update_post_meta($this->child, 'location_phone', '1234567890');
+        $phones = LocationCard::data($this->snapshot($this->child))['phones'];
+        $this->assertSame('123-456-7890', $phones['numbers'][0]['text']);
+        $this->assertSame('Appointment Phone Number', $phones['heading'], 'One number reads in the singular');
+    }
+
+    public function test_every_map_shape_and_coordinate_edge_is_judged_on_its_own(): void
+    {
+        $directions = function (mixed $map): string {
+            update_post_meta($this->parent, 'location_map', $map);
+
+            return LocationCard::data($this->snapshot($this->child))['directions'];
+        };
+        $prefix = 'https://www.google.com/maps/dir/Current+Location/';
+
+        foreach (['text', ['lat' => 34.7], ['lng' => -92.3], ['lat' => 'north', 'lng' => -92.3], ['lat' => 34.7, 'lng' => 'west'], ['lat' => '1e999', 'lng' => 0], ['lat' => 0, 'lng' => '1e999']] as $bad) {
+            $this->assertSame('', $directions($bad), 'No link for '.wp_json_encode($bad));
+        }
+
+        foreach ([[90, 0], [-90, 0], [0, 180], [0, -180], ['34.74', '-92.32']] as [$lat, $lng]) {
+            $this->assertSame($prefix.rawurlencode($lat.','.$lng), $directions(['lat' => $lat, 'lng' => $lng]), "A link at $lat,$lng");
+        }
+
+        foreach ([[90.5, 0], [91, 0], [-90.5, 0], [-91, 0], [0, 180.5], [0, 181], [0, -180.5], [0, -181]] as [$lat, $lng]) {
+            $this->assertSame('', $directions(['lat' => $lat, 'lng' => $lng]), "No link at $lat,$lng");
+        }
+    }
+
+    public function test_a_post_with_id_one_can_have_a_card_and_the_caller_post_never_stands_in_for_id_zero(): void
+    {
+        $original = get_post(1);
+        $this->assertInstanceOf(\WP_Post::class, $original);
+        wp_update_post(['ID' => 1, 'post_type' => 'location', 'post_title' => 'First location']);
+        try {
+            $this->assertSame('First location', LocationCard::data($this->snapshot(1))['name'] ?? null, 'ID 1 is a valid post ID');
+        } finally {
+            wp_update_post(['ID' => 1, 'post_type' => $original->post_type, 'post_title' => $original->post_title]);
+        }
+
+        $GLOBALS['post'] = get_post($this->child);
+        $this->assertNull(LocationCard::data($this->snapshot(0)), 'The caller post is not used for ID 0');
+    }
+
+    public function test_a_thumbnail_that_is_not_an_image_does_not_become_a_file_type_icon(): void
+    {
+        $document = $this->track(wp_insert_attachment(['post_title' => 'Brochure '.$this->token, 'post_status' => 'inherit', 'post_mime_type' => 'application/pdf'], '', $this->child));
+        update_post_meta($this->child, '_thumbnail_id', $document);
+        update_post_meta($this->child, 'location_parent', '0');
+        $this->assertStringNotContainsString('images/media/', LocationCard::data($this->snapshot($this->child))['image']);
+    }
+
+    public function test_a_phone_without_a_label_prints_no_label_line(): void
+    {
+        $card = LocationCard::data($this->snapshot($this->child));
+        $card['phones'] = ['heading' => 'General Information', 'numbers' => [['text' => '501-526-4020', 'url' => 'tel:5015264020', 'label' => '']]];
+        ob_start();
+        LocationCard::render($card);
+        $html = (string) ob_get_clean();
+        $this->assertStringContainsString('501-526-4020', $html);
+        $this->assertStringNotContainsString('<span class="subtitle">', $html);
+
+        $card['phones']['numbers'][0]['label'] = 'Front desk';
+        ob_start();
+        LocationCard::render($card);
+        $this->assertStringContainsString('<br><span class="subtitle">Front desk</span>', (string) ob_get_clean());
+    }
+
+    /** Sets a closure on the child and returns the notice text. */
+    private function closure(string $length, string $start, string $end = ''): ?string
+    {
+        $this->set($this->child, ['location_closing' => '1', 'location_closing_length' => $length, 'location_closing_date' => $start, 'location_reopen_date' => $end]);
+
+        return LocationCard::data($this->snapshot($this->child))['notice']['text'] ?? null;
     }
 
     /** @param array<string, mixed> $values */
