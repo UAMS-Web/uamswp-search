@@ -430,7 +430,9 @@ final class Rebuild
 
                 // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
                 // @pest-mutate-ignore:RemoveIntegerCast
-                self::dictionary_transaction(static fn (): mixed => Suggestions::remove($id, (int) $stale));
+                self::dictionary_transaction(static function () use ($id, $stale): void {
+                    Suggestions::remove($id, (int) $stale);
+                });
                 break;
             case 'dictionary':
                 // Read the next live row after the cursor
@@ -450,11 +452,15 @@ final class Rebuild
                 if (self::interrupted($job, (int) $row['object_id'])) { // @pest-mutate-ignore:RemoveIntegerCast
                     // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
                     // @pest-mutate-ignore:RemoveIntegerCast
-                    self::dictionary_transaction(static fn (): mixed => Suggestions::remove($id, (int) $row['object_id']));
+                    self::dictionary_transaction(static function () use ($id, $row): void {
+                        Suggestions::remove($id, (int) $row['object_id']);
+                    });
                     $job['dictionary_skipped']++;
                     error_log('UAMS Search: skipped interrupted spelling dictionary site='.$id.' post='.$row['object_id']);
                 } else {
-                    self::dictionary_transaction(static fn (): mixed => Suggestions::record($row));
+                    self::dictionary_transaction(static function () use ($row): void {
+                        Suggestions::record($row);
+                    });
                 }
 
                 // Count the row and move the cursor
@@ -516,7 +522,7 @@ final class Rebuild
     /**
      * Run dictionary work in a transaction.
      *
-     * @param  callable(): mixed  $work  The work to run.
+     * @param  callable(): void  $work  The work to run.
      *
      * @throws Throwable When the work fails, after the transaction is rolled back.
      */
