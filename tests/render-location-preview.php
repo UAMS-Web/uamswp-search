@@ -12,12 +12,12 @@ function current_datetime()
     return new DateTimeImmutable('2026-10-30 12:00:00', wp_timezone());
 }
 
-function get_field($name, $object, $format = true)
+function get_field($name, $object, $_format = true)
 {
     return $object instanceof WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
 }
 
-function get_field_object($name, $id, $format = true)
+function get_field_object($_name, $_id, $_format = true)
 {
     return ['choices' => ['2' => 'Second Floor']];
 }

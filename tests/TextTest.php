@@ -112,9 +112,9 @@ namespace UAMS_Search\Tests {
 
         public function test_stop_words_are_flagged_true_and_include_the_configured_ones(): void
         {
-            self::assertTrue(Text::stops()['the']);
+            self::assertSame(['the' => true], array_intersect_key(Text::stops(), ['the' => 1]));
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['stopwords' => ['clinic']];
-            self::assertTrue(Text::stops()['clinic']);
+            self::assertSame(['clinic' => true], array_intersect_key(Text::stops(), ['clinic' => 1]));
         }
 
         public function test_tokens_come_back_as_a_list_without_gaps_where_stop_words_were(): void

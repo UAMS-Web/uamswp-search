@@ -50,14 +50,14 @@ namespace {
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$args): bool
+        function current_user_can($capability, ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
     }
 
     if (! function_exists('wp_nonce_field')) {
-        function wp_nonce_field($action = -1, $name = '_wpnonce', $referer = true, $display = true)
+        function wp_nonce_field($action = -1, $name = '_wpnonce', $_referer = true, $display = true)
         {
             $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
             if ($display) {
@@ -69,7 +69,7 @@ namespace {
     }
 
     if (! function_exists('submit_button')) {
-        function submit_button($text = null, $type = 'primary', $name = 'submit', $wrap = true, $other_attributes = null): void
+        function submit_button($text = null, $_type = 'primary', $_name = 'submit', $_wrap = true, $_other_attributes = null): void
         {
             echo '<input type="submit" value="'.htmlspecialchars((string) $text).'">';
         }
@@ -89,7 +89,7 @@ namespace {
     }
 
     if (! function_exists('get_post_types')) {
-        function get_post_types($args = [])
+        function get_post_types($_args = [])
         {
             return ['post' => 'post'];
         }
@@ -103,7 +103,7 @@ namespace {
     }
 
     if (! function_exists('get_bloginfo')) {
-        function get_bloginfo($show = '')
+        function get_bloginfo($_show = '')
         {
             return 'Main Site';
         }
@@ -135,7 +135,7 @@ namespace {
     }
 
     if (! function_exists('plugins_url')) {
-        function plugins_url($path = '', $plugin = '')
+        function plugins_url($path = '', $_plugin = '')
         {
             return 'https://example.test/'.$path;
         }
@@ -156,7 +156,7 @@ namespace {
     }
 
     if (! function_exists('wp_create_nonce')) {
-        function wp_create_nonce($action = '')
+        function wp_create_nonce($_action = '')
         {
             return 'nonce';
         }

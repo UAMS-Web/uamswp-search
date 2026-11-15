@@ -66,7 +66,8 @@ namespace UAMS_Search\Tests {
 
             $config = Config::get();
 
-            self::assertIsArray($config);
+            // The declared return type already makes the result an array, so pin that a second read agrees.
+            self::assertSame($config, Config::get());
             if (! is_array($returned)) {
                 self::assertSame(Config::defaults(), $config);
             }

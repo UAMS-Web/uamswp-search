@@ -175,7 +175,7 @@ final class Phonetic
                     } elseif ($next === 'N') {
                         if ($i === 1 && $vowel(0) && ! $slavo) {
                             $add('KN', 'N');
-                        } elseif (! $at($i + 2, ['EY']) && $next !== 'Y' && ! $slavo) {
+                        } elseif (! $at($i + 2, ['EY']) && ! $slavo) {
                             $add('N', 'KN');
                         } else {
                             $add('KN');

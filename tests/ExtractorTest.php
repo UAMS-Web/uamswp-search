@@ -25,7 +25,7 @@ namespace {
     }
 
     if (! function_exists('get_post_meta')) {
-        function get_post_meta($id, $key, $single = true)
+        function get_post_meta($id, $key, $_single = true)
         {
             return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
         }
@@ -79,7 +79,7 @@ namespace {
     }
 
     if (! function_exists('wp_get_object_terms')) {
-        function wp_get_object_terms($id, $taxonomy, $args = [])
+        function wp_get_object_terms($_id, $taxonomy, $args = [])
         {
             $GLOBALS['uams_test_term_args'][] = [$taxonomy, $args];
 
@@ -120,7 +120,7 @@ namespace {
 
     // The same stand-ins `PdfTest` declares; whichever file loads first defines them.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file($id)
+        function get_attached_file($_id)
         {
             return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
         }

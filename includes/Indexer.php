@@ -182,7 +182,6 @@ final class Indexer
             }
 
             // Clear the site's staged rows
-            $where = $wpdb->prepare('site_id=%d', $site).($type ? $wpdb->prepare(' AND post_type=%s', $type) : '');
             DB::exec("DELETE FROM `$stage` WHERE ".$wpdb->prepare('site_id=%d', $site));
             // Index the posts 100 at a time
             $last = 0;

@@ -61,7 +61,7 @@ namespace {
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$args): bool
+        function current_user_can($capability, ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
@@ -110,7 +110,7 @@ namespace {
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): never
+        function wp_safe_redirect($url): bool
         {
             $GLOBALS['uams_test_redirect'] = $url;
 
@@ -167,7 +167,7 @@ namespace {
     }
 
     if (! function_exists('get_post_meta')) {
-        function get_post_meta($id, $key, $single = true)
+        function get_post_meta($id, $key, $_single = true)
         {
             return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
         }
@@ -430,11 +430,10 @@ namespace UAMS_Search\Tests {
 
         public function test_retry_refuses_an_unknown_site_or_item_before_queueing_anything(): void
         {
-            $_GET = ['site' => '999', 'object' => '5'];
-            self::assertSame('wp_die: Invalid site or item.', $this->thrown(Admin::retry(...)));
-
-            $_GET = ['site' => '1', 'object' => '0'];
-            self::assertSame('wp_die: Invalid site or item.', $this->thrown(Admin::retry(...)));
+            foreach ([['999', '5'], ['1', '0']] as [$site, $object]) {
+                $_GET = ['site' => $site, 'object' => $object];
+                self::assertSame('wp_die: Invalid site or item.', $this->thrown(Admin::retry(...)));
+            }
 
             $GLOBALS['uams_test_caps'] = [];
             $_GET = ['site' => '1', 'object' => '5'];

@@ -87,7 +87,7 @@ final class Related
             // Keep dependencies even when a provider is hidden: publishing it must refresh this page.
             $item = ['provider_id' => $id, 'text' => '', 'weight' => $weight, 'source' => 'fields'];
             // Add the provider's name only when the provider is searchable
-            if ($provider && $provider->post_type === 'provider' && Extractor::eligible($provider)) {
+            if ($provider && Extractor::eligible($provider)) {
                 $item['provider_title'] = $provider->post_title;
                 $item['text'] = Text::plain($provider->post_title);
             }

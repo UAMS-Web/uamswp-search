@@ -3,7 +3,7 @@
 namespace {
 
     if (! function_exists('size_format')) {
-        function size_format($size, $decimals = 0)
+        function size_format($size, $_decimals = 0)
         {
             return round($size / 1024).' KB';
         }

@@ -4,7 +4,7 @@ namespace {
 
     // Guarded because `ExtractorTest` declares the same stand-ins and loads first.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file($id)
+        function get_attached_file($_id)
         {
             return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
         }

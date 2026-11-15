@@ -13,6 +13,8 @@ namespace {
     if (! function_exists('check_admin_referer')) {
         function check_admin_referer($action = -1, $query_arg = '_wpnonce')
         {
+            $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
+
             return true;
         }
     }
@@ -41,7 +43,7 @@ namespace {
     }
 
     if (! function_exists('wp_safe_redirect')) {
-        function wp_safe_redirect($url): never
+        function wp_safe_redirect($url): bool
         {
             $GLOBALS['uams_test_redirect'] = $url;
 
@@ -50,7 +52,7 @@ namespace {
     }
 
     if (! function_exists('current_user_can')) {
-        function current_user_can($capability, ...$args): bool
+        function current_user_can($capability, ...$_args): bool
         {
             return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
         }
@@ -64,7 +66,7 @@ namespace {
     }
 
     if (! function_exists('get_search_query')) {
-        function get_search_query($escaped = true)
+        function get_search_query($_escaped = true)
         {
             return '';
         }

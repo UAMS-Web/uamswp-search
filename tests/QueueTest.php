@@ -18,7 +18,7 @@ namespace {
 
     if (! function_exists('wp_convert_hr_to_bytes')) {
         /** Unlimited, unless a test sets `uams_test_memory_bytes` to a limit or to a list of limits handed out one per call. */
-        function wp_convert_hr_to_bytes($value)
+        function wp_convert_hr_to_bytes($_value)
         {
             $limit = $GLOBALS['uams_test_memory_bytes'] ?? -1;
 
@@ -43,7 +43,7 @@ namespace {
     }
 
     if (! function_exists('switch_to_blog')) {
-        function switch_to_blog($id)
+        function switch_to_blog($_id)
         {
             return true;
         }
@@ -460,13 +460,12 @@ namespace UAMS_Search\Tests {
         public function test_a_run_stops_once_memory_in_use_passes_eighty_percent_of_the_limit(): void
         {
             $this->db->entries = self::rows();
-            $GLOBALS['uams_test_memory_bytes'] = memory_get_usage(true);
 
-            self::assertSame(0, Queue::process()['processed']);
-
-            // A limit of one byte is already passed
-            $GLOBALS['uams_test_memory_bytes'] = 1;
-            self::assertSame(0, Queue::process()['processed']);
+            // The memory in use now is already past the limit, and so is a limit of one byte
+            foreach ([memory_get_usage(true), 1] as $bytes) {
+                $GLOBALS['uams_test_memory_bytes'] = $bytes;
+                self::assertSame(0, Queue::process()['processed']);
+            }
         }
 
         public function test_a_limit_far_above_the_memory_in_use_lets_the_run_finish(): void
