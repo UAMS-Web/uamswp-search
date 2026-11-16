@@ -383,7 +383,8 @@ final class Integration
         if (! $out['total']) {
             echo '<p>No results found. Try fewer words or check the spelling.</p>';
             // A string page compares as its number, and a default of 0 or 1 is the first page either way.
-            if (Cast::int(get_query_var('paged', 1)) <= 1) { // @pest-mutate-ignore:                Misses::record(get_search_query(false));
+            if (Cast::int(get_query_var('paged', 1)) <= 1) { // @pest-mutate-ignore:DecrementInteger
+                Misses::record(get_search_query(false));
             }
         }
 
