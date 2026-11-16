@@ -33,7 +33,7 @@ final class ProviderCard
         try {
             // Check the post is a searchable provider
             $post = get_post($id);
-            if (! $post || $post->post_type !== 'provider' || ! Extractor::eligible($post)) {
+            if (! $post instanceof \WP_Post || $post->post_type !== 'provider' || ! Extractor::eligible($post)) {
                 return null;
             }
 

@@ -2,12 +2,12 @@
 
 use UAMS_Search\Result;
 
-function wp_timezone(): mixed
+function wp_timezone(): DateTimeZone
 {
     return new DateTimeZone('America/Chicago');
 }
 
-function current_datetime(): mixed
+function current_datetime(): DateTimeImmutable
 {
     return new DateTimeImmutable('2026-10-30 12:00:00', wp_timezone());
 }
@@ -17,8 +17,14 @@ function get_field(mixed $name, mixed $object, mixed $_format = true): mixed
     return $object instanceof WP_Term ? get_term_meta($object->term_id, $name, true) : get_post_meta($object, $name, true);
 }
 
-function get_field_object(mixed $_name, mixed $_id, mixed $_format = true): mixed
+/** @return array<string, mixed>|false */
+function get_field_object(mixed $name, mixed $_id, mixed $_format = true): array|false
 {
+    // ACF answers false for a field that does not exist
+    if ($name !== 'location_building_floor') {
+        return false;
+    }
+
     return ['choices' => ['2' => 'Second Floor']];
 }
 

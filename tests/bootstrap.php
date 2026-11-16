@@ -19,18 +19,18 @@ function get_option(mixed $name, mixed $default = false): mixed
     return get_site_option($name, $default);
 }
 
-function get_current_blog_id(): mixed
+function get_current_blog_id(): int
 {
     return 1;
 }
 
-function is_multisite(): mixed
+function is_multisite(): bool
 {
     return $GLOBALS['uams_test_multisite'] ?? false;
 }
 
 /** Signed out unless a test sets `$GLOBALS['uams_test_logged_in']`. */
-function is_user_logged_in(): mixed
+function is_user_logged_in(): bool
 {
     return $GLOBALS['uams_test_logged_in'] ?? false;
 }
@@ -45,12 +45,12 @@ function apply_filters(mixed $name, mixed $value, mixed ...$args): mixed
 }
 
 /** The part of WordPress's accent folding the tests rely on: the common accented Latin letters. */
-function remove_accents(mixed $text): mixed
+function remove_accents(mixed $text): string
 {
     return strtr($text, ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'í' => 'i', 'ï' => 'i', 'ó' => 'o', 'ö' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'É' => 'E', 'Á' => 'A', 'Ö' => 'O', 'Ü' => 'U']);
 }
 
-function wp_json_encode(mixed $value, mixed $flags = 0): mixed
+function wp_json_encode(mixed $value, mixed $flags = 0): string|false
 {
     return json_encode($value, $flags);
 }
@@ -76,7 +76,8 @@ if (! class_exists('WP_Post')) {
 
 // A term by ID. A test sets what comes back in place of the term (`uams_test_get_term`, which WordPress also answers with a WP_Error), or a term per ID (`uams_test_term_objects`); `CardFieldsTest` reads term 501 in the `degree` taxonomy through the last line. A term that is not there reads as none, as WordPress reports it.
 if (! function_exists('get_term')) {
-    function get_term(mixed $id, mixed $taxonomy = ''): mixed
+    /** @return object|array<string, mixed>|null */
+    function get_term(mixed $id, mixed $taxonomy = ''): object|array|null
     {
         $GLOBALS['uams_test_term_calls'][] = $id;
         if (array_key_exists('uams_test_get_term', $GLOBALS)) {
@@ -88,7 +89,7 @@ if (! function_exists('get_term')) {
 }
 
 if (! function_exists('get_post')) {
-    function get_post(mixed $id): mixed
+    function get_post(mixed $id): ?WP_Post
     {
         // A test that names no post for an ID gets a blank post, or whatever `uams_test_posts_default` holds, such as null for no post at all.
         return array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : (array_key_exists('uams_test_posts_default', $GLOBALS) ? $GLOBALS['uams_test_posts_default'] : new WP_Post);
@@ -96,7 +97,7 @@ if (! function_exists('get_post')) {
 }
 
 if (! function_exists('update_site_option')) {
-    function update_site_option(mixed $name, mixed $value): mixed
+    function update_site_option(mixed $name, mixed $value): bool
     {
         $GLOBALS['uams_test_options'][$name] = $value;
 

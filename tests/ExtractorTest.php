@@ -46,14 +46,15 @@ namespace {
     }
 
     if (! function_exists('parse_blocks')) {
-        function parse_blocks(mixed $content): mixed
+        /** @return array<int, array<string, mixed>> */
+        function parse_blocks(mixed $content): array
         {
             return $GLOBALS['uams_test_blocks'] ?? [['blockName' => null, 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => $content]];
         }
     }
 
     if (! function_exists('serialize_blocks')) {
-        function serialize_blocks(mixed $blocks): mixed
+        function serialize_blocks(mixed $blocks): string
         {
             $out = '';
             foreach ($blocks as $block) {
@@ -65,7 +66,7 @@ namespace {
     }
 
     if (! function_exists('strip_shortcodes')) {
-        function strip_shortcodes(mixed $text): mixed
+        function strip_shortcodes(mixed $text): string
         {
             return preg_replace('/\[[a-z_]+[^\]]*\]/', '', $text);
         }
@@ -79,7 +80,8 @@ namespace {
     }
 
     if (! function_exists('wp_get_object_terms')) {
-        function wp_get_object_terms(mixed $_id, mixed $taxonomy, mixed $args = []): mixed
+        /** @return array<int, mixed>|WP_Error */
+        function wp_get_object_terms(mixed $_id, mixed $taxonomy, mixed $args = []): array|WP_Error
         {
             $GLOBALS['uams_test_term_args'][] = [$taxonomy, $args];
 
@@ -88,6 +90,7 @@ namespace {
     }
 
     if (! function_exists('is_wp_error')) {
+        /** @phpstan-assert-if-true WP_Error $value */
         function is_wp_error(mixed $value): bool
         {
             return $value instanceof WP_Error;
@@ -96,7 +99,8 @@ namespace {
 
     // The same ACF definition stand-in FieldTextTest declares; whichever file loads first defines it.
     if (! function_exists('acf_get_field')) {
-        function acf_get_field(mixed $selector): mixed
+        /** @return array<string, mixed>|false */
+        function acf_get_field(mixed $selector): array|false
         {
             $GLOBALS['uams_test_acf_lookups'][] = $selector;
 
@@ -115,14 +119,19 @@ namespace {
     }
 
     if (! function_exists('get_permalink')) {
-        function get_permalink(mixed $post): mixed
+        function get_permalink(mixed $post): string|false
         {
+            // WordPress answers false for a post that does not exist
+            if (! $post instanceof WP_Post && ! is_int($post)) {
+                return false;
+            }
+
             return 'https://example.test/?p='.($post instanceof WP_Post ? $post->ID : $post);
         }
     }
 
     if (! function_exists('wp_get_attachment_url')) {
-        function wp_get_attachment_url(mixed $id): mixed
+        function wp_get_attachment_url(mixed $id): string
         {
             return 'https://example.test/files/'.$id.'.pdf';
         }
@@ -130,14 +139,15 @@ namespace {
 
     // The same stand-ins `PdfTest` declares; whichever file loads first defines them.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file(mixed $_id): mixed
+        function get_attached_file(mixed $_id): string|false
         {
             return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
         }
     }
 
     if (! function_exists('wp_get_upload_dir')) {
-        function wp_get_upload_dir(): mixed
+        /** @return array<string, mixed> */
+        function wp_get_upload_dir(): array
         {
             return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
         }
@@ -410,6 +420,18 @@ namespace UAMS_Search\Tests {
             $row = Extractor::extract($this->post(['post_content' => '<!-- wp:acf {"data":{"secret":"hidden-json"}} --><p>Visible [gallery ids="1"] text</p><!-- /wp:acf -->']));
 
             self::assertSame('Visible text', $row['content']);
+        }
+
+        public function test_extract_stops_when_the_comments_cannot_be_removed_from_the_body(): void
+        {
+            $previous = ini_set('pcre.backtrack_limit', '1');
+
+            try {
+                $this->expectExceptionObject(new RuntimeException('Could not remove the HTML comments from post 42: Backtrack limit exhausted'));
+                Extractor::extract($this->post(['post_content' => '<!-- note -->'.str_repeat('text ', 50).'<!-- end -->']));
+            } finally {
+                ini_set('pcre.backtrack_limit', (string) $previous);
+            }
         }
 
         public function test_extract_reads_the_configured_fields_with_their_weights(): void
@@ -876,7 +898,7 @@ namespace UAMS_Search\Tests {
         /** @return array<string, mixed> The earlier row of the fixture PDF, as the cache of an unchanged file reads it. */
         private function cachedPdfRow(): array
         {
-            $path = (string) realpath(get_attached_file(42));
+            $path = (string) realpath((string) get_attached_file(42));
 
             return ['file_signature' => hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path)), 'status' => 'ready', 'pdf' => 'cached text', 'error' => ''];
         }
@@ -892,7 +914,7 @@ namespace UAMS_Search\Tests {
             self::assertSame('cached text', $row['pdf']);
             self::assertSame('cach text', $row['pdf_stem']);
             self::assertSame($old['file_signature'], $row['file_signature']);
-            self::assertSame(filesize((string) realpath(get_attached_file(42))), $row['file_size']);
+            self::assertSame(filesize((string) realpath((string) get_attached_file(42))), $row['file_size']);
             self::assertSame('ready', $row['status']);
             self::assertSame('', $row['error']);
             // With no fields configured, the file name stands alone

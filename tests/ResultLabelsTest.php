@@ -3,7 +3,7 @@
 namespace {
 
     if (! function_exists('size_format')) {
-        function size_format(mixed $size, mixed $_decimals = 0): mixed
+        function size_format(mixed $size, mixed $_decimals = 0): string
         {
             return round($size / 1024).' KB';
         }

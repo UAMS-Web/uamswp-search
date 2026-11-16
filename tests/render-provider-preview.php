@@ -36,9 +36,14 @@ class WP_Term
     public function __construct(public int $term_id, public string $name) {}
 }
 
-function get_post(mixed $id): mixed
+function get_post(mixed $id): ?WP_Post
 {
-    return new WP_Post((int) $id);
+    // WordPress answers null for a post that does not exist
+    if (! is_int($id) || $id < 1) {
+        return null;
+    }
+
+    return new WP_Post($id);
 }
 
 function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
@@ -63,25 +68,30 @@ function is_post_status_viewable(mixed $status): bool
     return $status === 'publish';
 }
 
-function is_post_type_viewable(mixed $_type): mixed
+function is_post_type_viewable(mixed $_type): bool
 {
     return true;
 }
 
-function get_post_thumbnail_id(mixed $id): mixed
+function get_post_thumbnail_id(mixed $id): int|false
 {
     return $GLOBALS['uams_preview_thumbnails'][$id] ?? ($id === 101 ? 801 : 0);
 }
 
-function wp_get_attachment_image(mixed $_id, mixed $_size, mixed $_icon, mixed $attrs): mixed
+function wp_get_attachment_image(mixed $_id, mixed $_size, mixed $_icon, mixed $attrs): string
 {
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="253" height="337"><rect width="253" height="337" fill="#dedbd8"/></svg>';
 
     return '<img src="data:image/svg+xml;base64,'.base64_encode($svg).'" alt="'.htmlspecialchars($attrs['alt'] ?? 'Location exterior', ENT_QUOTES).'" width="253" height="337">';
 }
 
-function get_permalink(mixed $post): mixed
+function get_permalink(mixed $post): string|false
 {
+    // WordPress answers false for a post that does not exist
+    if (! $post instanceof WP_Post) {
+        return false;
+    }
+
     return 'https://uams-search.test/'.$post->post_type.'/'.$post->ID.'/';
 }
 

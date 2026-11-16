@@ -56,7 +56,7 @@ namespace {
         }
     }
 
-    function is_admin(): mixed
+    function is_admin(): bool
     {
         return false;
     }

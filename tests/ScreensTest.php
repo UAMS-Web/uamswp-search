@@ -8,42 +8,42 @@ namespace {
 
     // Stand-ins for the WordPress functions the screens call.
     if (! function_exists('esc_attr')) {
-        function esc_attr(mixed $s): mixed
+        function esc_attr(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_textarea')) {
-        function esc_textarea(mixed $s): mixed
+        function esc_textarea(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html(mixed $s): mixed
+        function esc_html(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url(mixed $url): mixed
+        function esc_url(mixed $url, mixed $_protocols = null): string
         {
             return $url;
         }
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url(mixed $path = ''): mixed
+        function admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('network_admin_url')) {
-        function network_admin_url(mixed $path = ''): mixed
+        function network_admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/network/'.$path;
         }
@@ -57,7 +57,7 @@ namespace {
     }
 
     if (! function_exists('wp_nonce_field')) {
-        function wp_nonce_field(mixed $action = -1, mixed $name = '_wpnonce', mixed $_referer = true, mixed $display = true): mixed
+        function wp_nonce_field(mixed $action = -1, mixed $name = '_wpnonce', mixed $_referer = true, mixed $display = true): string
         {
             $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
             if ($display) {
@@ -76,7 +76,7 @@ namespace {
     }
 
     if (! function_exists('checked')) {
-        function checked(mixed $checked, mixed $current = true, mixed $display = true): mixed
+        function checked(mixed $checked, mixed $current = true, mixed $display = true): string
         {
             // The same comparison, output and return as WordPress's helper
             $result = (string) $checked === (string) $current ? " checked='checked'" : '';
@@ -89,21 +89,23 @@ namespace {
     }
 
     if (! function_exists('get_post_types')) {
-        function get_post_types(mixed $_args = []): mixed
+        /** @return array<string, string> */
+        function get_post_types(mixed $_args = []): array
         {
             return ['post' => 'post'];
         }
     }
 
     if (! function_exists('get_post_type_object')) {
-        function get_post_type_object(mixed $type): mixed
+        /** @return object{labels: object{name: string}}|null */
+        function get_post_type_object(mixed $type): ?object
         {
             return $GLOBALS['uams_test_types'][$type] ?? null;
         }
     }
 
     if (! function_exists('get_bloginfo')) {
-        function get_bloginfo(mixed $_show = ''): mixed
+        function get_bloginfo(mixed $_show = ''): string
         {
             return 'Main Site';
         }
@@ -126,7 +128,7 @@ namespace {
     }
 
     if (! function_exists('wp_localize_script')) {
-        function wp_localize_script(mixed $handle, mixed $object_name, mixed $l10n): mixed
+        function wp_localize_script(mixed $handle, mixed $object_name, mixed $l10n): bool
         {
             $GLOBALS['uams_test_localized'][] = [$handle, $object_name, $l10n];
 
@@ -135,7 +137,7 @@ namespace {
     }
 
     if (! function_exists('plugins_url')) {
-        function plugins_url(mixed $path = '', mixed $_plugin = ''): mixed
+        function plugins_url(mixed $path = '', mixed $_plugin = ''): string
         {
             return 'https://example.test/'.$path;
         }
@@ -149,14 +151,14 @@ namespace {
     }
 
     if (! function_exists('wp_nonce_url')) {
-        function wp_nonce_url(mixed $url, mixed $action = -1): mixed
+        function wp_nonce_url(mixed $url, mixed $action = -1): string
         {
             return $url.'&_wpnonce=nonce-for-'.$action;
         }
     }
 
     if (! function_exists('wp_create_nonce')) {
-        function wp_create_nonce(mixed $_action = ''): mixed
+        function wp_create_nonce(mixed $_action = ''): string
         {
             return 'nonce';
         }

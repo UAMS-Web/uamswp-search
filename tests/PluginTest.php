@@ -36,14 +36,14 @@ namespace {
     }
 
     if (! function_exists('wp_next_scheduled')) {
-        function wp_next_scheduled(mixed $hook): mixed
+        function wp_next_scheduled(mixed $hook): int|false
         {
             return $GLOBALS['uams_test_cron'][$hook] ?? false;
         }
     }
 
     if (! function_exists('wp_schedule_event')) {
-        function wp_schedule_event(mixed $time, mixed $recurrence, mixed $hook): mixed
+        function wp_schedule_event(mixed $time, mixed $recurrence, mixed $hook): bool
         {
             $GLOBALS['uams_test_scheduled'][] = [$hook, $recurrence, $time];
 
@@ -52,7 +52,7 @@ namespace {
     }
 
     if (! function_exists('wp_clear_scheduled_hook')) {
-        function wp_clear_scheduled_hook(mixed $hook): mixed
+        function wp_clear_scheduled_hook(mixed $hook): int
         {
             $GLOBALS['uams_test_cleared'][] = $hook;
 
@@ -82,7 +82,7 @@ namespace {
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html(mixed $s): mixed
+        function esc_html(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }

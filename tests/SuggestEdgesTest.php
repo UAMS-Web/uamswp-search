@@ -33,7 +33,8 @@ namespace {
 
     // The same stand-in `ConfigTest` declares, guarded so whichever file loads first supplies it: one public site.
     if (! function_exists('get_sites')) {
-        function get_sites(mixed $_args): mixed
+        /** @return array<int, mixed> */
+        function get_sites(mixed $_args): array
         {
             return [1];
         }

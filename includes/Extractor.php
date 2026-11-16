@@ -51,7 +51,7 @@ final class Extractor
 
             if ($post->post_parent) {
                 $parent = get_post($post->post_parent);
-                if (! $parent || ! is_post_status_viewable($parent->post_status) || $parent->post_password !== '') {
+                if (! $parent instanceof WP_Post || ! is_post_status_viewable($parent->post_status) || $parent->post_password !== '') {
                     return false;
                 }
             }
@@ -122,6 +122,10 @@ final class Extractor
         $body = strip_shortcodes(serialize_blocks($blocks));
         // HTML comments include ACF JSON. Never index it as body text.
         $body = preg_replace('/<!--.*?-->/s', ' ', $body);
+        // A failed pattern match returns null; stop rather than index a post with no body
+        if ($body === null) {
+            throw new RuntimeException('Could not remove the HTML comments from post '.$post->ID.': '.preg_last_error_msg());
+        }
 
         // Assemble the row
         $row = [

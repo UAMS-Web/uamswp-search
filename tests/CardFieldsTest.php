@@ -37,7 +37,8 @@ namespace {
     }
 
     if (! function_exists('get_term')) {
-        function get_term(mixed $id, mixed $taxonomy = ''): mixed
+        /** @return object|array<string, mixed>|null */
+        function get_term(mixed $id, mixed $taxonomy = ''): object|array|null
         {
             $GLOBALS['uams_test_term_calls'][] = $id;
             // WordPress also answers with a WP_Error; a test sets what comes back in place of the term
@@ -118,8 +119,8 @@ namespace UAMS_Search\Tests {
 
         public function test_term_returns_null_for_anything_the_lookup_answers_that_is_not_a_term(): void
         {
-            // WordPress answers a failed lookup with a WP_Error, or with an array or a row object on some paths
-            foreach ([new stdClass, ['term_id' => 501], false, 'error'] as $answer) {
+            // WordPress answers a failed lookup with a WP_Error or null, or with an array or a row object on some paths
+            foreach ([new stdClass, ['term_id' => 501], null] as $answer) {
                 $GLOBALS['uams_test_get_term'] = $answer;
                 self::assertNull(CardFields::term(501, 'degree'));
             }

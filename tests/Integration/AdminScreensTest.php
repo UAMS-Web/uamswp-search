@@ -43,7 +43,7 @@ final class AdminScreensTest extends IntegrationTestCase
         $html = (string) ob_get_clean();
 
         $this->assertStringContainsString('Index Status', $html);
-        $this->assertStringContainsString('<td>'.esc_html((string) get_bloginfo('name')).'</td><td>'.$this->site.'</td><td>page</td>', $html, 'The row names the site, then its ID');
+        $this->assertStringContainsString('<td>'.esc_html(get_bloginfo('name')).'</td><td>'.$this->site.'</td><td>page</td>', $html, 'The row names the site, then its ID');
         $this->assertStringNotContainsString('(site not found)', $html);
     }
 
@@ -60,6 +60,6 @@ final class AdminScreensTest extends IntegrationTestCase
         $html = (string) ob_get_clean();
 
         $this->assertStringContainsString('fixture error', $html);
-        $this->assertStringContainsString('<td>'.esc_html((string) get_bloginfo('name')).'</td><td>'.$this->site.'</td><td>'.$id.'</td>', $html);
+        $this->assertStringContainsString('<td>'.esc_html(get_bloginfo('name')).'</td><td>'.$this->site.'</td><td>'.$id.'</td>', $html);
     }
 }
