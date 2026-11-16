@@ -73,7 +73,7 @@
     "class": "Indexer",
     "operator": "TrueToFalse",
     "ordinal": 1,
-    "line_text": "if (! $post || ! \\in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) { // @pest-mutate-ignore:TrueToFalse",
+    "line_text": "if (! $post instanceof WP_Post || ! \\in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) { // @pest-mutate-ignore:TrueToFalse",
     "reason": "Remove the post from the table when it should not be indexed The site ID and the indexed site IDs are both integers, so loose matching finds the same sites."
   },
   {
@@ -278,13 +278,6 @@
     "ordinal": 1,
     "line_text": "if (! \\in_array($site, Config::index_sites(), true)) {",
     "reason": "Both sides are integers, so the loose comparison finds the same matches."
-  },
-  {
-    "class": "Indexer",
-    "operator": "IncrementInteger",
-    "ordinal": 1,
-    "line_text": "$marks = implode(',', array_fill(0, \\count($types), '%s'));",
-    "reason": "Only the number of placeholders matters, not the keys array_fill gives them."
   },
   {
     "class": "Indexer",
