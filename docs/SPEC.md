@@ -282,14 +282,14 @@ The biggest risk is relevance: SearchWP has years of tuning, and ours starts fro
 | No server cron on BigScoots | WP-Cron fallback with smaller batches; ask BigScoots before phase 1 ships |
 | Large installs slow to rebuild | Per-sub-site WP-CLI rebuilds into a staging copy, swapped in when done |
 | PDF extraction uses too much memory | Size and time limits; prefer `pdftotext`; extraction only in the queue |
-| Effort spent on a plugin that Statamic replaces | Phase 1 only covers what SearchWP did; phases 2 and 3 go ahead only if the Statamic timeline leaves room |
+| Effort spent on a plugin that Statamic replaces | Phases 2 and 3 are built and stay; no Statamic date is set, and the question reopens when one is ([#297](https://github.com/UAMS-Web/uamswp-search/issues/297)) |
 
 **Open questions**
 
 - [x] Database: MariaDB, `innodb_ft_min_token_size = 3` (confirmed 2026-10-29). Version 10.6.27.
 - [ ] Can BigScoots add a server cron job that runs WP-CLI every 5 minutes?
 - [ ] Is `pdftotext` installed, and may PHP run it (`exec` / `proc_open`)?
-- [ ] Which sub-sites on each install belong in whole-install search, and what default scope does each want?
+- [x] Which sub-sites on each install belong in whole-install search, and what default scope does each want? On a subdirectory network the root site searches the whole install, each child site defaults to its own site with a visible switch to the whole install ("All of <root site name>"), and every public sub-site is in whole-install search (archived, spam and deleted sites are left out, and sites that discourage search engines join only when `preview_noindex` is on). Subdomain networks and single sites search only their own site. Each install's exclusions are recorded when that install is switched, by its content owners (decided 2026-11-16, [#295](https://github.com/UAMS-Web/uamswp-search/issues/295)).
 - [ ] Who writes and keeps the test-search list (content owners, Find-a-Doc team)?
 - [x] Plugin name and repo: the repository is `UAMS-Web/uamswp-search` on GitHub, the plugin folder, slug and text prefix are `uams-search`, and the name shown in the plugin list is `UAMSWP Search`.
-- [ ] When do the first installs move to Statamic? This decides whether phases 2 and 3 are worth building.
+- [x] When do the first installs move to Statamic? No date is set. Phases 2 and 3 are built (v0.5.1) and stay, the rollout continues one install at a time from `uamshealth.com`, and the question reopens when a date is set (decided 2026-11-16, [#297](https://github.com/UAMS-Web/uamswp-search/issues/297)).

@@ -125,3 +125,23 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 **Rejected.** Recording an accepted risk now: nothing is exposed yet, so there is no risk to accept. Removing the block: it loses the cross-install results that stay with Google.
 
 **Companion.** [#16](https://github.com/UAMS-Web/uamswp-search/issues/16).
+
+## 2026-11-16 Search the whole install from the root site, and default each child site to itself (#295)
+
+**Decision.** On a subdirectory multisite install the root site searches the whole install, each child site defaults to its own site with a visible switch to the whole install ("All of <root site name>"), and every public sub-site is in whole-install search. Subdomain multisite and single-site installs search only their own site, so nothing is decided there. Each install's exclusions are recorded when that install is switched, by its content owners.
+
+**Why.** `Config::scope_options()` already offers exactly these choices by network layout, so the decision records the shipped behavior and needs no build work. The exclusions differ per install and are only needed at each install's own switch, so a report written now would mostly go unused. "Public" follows `Config::site_ids()`: archived, spam and deleted sites are always left out, and sites that discourage search engines join only when `preview_noindex` is on.
+
+**Rejected.** Child sites default to the whole install: a visitor on a small sub-site would get install-wide results unless they switched. Inventory every install before recording a rule: the decision would wait on a report, most of which is only needed at each install's own switch.
+
+**Companion.** [#295](https://github.com/UAMS-Web/uamswp-search/issues/295); the open question in `docs/SPEC.md`.
+
+## 2026-11-16 Keep phases 2 and 3, and set no date for the first move to Statamic (#297)
+
+**Decision.** No date is set for the first install's move to Statamic. Phases 2 and 3 are already built (PDF text, synonyms, spelling links, no-result counts and live search, in v0.5.1), so they stay. The rollout continues one install at a time from `uamshealth.com`, and this question is reopened when a date is set.
+
+**Why.** The question existed to decide whether phases 2 and 3 were worth building. They are built and tested, so the risk it guarded against has already been taken, and no date exists to weigh against it.
+
+**Rejected.** Name a date or quarter now: none exists to record. Disable or remove the built phase 2 and 3 features: it discards tested work to avoid a risk the build has already taken.
+
+**Companion.** [#297](https://github.com/UAMS-Web/uamswp-search/issues/297); the open question in `docs/SPEC.md`.
