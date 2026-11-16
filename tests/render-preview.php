@@ -6,6 +6,7 @@ use UAMS_Search\Cast;
 use UAMS_Search\Excerpt;
 use UAMS_Search\Integration;
 use UAMS_Search\Result;
+use UAMS_Search\Tests\Support\Prepare;
 use UAMS_Search\Tests\Support\StandIn;
 
 StandIn::put_option('uams_search_settings', ['enabled' => true]);
@@ -17,7 +18,7 @@ class PreviewDB
 
     public function prepare(mixed $query, mixed ...$args): mixed
     {
-        return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], Cast::string($query)), array_map(static fn (mixed $arg): bool|float|int|string|null => is_scalar($arg) || $arg === null ? $arg : '', $args));
+        return Prepare::sql(Cast::string($query), $args);
     }
 
     public function esc_like(mixed $s): mixed

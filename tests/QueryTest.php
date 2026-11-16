@@ -72,6 +72,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Linked;
     use UAMS_Search\Query;
     use UAMS_Search\Related;
+    use UAMS_Search\Tests\Support\Prepare;
     use UAMS_Search\Tests\Support\StandIn;
     use WP_Post;
     use WP_Query;
@@ -102,16 +103,7 @@ namespace UAMS_Search\Tests {
 
         public function prepare(mixed $sql, mixed ...$args): string
         {
-            if (count($args) === 1 && is_array($args[0])) {
-                $args = $args[0];
-            }
-
-            $sql = Cast::string($sql);
-            foreach ($args as $arg) {
-                $sql = (string) preg_replace_callback('/%[sd]/', static fn ($m): string => $m[0] === '%d' ? (string) Cast::int($arg) : "'".addslashes(Cast::string($arg))."'", $sql, 1);
-            }
-
-            return $sql;
+            return Prepare::sql(Cast::string($sql), $args);
         }
 
         public function get_blog_prefix(mixed $site): mixed
