@@ -293,13 +293,11 @@ final class Integration
             'args' => [
                 's' => [
                     'required' => true,
-                    // A `sanitize_callback` is set, so WordPress skips the schema checks below and `Query::run()` caps the text at 200 characters itself: the type and the length bounds are declared but never enforced.
-                    // @pest-mutate-ignore:RemoveArrayItem
                     'type' => 'string',
-                    // @pest-mutate-ignore:RemoveArrayItem,DecrementInteger,IncrementInteger
                     'maxLength' => 200,
-                    // @pest-mutate-ignore:RemoveArrayItem,DecrementInteger,IncrementInteger
                     'minLength' => 2,
+                    // A `sanitize_callback` alone makes WordPress skip the schema checks, so the validator runs them: a text of one character, more than 200 characters or a list is refused with `400`.
+                    'validate_callback' => 'rest_validate_request_arg',
                     'sanitize_callback' => 'sanitize_text_field',
                 ],
                 'scope' => ['type' => 'string', 'enum' => ['site', 'install', 'all']],

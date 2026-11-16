@@ -938,8 +938,11 @@ final class SearchPageTest extends IntegrationTestCase
         $this->indexed('Sentinel '.$this->word);
 
         $this->assertSame(400, $this->request([])->get_status(), 'The search text is required');
-        $this->assertSame(200, $this->request(['s' => 'a'])->get_status(), 'The sanitizer is set, so the declared length bounds are not enforced');
-        $this->assertSame(200, $this->request(['s' => str_repeat('x', 201)])->get_status(), 'and the search itself caps the text');
+        $this->assertSame(400, $this->request(['s' => 'a'])->get_status(), 'One character is under the minimum');
+        $this->assertSame(200, $this->request(['s' => 'ab'])->get_status(), 'Two characters meet the minimum');
+        $this->assertSame(200, $this->request(['s' => str_repeat('x', 200)])->get_status(), 'Two hundred characters meet the maximum');
+        $this->assertSame(400, $this->request(['s' => str_repeat('x', 201)])->get_status(), 'One more is over the maximum');
+        $this->assertSame(400, $this->request(['s' => ['ab', 'cd']])->get_status(), 'A list is not text');
         $this->assertSame(400, $this->request(['s' => $this->word, 'engine' => 'wordpress'])->get_status(), 'Only uams is a known engine');
         $this->assertSame(1, $this->request(['s' => $this->word, 'type' => 'PAGE'])->get_data()['total'], 'The type is cleaned to a key');
         $this->assertSame(1, $this->request(['s' => '  '.$this->word.'  '])->get_data()['total'], 'The text is trimmed');
