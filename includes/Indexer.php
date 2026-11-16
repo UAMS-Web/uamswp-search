@@ -25,7 +25,6 @@ final class Indexer
         int $id,
         string $target = 'index'
     ): array {
-        global $wpdb;
         // Switch to the post's site
         $changed = get_current_blog_id() !== $site;
         if ($changed) {
@@ -37,6 +36,7 @@ final class Indexer
         try {
             // Load the post and the target table
             $post = get_post($id);
+            $wpdb = Database::get();
             $table = DB::table($target);
             // Remove the post from the table when it should not be indexed
             // The site ID and the indexed site IDs are both integers, so loose matching finds the same sites.
@@ -54,7 +54,9 @@ final class Indexer
             }
 
             // Read the earlier row and extract the post's fields
-            $old = $wpdb->get_row($wpdb->prepare('SELECT * FROM `'.DB::table().'` WHERE site_id=%d AND object_id=%d', $site, $id), ARRAY_A);
+            $found = $wpdb->get_row(self::prepared('SELECT * FROM %i WHERE site_id=%d AND object_id=%d', DB::table(), $site, $id), ARRAY_A);
+            // Keep the columns, which are named by strings; a row from the database holds nothing else
+            $old = \is_array($found) ? array_filter($found, \is_string(...), ARRAY_FILTER_USE_KEY) : null;
             $row = Extractor::extract($post, $old);
             // Save the row and its dictionary words together
             if ($target === 'index') {
@@ -116,7 +118,7 @@ final class Indexer
         string $message,
         string $target
     ): array {
-        global $wpdb;
+        $wpdb = Database::get();
         // Log the failure
         $message = mb_substr($message, 0, 2000);
         error_log('UAMS Search: site='.$site.' post='.$id.' '.$message);
@@ -150,7 +152,7 @@ final class Indexer
         ?string $type = null,
         ?callable $progress = null
     ): array {
-        global $wpdb;
+        $wpdb = Database::get();
         // Check the site is indexed
         if (! \in_array($site, Config::index_sites(), true)) {
             throw new InvalidArgumentException('Unknown or excluded site');
@@ -182,20 +184,25 @@ final class Indexer
             }
 
             // Clear the site's staged rows
-            DB::exec("DELETE FROM `$stage` WHERE ".$wpdb->prepare('site_id=%d', $site));
+            self::clear_stage($stage, $site);
             // Index the posts 100 at a time
             $last = 0;
             $types = $type ? [$type] : array_keys(Config::section('types'));
-            $marks = implode(',', array_fill(0, \count($types), '%s'));
+            $quoted = [];
+            foreach ($types as $post_type) {
+                $quoted[] = self::prepared('%s', $post_type);
+            }
+
+            $in = implode(',', $quoted);
             do {
-                $ids = $wpdb->get_col($wpdb->prepare("SELECT ID FROM `$wpdb->posts` WHERE ID>%d AND post_type IN ($marks) ORDER BY ID LIMIT 100", array_merge([$last], $types)));
+                $ids = $wpdb->get_col(self::prepared('SELECT ID FROM %i WHERE ID>%d AND post_type IN (', $wpdb->posts, $last).$in.') ORDER BY ID LIMIT 100');
                 if ($wpdb->last_error) {
                     throw new RuntimeException($wpdb->last_error);
                 }
 
                 // Index each post into the stage table
                 foreach ($ids as $id) {
-                    $last = (int) $id;
+                    $last = Cast::int($id);
                     $row = self::one($site, $last, 'stage');
                     if ($row['status'] === 'error') {
                         $stats['errors']++;
@@ -221,7 +228,7 @@ final class Indexer
             // Swap the staged rows in, rebuild the dictionary and clear the stage
             self::promote($site, $type);
             Suggestions::rebuild_site($site, $type);
-            DB::exec("DELETE FROM `$stage` WHERE ".$wpdb->prepare('site_id=%d', $site));
+            self::clear_stage($stage, $site);
             // Record the settings the index was built with
             if (! $type) {
                 update_site_option('uams_search_fingerprint_'.$site, Config::fingerprint());
@@ -255,13 +262,21 @@ final class Indexer
         int $site,
         ?string $type = null
     ): void {
-        global $wpdb;
+        $wpdb = Database::get();
         // Name the tables and the rows to replace
         $stage = DB::table('stage');
         $live = DB::table();
-        $where = $wpdb->prepare('site_id=%d', $site).($type ? $wpdb->prepare(' AND post_type=%s', $type) : '');
+        $where = self::prepared('site_id=%d', $site).($type ? self::prepared(' AND post_type=%s', $type) : '');
         // Read the live columns, except the row ID
-        $columns = array_diff($wpdb->get_col("SHOW COLUMNS FROM `$live`", 0), ['id']);
+        $found = $wpdb->get_col(self::prepared('SHOW COLUMNS FROM %i', $live), 0);
+        $columns = [];
+        foreach ($found as $name) {
+            $name = Cast::string($name);
+            if ($name !== 'id') {
+                $columns[] = $name;
+            }
+        }
+
         if ($wpdb->last_error || ! $columns) {
             throw new RuntimeException($wpdb->last_error ?: 'Index columns are missing');
         }
@@ -270,7 +285,7 @@ final class Indexer
         // Replace the rows together
         DB::exec('START TRANSACTION');
         try {
-            DB::exec("DELETE FROM `$live` WHERE $where OR (".$wpdb->prepare('site_id=%d', $site)." AND object_id IN (SELECT object_id FROM `$stage` WHERE ".$wpdb->prepare('site_id=%d', $site).'))');
+            DB::exec(self::prepared('DELETE FROM %i WHERE ', $live).$where.' OR ('.self::prepared('site_id=%d AND object_id IN (SELECT object_id FROM %i WHERE site_id=%d))', $site, $stage, $site));
             DB::exec("INSERT INTO `$live` ($columns) SELECT $columns FROM `$stage` WHERE $where");
             DB::exec('COMMIT');
         } catch (Throwable $throwable) {
@@ -278,5 +293,38 @@ final class Indexer
             DB::exec('ROLLBACK');
             throw $throwable;
         }
+    }
+
+    /**
+     * Delete a site's staged rows.
+     *
+     * @param  string  $stage  The stage table's name.
+     * @param  int  $site  Site ID.
+     *
+     * @throws RuntimeException When the database reports an error or `prepare()` returns nothing.
+     */
+    private static function clear_stage(string $stage, int $site): void
+    {
+        DB::exec(self::prepared('DELETE FROM %i WHERE site_id=%d', $stage, $site));
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement with its placeholders.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 }
