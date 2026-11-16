@@ -94,7 +94,7 @@ final class NameChoices
         array $sites,
         array $types
     ): array {
-        global $wpdb;
+        $wpdb = Database::get();
 
         $found = ['fields' => [], 'taxonomies' => []];
         if ($sites === [] || $types === []) {
@@ -110,10 +110,10 @@ final class NameChoices
         foreach ($sites as $site) {
             $p = $wpdb->get_blog_prefix($site);
             // Ask for the meta keys with a value on posts of each type
-            $fields = $wpdb->get_results($wpdb->prepare("SELECT p.post_type AS type, m.meta_key AS name FROM `{$p}postmeta` m INNER JOIN `{$p}posts` p ON p.ID=m.post_id WHERE p.post_type IN ($marks) AND m.meta_key NOT LIKE %s AND m.meta_value <> '' GROUP BY p.post_type, m.meta_key", array_merge($types, [$internal])), ARRAY_A);
+            $fields = $wpdb->get_results(self::prepared("SELECT p.post_type AS type, m.meta_key AS name FROM %i m INNER JOIN %i p ON p.ID=m.post_id WHERE p.post_type IN ($marks) AND m.meta_key NOT LIKE %s AND m.meta_value <> '' GROUP BY p.post_type, m.meta_key", ...[$p.'postmeta', $p.'posts', ...$types, $internal]), ARRAY_A);
             self::check($site);
             // Ask for the taxonomies with terms on posts of each type
-            $taxonomies = $wpdb->get_results($wpdb->prepare("SELECT p.post_type AS type, tt.taxonomy AS name FROM `{$p}term_relationships` tr INNER JOIN `{$p}term_taxonomy` tt ON tt.term_taxonomy_id=tr.term_taxonomy_id INNER JOIN `{$p}posts` p ON p.ID=tr.object_id WHERE p.post_type IN ($marks) AND tt.taxonomy NOT LIKE %s GROUP BY p.post_type, tt.taxonomy", array_merge($types, [$internal])), ARRAY_A);
+            $taxonomies = $wpdb->get_results(self::prepared("SELECT p.post_type AS type, tt.taxonomy AS name FROM %i tr INNER JOIN %i tt ON tt.term_taxonomy_id=tr.term_taxonomy_id INNER JOIN %i p ON p.ID=tr.object_id WHERE p.post_type IN ($marks) AND tt.taxonomy NOT LIKE %s GROUP BY p.post_type, tt.taxonomy", ...[$p.'term_relationships', $p.'term_taxonomy', $p.'posts', ...$types, $internal]), ARRAY_A);
             self::check($site);
             foreach (['fields' => $fields, 'taxonomies' => $taxonomies] as $group => $rows) {
                 foreach (\is_array($rows) ? $rows : [] as $row) {
@@ -302,10 +302,30 @@ final class NameChoices
      */
     private static function check(int $site): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
 
         if ($wpdb->last_error) {
             throw new RuntimeException('Could not read the names in use on site '.$site.': '.$wpdb->last_error);
         }
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement, with `%i` for table names.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 }

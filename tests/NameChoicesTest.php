@@ -183,7 +183,7 @@ namespace UAMS_Search\Tests {
         public function test_the_taxonomy_lookup_is_prepared_with_the_same_types_and_internal_pattern(): void
         {
             NameChoices::lookup([1], ['provider', 'page']);
-            self::assertSame(['provider', 'page', '\\_%'], $this->db->prepared[1][1][0]);
+            self::assertSame(['wp_term_relationships', 'wp_term_taxonomy', 'wp_posts', 'provider', 'page', '\\_%'], $this->db->prepared[1][1]);
             self::assertStringContainsString('p.post_type IN (%s,%s) AND tt.taxonomy NOT LIKE %s', $this->db->prepared[1][0]);
         }
 
@@ -328,9 +328,23 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('FROM `wp_term_relationships` tr', $this->db->queries[1]);
             self::assertStringContainsString('FROM `wp_7_postmeta` m INNER JOIN `wp_7_posts` p', $this->db->queries[2]);
             self::assertStringContainsString("m.meta_value <> ''", $this->db->queries[0]);
-            // Both types are placeholders, and the internal-name pattern is passed escaped, not written into the SQL
-            self::assertSame(['provider', 'page', '\\_%'], $this->db->prepared[0][1][0]);
+            // The table names are identifier placeholders, both types are placeholders, and the internal-name pattern is passed escaped, not written into the SQL
+            self::assertSame(['wp_postmeta', 'wp_posts', 'provider', 'page', '\\_%'], $this->db->prepared[0][1]);
             self::assertStringContainsString('p.post_type IN (%s,%s) AND m.meta_key NOT LIKE %s', $this->db->prepared[0][0]);
+        }
+
+        public function test_a_lookup_stops_before_asking_when_prepare_gives_no_statement_back(): void
+        {
+            $this->db->prepare_gives_nothing = true;
+
+            try {
+                NameChoices::lookup([1], ['provider']);
+                self::fail('A statement that cannot be prepared must stop the lookup.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('Database operation failed', $runtimeException->getMessage());
+            }
+
+            self::assertSame([], $this->db->queries);
         }
 
         public function test_internal_and_blank_names_are_left_out(): void
@@ -428,11 +442,14 @@ namespace UAMS_Search\Tests {
             return addcslashes($text, '_%\\');
         }
 
-        public function prepare(string $query, mixed ...$args): string
+        /** Whether `prepare()` gives no statement back, as `wpdb` does when it cannot fill the placeholders. */
+        public bool $prepare_gives_nothing = false;
+
+        public function prepare(string $query, mixed ...$args): ?string
         {
             $this->prepared[] = [$query, array_values($args)];
 
-            return Prepare::sql($query, $args);
+            return $this->prepare_gives_nothing ? null : Prepare::sql($query, $args);
         }
 
         /** @return array<mixed> */
