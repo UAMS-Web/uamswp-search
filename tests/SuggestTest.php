@@ -34,7 +34,7 @@ namespace UAMS_Search\Tests {
             (new ReflectionProperty(DB::class, 'table_ready'))->setValue(null, null);
         }
 
-        /** @return array<mixed> */
+        /** @return array<string, mixed> */
         private function candidate(string $word, int $frequency, ?string $phonetic = null): array
         {
             return ['word' => $word, 'frequency' => $frequency, 'phonetic' => $phonetic ?? Phonetic::key($word)];
