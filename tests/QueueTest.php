@@ -130,6 +130,16 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('revision=revision+1', $this->inserts()[0]);
         }
 
+        public function test_push_stops_when_prepare_gives_no_statement_back(): void
+        {
+            $this->db->prepare_gives_nothing = true;
+
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('Database operation failed');
+
+            Queue::push(42);
+        }
+
         public function test_push_keeps_the_action_and_site_it_is_given(): void
         {
             Queue::push(42, 'delete', 7);
@@ -269,6 +279,21 @@ namespace UAMS_Search\Tests {
                 self::fail('A failed queue read must throw.');
             } catch (RuntimeException $runtimeException) {
                 self::assertSame('table is gone', $runtimeException->getMessage());
+            }
+
+            self::assertCount(1, $this->db->matching('RELEASE_LOCK'));
+            self::assertArrayNotHasKey('uams_search_last_queue', StandIn::options());
+        }
+
+        public function test_process_stops_and_still_unlocks_when_prepare_gives_no_statement_back(): void
+        {
+            $this->db->prepare_gives_nothing = true;
+
+            try {
+                Queue::process();
+                self::fail('A statement that cannot be prepared must stop the run.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('Database operation failed', $runtimeException->getMessage());
             }
 
             self::assertCount(1, $this->db->matching('RELEASE_LOCK'));
@@ -437,6 +462,9 @@ namespace UAMS_Search\Tests {
 
         public bool $delete_fails = false;
 
+        /** Whether `prepare()` gives no statement back for a statement on the queue table, as `wpdb` does when it cannot fill the placeholders. Every other statement is filled as usual, so the schema and rebuild checks keep working. */
+        public bool $prepare_gives_nothing = false;
+
         /** An error that only the read of the queue rows reports, as a failing table would. */
         public string $queue_error = '';
 
@@ -445,9 +473,9 @@ namespace UAMS_Search\Tests {
             return $text;
         }
 
-        public function prepare(string $query, mixed ...$args): string
+        public function prepare(string $query, mixed ...$args): ?string
         {
-            return Prepare::sql($query, $args);
+            return $this->prepare_gives_nothing && ($args[0] ?? null) === 'wp_uams_search_queue' ? null : Prepare::sql($query, $args);
         }
 
         public function get_var(string $query): ?string
