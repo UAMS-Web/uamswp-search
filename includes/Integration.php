@@ -199,9 +199,8 @@ final class Integration
      */
     public static function template(string $template): string
     {
-        global $wp_query;
         // Keep the theme's template when this plugin did not answer the search
-        if (! is_search() || ! self::active() || ! $wp_query->get('uams_search_results')) {
+        if (! is_search() || ! self::active() || self::answer() === null) {
             return $template;
         }
 
@@ -230,7 +229,7 @@ final class Integration
             return $excerpt;
         }
 
-        return self::$excerpts[($post->blog_id ?? get_current_blog_id()).':'.$post->ID] ?? $excerpt;
+        return self::$excerpts[Cast::string($post->blog_id ?? get_current_blog_id()).':'.$post->ID] ?? $excerpt;
     }
 
     /**
@@ -338,13 +337,46 @@ final class Integration
         ]);
     }
 
+    /**
+     * The answer this plugin saved on the main query, read back as the shape `Query::run()` returns.
+     *
+     * @return array{results: list<Result>, total: int, pages: int, fallback: bool, suggestion: string|null, google: bool}|null The answer, or null when this plugin did not answer the search.
+     */
+    private static function answer(): ?array
+    {
+        global $wp_query;
+        // Read the saved answer from the main query
+        $out = \is_object($wp_query) && method_exists($wp_query, 'get') ? $wp_query->get('uams_search_results') : null;
+        if (! \is_array($out) || $out === []) {
+            return null;
+        }
+
+        // Keep the results that are results
+        $results = [];
+        foreach (\is_array($out['results'] ?? null) ? $out['results'] : [] as $result) {
+            if ($result instanceof Result) {
+                $results[] = $result;
+            }
+        }
+
+        $suggestion = $out['suggestion'] ?? null;
+
+        return [
+            'results' => $results,
+            'total' => Cast::int($out['total'] ?? 0),
+            'pages' => Cast::int($out['pages'] ?? 0),
+            'fallback' => ! empty($out['fallback']),
+            'suggestion' => \is_string($suggestion) ? $suggestion : null,
+            'google' => ! empty($out['google']),
+        ];
+    }
+
     /** Print the results page: heading, form, filters, results and page links. */
     public static function render(): void
     {
-        global $wp_query;
         // Print nothing for a search this plugin did not answer
-        $out = $wp_query->get('uams_search_results');
-        if (! $out) {
+        $out = self::answer();
+        if ($out === null) {
             return;
         }
 
@@ -354,9 +386,9 @@ final class Integration
         // @pest-mutate-ignore:FalseToTrue
         echo '<h1>Search Results for: '.esc_html(get_search_query(false)).'</h1>';
         echo self::form('');
-        self::filters(! empty($out['google']));
+        self::filters($out['google']);
         // Print Google's results for the all-websites scope
-        if (! empty($out['google'])) {
+        if ($out['google']) {
             self::google();
             echo '</section>';
 
@@ -364,9 +396,7 @@ final class Integration
         }
 
         // Print the count, the partial-match notice and the spelling suggestion
-        // `_n()` compares the count as a number, so a numeric string picks the same form as its integer.
-        // @pest-mutate-ignore:RemoveIntegerCast
-        echo '<h2>'.esc_html(sprintf(_n('%s result', '%s results', (int) $out['total'], 'uams-search'), number_format_i18n($out['total']))).'</h2>';
+        echo '<h2>'.esc_html(sprintf(_n('%s result', '%s results', $out['total'], 'uams-search'), number_format_i18n($out['total']))).'</h2>';
         if ($out['fallback']) {
             echo '<p>Not every word matched. These results match some of your words.</p>';
         }

@@ -18,6 +18,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Integration;
     use UAMS_Search\LocationCard;
     use UAMS_Search\ProviderCard;
+    use UAMS_Search\Result;
     use UAMS_Search\Tests\Support\StandIn;
 
     final class ResultLabelsTest extends TestCase
@@ -37,15 +38,21 @@ namespace UAMS_Search\Tests {
 
         private function render(string $type, string $title = 'Heart care'): string
         {
-            $result = (object) ['url' => 'https://example.test/a', 'title' => $title, 'post_type' => $type, 'file_size' => 2048, 'excerpt' => 'text'];
-            $GLOBALS['wp_query'] = new class($result)
+            return $this->page([new Result(1, 1, 1.0, 'text', $title, 'https://example.test/a', $type, 2048)]);
+        }
+
+        /** @param  array<mixed>  $results */
+        private function page(array $results): string
+        {
+            $GLOBALS['wp_query'] = new class($results)
             {
-                public function __construct(private readonly object $result) {}
+                /** @param  array<mixed>  $results */
+                public function __construct(private readonly array $results) {}
 
                 /** @return array<mixed> */
                 public function get(mixed $name): array
                 {
-                    return ['results' => [$this->result], 'total' => 1, 'pages' => 1, 'fallback' => false, 'suggestion' => null];
+                    return ['results' => $this->results, 'total' => 1, 'pages' => 1, 'fallback' => false, 'suggestion' => null];
                 }
             };
 
@@ -125,6 +132,13 @@ namespace UAMS_Search\Tests {
         public function test_a_type_with_no_label_shows_none(): void
         {
             self::assertStringNotContainsString('uams-search-label', $this->render('widget'));
+        }
+
+        public function test_an_entry_that_is_not_a_result_is_left_out_of_the_page(): void
+        {
+            $html = $this->page(['stray', new Result(1, 1, 1.0, 'text', 'Heart care', 'https://example.test/a', 'page', 0)]);
+
+            self::assertSame(1, substr_count($html, '<article class="uams-search-result">'));
         }
 
         public function test_a_pdf_keeps_its_file_size_after_the_title(): void
