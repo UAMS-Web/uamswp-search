@@ -306,8 +306,8 @@ final class Config
      */
     public static function google_enabled(): bool
     {
-        // The reference theme always shows this block; newer settings integrations can override this filter.
-        return (bool) apply_filters('uams_search_google_enabled', self::option_flag('uams_search_google', true));
+        // The block is off until someone turns it on, because its script cannot carry Subresource Integrity; a settings integration can override this filter.
+        return (bool) apply_filters('uams_search_google_enabled', self::option_flag('uams_search_google', false));
     }
 
     /**

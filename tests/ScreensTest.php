@@ -359,18 +359,20 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('<input type="hidden" name="action" value="uams_search_site">', $html);
             self::assertStringContainsString('<p><label><input type="radio" name="scope" value="site"  checked=\'checked\'> This site</label></p>', $html);
             self::assertStringContainsString('<p><label><input type="radio" name="scope" value="all" > All UAMS websites</label></p>', $html);
-            self::assertStringContainsString('<input type="checkbox" name="google" value="1"  checked=\'checked\'> Show the Existing All of UAMS Google Search', $html, 'The Google results are on until the site turns them off.');
+            self::assertStringContainsString('<input type="checkbox" name="google" value="1" > Show the Existing All of UAMS Google Search', $html, 'The Google results are off until the site turns them on.');
+            self::assertStringContainsString('<span class="description">Off by default.', $html);
             self::assertStringContainsString('action="https://example.test/wp-admin/admin-post.php"', $html);
             self::assertStringContainsString('<input type="hidden" name="_wpnonce" value="nonce-for-uams_search_site">', $html);
-            self::assertSame(2, substr_count($html, "checked='checked'"), 'One scope and the Google switch.');
+            self::assertSame(1, substr_count($html, "checked='checked'"), 'The saved scope alone.');
             self::assertStringContainsString('<input type="submit" value="Save search settings"></form></div>', $html);
 
             $GLOBALS['uams_test_options']['uams_search_scope'] = 'all';
-            $GLOBALS['uams_test_options']['uams_search_google'] = false;
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
             $html = $this->render('site_page');
             self::assertStringContainsString('value="site" > This site', $html);
             self::assertStringContainsString('value="all"  checked=\'checked\'> All UAMS websites', $html);
-            self::assertStringContainsString('name="google" value="1" > Show', $html);
+            self::assertStringContainsString('name="google" value="1"  checked=\'checked\'> Show', $html);
+            self::assertSame(2, substr_count($html, "checked='checked'"), 'The saved scope and the Google switch, each printed once and in place.');
 
             foreach (['bogus', 5, ['all']] as $saved) {
                 $GLOBALS['uams_test_options']['uams_search_scope'] = $saved;
