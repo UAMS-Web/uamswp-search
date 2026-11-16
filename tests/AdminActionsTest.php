@@ -1,37 +1,38 @@
 <?php
 
 namespace {
-
     use UAMS_Search\Admin;
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins for the WordPress functions the admin actions call.
     if (! function_exists('add_action')) {
-        function add_action(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
+        function add_action(string $hook, callable $callback, int $priority = 10, int $args = 1): void
         {
-            $GLOBALS['uams_test_hooks'][$hook][] = $callback;
-            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
+            StandIn::add_hook($hook, $callback);
+            StandIn::add_hook_args($hook, [$callback, $priority, $args]);
         }
     }
 
     if (! function_exists('add_filter')) {
-        function add_filter(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
+        function add_filter(string $hook, callable $callback, int $priority = 10, int $args = 1): void
         {
-            $GLOBALS['uams_test_hooks'][$hook][] = $callback;
-            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
+            StandIn::add_hook($hook, $callback);
+            StandIn::add_hook_args($hook, [$callback, $priority, $args]);
         }
     }
 
     if (! function_exists('wp_die')) {
         function wp_die(mixed $message = ''): never
         {
-            throw new RuntimeException('wp_die: '.$message);
+            throw new RuntimeException('wp_die: '.Cast::string($message));
         }
     }
 
     if (! function_exists('check_admin_referer')) {
         function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int
         {
-            $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
+            StandIn::add_nonce_check(func_get_args());
 
             return 1;
         }
@@ -40,7 +41,7 @@ namespace {
     if (! function_exists('check_ajax_referer')) {
         function check_ajax_referer(mixed $action = '', mixed $field = ''): int
         {
-            $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
+            StandIn::add_nonce_check(func_get_args());
 
             return 1;
         }
@@ -49,7 +50,7 @@ namespace {
     if (! function_exists('wp_send_json_error')) {
         function wp_send_json_error(mixed $data = null, mixed $status = 200): never
         {
-            throw new RuntimeException('json_error:'.$status.':'.json_encode($data));
+            throw new RuntimeException('json_error:'.Cast::string($status).':'.json_encode($data));
         }
     }
 
@@ -63,21 +64,21 @@ namespace {
     if (! function_exists('current_user_can')) {
         function current_user_can(mixed $capability, mixed ...$_args): bool
         {
-            return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
+            return in_array($capability, StandIn::caps(), true);
         }
     }
 
     if (! function_exists('sanitize_key')) {
         function sanitize_key(mixed $key): string
         {
-            return strtolower((string) preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
+            return strtolower((string) preg_replace('/[^a-z0-9_\-]/i', '', Cast::string($key)));
         }
     }
 
     if (! function_exists('sanitize_text_field')) {
         function sanitize_text_field(mixed $s): string
         {
-            return trim(strip_tags((string) $s));
+            return trim(strip_tags(Cast::string($s)));
         }
     }
 
@@ -98,7 +99,7 @@ namespace {
     if (! function_exists('absint')) {
         function absint(mixed $value): int
         {
-            return abs((int) $value);
+            return abs(Cast::int($value));
         }
     }
 
@@ -119,7 +120,7 @@ namespace {
     if (! function_exists('wp_safe_redirect')) {
         function wp_safe_redirect(mixed $url): bool
         {
-            $GLOBALS['uams_test_redirect'] = $url;
+            StandIn::set_redirect(Cast::string($url));
 
             throw new RuntimeException('redirect');
         }
@@ -128,35 +129,37 @@ namespace {
     if (! function_exists('admin_url')) {
         function admin_url(mixed $path = ''): string
         {
-            return 'https://example.test/wp-admin/'.$path;
+            return 'https://example.test/wp-admin/'.Cast::string($path);
         }
     }
 
     if (! function_exists('network_admin_url')) {
         function network_admin_url(mixed $path = ''): string
         {
-            return 'https://example.test/wp-admin/network/'.$path;
+            return 'https://example.test/wp-admin/network/'.Cast::string($path);
         }
     }
 
     if (! function_exists('add_query_arg')) {
         function add_query_arg(mixed $args, mixed $url): string
         {
-            return $url.(str_contains($url, '?') ? '&' : '?').http_build_query($args);
+            $base = Cast::string($url);
+
+            return $base.(str_contains($base, '?') ? '&' : '?').http_build_query(is_array($args) ? $args : []);
         }
     }
 
     if (! function_exists('esc_url')) {
         function esc_url(mixed $url, mixed $_protocols = null): string
         {
-            return $url;
+            return Cast::string($url);
         }
     }
 
     if (! function_exists('esc_html')) {
         function esc_html(mixed $s): string
         {
-            return htmlspecialchars((string) $s);
+            return htmlspecialchars(Cast::string($s));
         }
     }
 
@@ -164,7 +167,7 @@ namespace {
         function checked(mixed $checked, mixed $current = true, mixed $display = true): string
         {
             // The same comparison, output and return as WordPress's helper
-            $result = (string) $checked === (string) $current ? " checked='checked'" : '';
+            $result = Cast::string($checked) === Cast::string($current) ? " checked='checked'" : '';
             if ($display) {
                 echo $result;
             }
@@ -176,14 +179,14 @@ namespace {
     if (! function_exists('get_post_meta')) {
         function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
-            return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
+            return StandIn::meta_value(Cast::int($id), Cast::string($key));
         }
     }
 
     if (! function_exists('update_option')) {
         function update_option(mixed $name, mixed $value): bool
         {
-            $GLOBALS['uams_test_options'][$name] = $value;
+            StandIn::put_option(Cast::string($name), $value);
 
             return true;
         }
@@ -192,7 +195,7 @@ namespace {
     if (! function_exists('update_post_meta')) {
         function update_post_meta(mixed $id, mixed $key, mixed $value): bool
         {
-            $GLOBALS['uams_test_meta'][$id][$key] = $value;
+            StandIn::put_meta(Cast::int($id), Cast::string($key), $value);
 
             return true;
         }
@@ -204,8 +207,10 @@ namespace UAMS_Search\Tests {
     use ReflectionProperty;
     use RuntimeException;
     use UAMS_Search\Admin;
+    use UAMS_Search\Cast;
     use UAMS_Search\Config;
     use UAMS_Search\DB;
+    use UAMS_Search\Tests\Support\StandIn;
     use WP_Post;
 
     final class AdminActionsTest extends TestCase
@@ -217,12 +222,49 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_caps'] = ['manage_options'];
             $GLOBALS['uams_test_hooks'] = [];
             $GLOBALS['uams_test_meta'] = [];
-            $GLOBALS['uams_test_redirect'] = null;
+            StandIn::set_redirect(null);
             $GLOBALS['uams_test_nonce_checks'] = [];
             $_POST = [];
             $_GET = [];
             $_SERVER['REQUEST_METHOD'] = 'POST';
             $this->tableReady(null);
+        }
+
+        /**
+         * A stored option that holds an array, checked to be one.
+         *
+         * @return array<mixed>
+         */
+        private static function stored(string $name): array
+        {
+            $value = StandIn::option($name);
+            self::assertIsArray($value);
+
+            return $value;
+        }
+
+        /**
+         * The search-visibility field an attachment edit filter adds, checked to be an array.
+         *
+         * @return array<mixed>
+         */
+        private static function excludeField(mixed $fields): array
+        {
+            self::assertIsArray($fields);
+            self::assertArrayHasKey('uams_search_exclude', $fields);
+            self::assertIsArray($fields['uams_search_exclude']);
+
+            return $fields['uams_search_exclude'];
+        }
+
+        /** The HTML of the search-visibility field, checked to be a string. */
+        private static function excludeHtml(mixed $fields): string
+        {
+            $field = self::excludeField($fields);
+            self::assertArrayHasKey('html', $field);
+            self::assertIsString($field['html']);
+
+            return $field['html'];
         }
 
         protected function tearDown(): void
@@ -244,28 +286,9 @@ namespace UAMS_Search\Tests {
         /** Make the index tables look present, with a saved rebuild job holding the given status (or none). */
         private function indexReady(?string $status): void
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
+            StandIn::put_option('uams_search_version', UAMS_SEARCH_SCHEMA_VERSION);
             $this->tableReady(true);
-            $GLOBALS['wpdb'] = new class($status)
-            {
-                public string $last_error = '';
-
-                public string $options = 'wp_options';
-
-                public string $sitemeta = 'wp_sitemeta';
-
-                public function __construct(private readonly ?string $status) {}
-
-                public function prepare(string $query, mixed ...$args): string
-                {
-                    return $query;
-                }
-
-                public function get_var(string $query): ?string
-                {
-                    return $this->status === null ? null : serialize(['status' => $this->status]);
-                }
-            };
+            StandIn::set_db(new IndexStatusDb($status));
         }
 
         private function printed(callable $call): string
@@ -335,7 +358,7 @@ namespace UAMS_Search\Tests {
         public function test_the_rebuild_endpoint_reports_a_failure_inside_an_action_as_a_server_error(): void
         {
             $this->indexReady('paused');
-            $GLOBALS['wpdb']->last_error = 'disk full';
+            StandIn::db(IndexStatusDb::class)->last_error = 'disk full';
             $_POST['op'] = 'status';
 
             self::assertSame('json_error:500:{"message":"disk full"}', $this->thrown(Admin::rebuild_ajax(...)));
@@ -371,7 +394,7 @@ namespace UAMS_Search\Tests {
             $this->indexReady(null);
             $fingerprint = Config::fingerprint();
             foreach (Config::index_sites() as $site) {
-                $GLOBALS['uams_test_options']['uams_search_fingerprint_'.$site] = $fingerprint;
+                StandIn::put_option('uams_search_fingerprint_'.$site, $fingerprint);
             }
 
             self::assertSame('', $this->printed(Admin::notice(...)));
@@ -424,8 +447,8 @@ namespace UAMS_Search\Tests {
             };
 
             self::assertSame('redirect', $this->thrown(Admin::refresh_choices(...)));
-            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', $GLOBALS['uams_test_redirect']);
-            self::assertSame(['post' => ['subtitle']], $GLOBALS['uams_test_options']['uams_search_name_choices']['fields']);
+            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', StandIn::redirect());
+            self::assertSame(['post' => ['subtitle']], self::stored('uams_search_name_choices')['fields']);
         }
 
         public function test_refreshing_the_name_choices_without_the_capability_asks_no_site(): void
@@ -433,7 +456,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_caps'] = [];
 
             self::assertSame('wp_die: You cannot manage search settings.', $this->thrown(Admin::refresh_choices(...)));
-            self::assertArrayNotHasKey('uams_search_name_choices', $GLOBALS['uams_test_options']);
+            self::assertArrayNotHasKey('uams_search_name_choices', StandIn::options());
         }
 
         public function test_retry_refuses_an_unknown_site_or_item_before_queueing_anything(): void
@@ -460,7 +483,7 @@ namespace UAMS_Search\Tests {
         public function test_the_pdf_checkbox_appears_only_on_pdf_attachments(): void
         {
             Admin::hooks();
-            $edit = $GLOBALS['uams_test_hooks']['attachment_fields_to_edit'][0];
+            $edit = StandIn::hooks()['attachment_fields_to_edit'][0];
 
             $image = new WP_Post;
             $image->post_mime_type = 'image/png';
@@ -470,23 +493,23 @@ namespace UAMS_Search\Tests {
             $pdf->post_mime_type = 'application/pdf';
 
             $fields = $edit([], $pdf);
-            self::assertSame('Search Visibility', $fields['uams_search_exclude']['label']);
-            self::assertStringContainsString('name="attachments[42][uams_search_present]"', $fields['uams_search_exclude']['html']);
-            self::assertStringNotContainsString('checked', $fields['uams_search_exclude']['html']);
+            self::assertSame('Search Visibility', self::excludeField($fields)['label']);
+            self::assertStringContainsString('name="attachments[42][uams_search_present]"', self::excludeHtml($fields));
+            self::assertStringNotContainsString('checked', self::excludeHtml($fields));
 
-            $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = '1';
-            self::assertStringContainsString('checked', $edit([], $pdf)['uams_search_exclude']['html']);
+            StandIn::put_meta(42, '_uams_search_exclude', '1');
+            self::assertStringContainsString('checked', self::excludeHtml($edit([], $pdf)));
         }
 
         public function test_the_pdf_checkbox_reads_one_value_and_prints_nothing_itself(): void
         {
             Admin::hooks();
-            $edit = $GLOBALS['uams_test_hooks']['attachment_fields_to_edit'][0];
+            $edit = StandIn::hooks()['attachment_fields_to_edit'][0];
             $pdf = new WP_Post;
             $pdf->post_mime_type = 'application/pdf';
             $GLOBALS['uams_test_meta_record'] = true;
             $GLOBALS['uams_test_meta_reads'] = [];
-            $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = '1';
+            StandIn::put_meta(42, '_uams_search_exclude', '1');
             try {
                 self::assertSame('', $this->printed(static function () use ($edit, $pdf): void {
                     $edit([], $pdf);
@@ -495,36 +518,36 @@ namespace UAMS_Search\Tests {
                 unset($GLOBALS['uams_test_meta_record']);
             }
 
-            self::assertSame([['_uams_search_exclude', true]], $GLOBALS['uams_test_meta_reads']);
+            self::assertSame([['_uams_search_exclude', true]], StandIn::meta_reads());
         }
 
         public function test_the_pdf_checkbox_saves_only_when_submitted_by_a_user_who_can_edit(): void
         {
             Admin::hooks();
-            $save = $GLOBALS['uams_test_hooks']['attachment_fields_to_save'][0];
+            $save = StandIn::hooks()['attachment_fields_to_save'][0];
             $post = ['ID' => 42];
 
             // Not submitted: nothing changes.
             self::assertSame($post, $save($post, []));
-            self::assertSame([], $GLOBALS['uams_test_meta']);
+            self::assertSame([], StandIn::meta());
 
             // Not submitted, even by a user who can edit: nothing changes.
             $GLOBALS['uams_test_caps'] = ['edit_post'];
             self::assertSame($post, $save($post, ['uams_search_exclude' => '1']));
-            self::assertSame([], $GLOBALS['uams_test_meta']);
+            self::assertSame([], StandIn::meta());
 
             // Submitted without the capability: nothing changes.
             $GLOBALS['uams_test_caps'] = [];
             self::assertSame($post, $save($post, ['uams_search_present' => '1', 'uams_search_exclude' => '1']));
-            self::assertSame([], $GLOBALS['uams_test_meta']);
+            self::assertSame([], StandIn::meta());
 
             // Submitted by a user who can edit the attachment.
             $GLOBALS['uams_test_caps'] = ['edit_post'];
             self::assertSame($post, $save($post, ['uams_search_present' => '1', 'uams_search_exclude' => '1']));
-            self::assertSame(1, $GLOBALS['uams_test_meta'][42]['_uams_search_exclude']);
+            self::assertSame(1, StandIn::meta_value(42, '_uams_search_exclude'));
 
             $save($post, ['uams_search_present' => '1']);
-            self::assertSame(0, $GLOBALS['uams_test_meta'][42]['_uams_search_exclude']);
+            self::assertSame(0, StandIn::meta_value(42, '_uams_search_exclude'));
         }
 
         /**
@@ -535,7 +558,7 @@ namespace UAMS_Search\Tests {
         private function recordingDb(string $tokenSize = '3'): RecordingDb
         {
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
             $GLOBALS['wpdb'] = new RecordingDb($tokenSize);
 
             return $GLOBALS['wpdb'];
@@ -546,9 +569,9 @@ namespace UAMS_Search\Tests {
             $db = $this->recordingDb();
 
             self::assertSame('redirect', $this->thrown(Admin::setup(...)));
-            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search', $GLOBALS['uams_test_redirect']);
+            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search', StandIn::redirect());
             self::assertNotEmpty(array_filter($db->queries, static fn (string $q): bool => str_contains($q, 'CREATE TABLE IF NOT EXISTS `wp_uams_search_index`')));
-            self::assertSame([['uams_search_setup']], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame([['uams_search_setup']], StandIn::nonce_checks());
         }
 
         public function test_setup_reports_the_reason_the_tables_could_not_be_created_and_does_not_redirect(): void
@@ -556,7 +579,7 @@ namespace UAMS_Search\Tests {
             $db = $this->recordingDb('1');
 
             self::assertSame('wp_die: UAMS Search requires innodb_ft_min_token_size=3. Run wp uams-search doctor.', $this->thrown(Admin::setup(...)));
-            self::assertNull($GLOBALS['uams_test_redirect']);
+            self::assertNull(StandIn::redirect());
             self::assertSame([], array_filter($db->queries, static fn (string $q): bool => str_contains($q, 'CREATE TABLE')));
         }
 
@@ -567,13 +590,13 @@ namespace UAMS_Search\Tests {
 
             self::assertSame('wp_die: You cannot manage search settings.', $this->thrown(Admin::setup(...)));
             self::assertSame([], $db->queries);
-            self::assertSame([], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame([], StandIn::nonce_checks());
         }
 
         public function test_refreshing_the_name_choices_reports_a_failed_lookup_and_keeps_the_old_choices(): void
         {
             defined('ARRAY_A') || define('ARRAY_A', 'ARRAY_A');
-            $GLOBALS['uams_test_options']['uams_search_name_choices'] = ['fields' => ['kept' => []]];
+            StandIn::put_option('uams_search_name_choices', ['fields' => ['kept' => []]]);
             $GLOBALS['wpdb'] = new class
             {
                 public string $last_error = 'lookup failed';
@@ -601,9 +624,9 @@ namespace UAMS_Search\Tests {
             };
 
             self::assertSame('wp_die: Could not read the names in use on site 1: lookup failed', $this->thrown(Admin::refresh_choices(...)));
-            self::assertSame(['fields' => ['kept' => []]], $GLOBALS['uams_test_options']['uams_search_name_choices']);
-            self::assertNull($GLOBALS['uams_test_redirect']);
-            self::assertSame([['uams_search_refresh_choices', 'uams_search_choices_nonce']], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame(['fields' => ['kept' => []]], StandIn::option('uams_search_name_choices'));
+            self::assertNull(StandIn::redirect());
+            self::assertSame([['uams_search_refresh_choices', 'uams_search_choices_nonce']], StandIn::nonce_checks());
         }
 
         public function test_the_save_checks_its_nonce_and_a_missing_settings_form_asks_for_a_type(): void
@@ -612,7 +635,7 @@ namespace UAMS_Search\Tests {
             $_POST['settings'] = 'text';
 
             self::assertSame('wp_die: Choose at least one post type.', $this->thrown(Admin::save(...)));
-            self::assertSame([['uams_search_save']], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame([['uams_search_save']], StandIn::nonce_checks());
         }
 
         public function test_stop_words_and_synonyms_given_as_numbers_are_read_as_text(): void
@@ -620,8 +643,8 @@ namespace UAMS_Search\Tests {
             $_POST['settings'] = ['types' => ['post' => ['include' => '1']], 'stopwords' => 5, 'synonyms' => 7];
 
             self::assertSame('redirect', $this->thrown(Admin::save(...)));
-            self::assertSame(['5'], $GLOBALS['uams_test_options']['uams_search_settings']['stopwords']);
-            self::assertSame([], $GLOBALS['uams_test_options']['uams_search_settings']['synonyms']);
+            self::assertSame(['5'], self::stored('uams_search_settings')['stopwords']);
+            self::assertSame([], self::stored('uams_search_settings')['synonyms']);
         }
 
         public function test_a_synonym_line_is_split_at_its_first_equals_sign_only(): void
@@ -629,39 +652,39 @@ namespace UAMS_Search\Tests {
             $_POST['settings'] = ['types' => ['post' => ['include' => '1']], 'synonyms' => 'heart=a=b'];
 
             self::assertSame('redirect', $this->thrown(Admin::save(...)));
-            self::assertSame(['heart' => ['a b']], $GLOBALS['uams_test_options']['uams_search_settings']['synonyms']);
+            self::assertSame(['heart' => ['a b']], self::stored('uams_search_settings')['synonyms']);
         }
 
         public function test_saving_the_site_settings_stores_the_scope_and_the_google_switch(): void
         {
             $_POST = ['scope' => 'all', 'google' => '1'];
-            $GLOBALS['uams_test_options']['uams_search_google'] = false;
+            StandIn::put_option('uams_search_google', false);
 
             self::assertSame('redirect', $this->thrown(Admin::save_site(...)));
-            self::assertSame('all', $GLOBALS['uams_test_options']['uams_search_scope'], 'The scope list includes the Google scope even while the Google results are off.');
-            self::assertTrue($GLOBALS['uams_test_options']['uams_search_google']);
-            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-site', $GLOBALS['uams_test_redirect']);
-            self::assertSame([['uams_search_site']], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame('all', StandIn::option('uams_search_scope'), 'The scope list includes the Google scope even while the Google results are off.');
+            self::assertTrue(StandIn::option('uams_search_google'));
+            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-site', StandIn::redirect());
+            self::assertSame([['uams_search_site']], StandIn::nonce_checks());
 
             $_POST = ['scope' => 'site'];
             self::assertSame('redirect', $this->thrown(Admin::save_site(...)));
-            self::assertSame('site', $GLOBALS['uams_test_options']['uams_search_scope']);
-            self::assertFalse($GLOBALS['uams_test_options']['uams_search_google'], 'A box left unticked saves as off.');
+            self::assertSame('site', StandIn::option('uams_search_scope'));
+            self::assertFalse(StandIn::option('uams_search_google'), 'A box left unticked saves as off.');
         }
 
         public function test_an_unknown_or_unreadable_scope_falls_back_to_the_first_option(): void
         {
             foreach (['bogus', ['site'], '', null] as $scope) {
                 $_POST = ['scope' => $scope, 'google' => '1'];
-                $GLOBALS['uams_test_options']['uams_search_scope'] = 'all';
+                StandIn::put_option('uams_search_scope', 'all');
                 $this->thrown(Admin::save_site(...));
-                self::assertSame('site', $GLOBALS['uams_test_options']['uams_search_scope'], var_export($scope, true));
+                self::assertSame('site', StandIn::option('uams_search_scope'), var_export($scope, true));
             }
 
             $_POST = ['google' => ''];
             $this->thrown(Admin::save_site(...));
-            self::assertSame('site', $GLOBALS['uams_test_options']['uams_search_scope']);
-            self::assertFalse($GLOBALS['uams_test_options']['uams_search_google']);
+            self::assertSame('site', StandIn::option('uams_search_scope'));
+            self::assertFalse(StandIn::option('uams_search_google'));
         }
 
         public function test_retry_queues_the_item_on_its_own_site_and_returns_to_the_failed_items(): void
@@ -670,11 +693,11 @@ namespace UAMS_Search\Tests {
             $_GET = ['site' => '1', 'object' => '9'];
 
             self::assertSame('redirect', $this->thrown(Admin::retry(...)));
-            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-reports#failed-items', $GLOBALS['uams_test_redirect']);
+            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-reports#failed-items', StandIn::redirect());
             self::assertCount(1, $db->queries);
             self::assertStringContainsString("VALUES (1,9,'upsert',", $db->queries[0]);
             self::assertSame([], $GLOBALS['uams_test_blog_calls'], 'The current site needs no switch.');
-            self::assertSame([['uams_search_retry']], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame([['uams_search_retry']], StandIn::nonce_checks());
         }
 
         public function test_retry_switches_to_another_site_and_always_switches_back(): void
@@ -686,7 +709,7 @@ namespace UAMS_Search\Tests {
             $_GET = ['site' => '5', 'object' => '9'];
 
             self::assertSame('redirect', $this->thrown(Admin::retry(...)));
-            self::assertSame('https://example.test/wp-admin/network/admin.php?page=uams-search-reports#failed-items', $GLOBALS['uams_test_redirect']);
+            self::assertSame('https://example.test/wp-admin/network/admin.php?page=uams-search-reports#failed-items', StandIn::redirect());
             self::assertStringContainsString("VALUES (5,9,'upsert',", $db->queries[0]);
             self::assertSame([['switch', 5], ['restore']], $GLOBALS['uams_test_blog_calls']);
 
@@ -705,13 +728,13 @@ namespace UAMS_Search\Tests {
                 self::assertSame('wp_die: Invalid site or item.', $this->thrown(Admin::retry(...)), json_encode($get, JSON_THROW_ON_ERROR));
             }
 
-            self::assertNull($GLOBALS['uams_test_redirect']);
+            self::assertNull(StandIn::redirect());
         }
 
         /** A recording stand-in for the database, for code that queues an item. */
         private function queueDb(): QueueRecordingDb
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
+            StandIn::put_option('uams_search_version', UAMS_SEARCH_SCHEMA_VERSION);
             $this->tableReady(true);
             $GLOBALS['uams_test_blog_calls'] = [];
             $GLOBALS['wpdb'] = new QueueRecordingDb;
@@ -738,7 +761,7 @@ namespace UAMS_Search\Tests {
             $_POST['op'] = 'explode';
             $this->thrown(Admin::rebuild_ajax(...));
 
-            self::assertSame([['uams_search_rebuild', 'nonce']], $GLOBALS['uams_test_nonce_checks']);
+            self::assertSame([['uams_search_rebuild', 'nonce']], StandIn::nonce_checks());
         }
 
         public function test_the_rebuild_endpoint_reads_the_action_in_any_case_and_refuses_anything_that_is_not_text(): void
@@ -758,14 +781,16 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_multisite'] = true;
             $GLOBALS['uams_test_caps'] = ['manage_network_options'];
             $GLOBALS['uams_test_site_ids'] = ['public' => [1, 5, 9], 'all' => [1, 5, 9]];
-            $_POST['settings'] = ['types' => ['post' => ['include' => '1']], 'sites' => ['9', '5', '77']];
+            $settings = ['types' => ['post' => ['include' => '1']], 'sites' => ['9', '5', '77']];
+            $_POST['settings'] = $settings;
 
             self::assertSame('redirect', $this->thrown(Admin::save(...)));
-            self::assertSame([5, 9], $GLOBALS['uams_test_options']['uams_search_settings']['sites']);
+            self::assertSame([5, 9], self::stored('uams_search_settings')['sites']);
 
-            $_POST['settings']['sites'] = ['9'];
+            $settings['sites'] = ['9'];
+            $_POST['settings'] = $settings;
             $this->thrown(Admin::save(...));
-            self::assertSame([9], $GLOBALS['uams_test_options']['uams_search_settings']['sites'], 'The list starts at zero.');
+            self::assertSame([9], self::stored('uams_search_settings')['sites'], 'The list starts at zero.');
         }
 
         public function test_a_types_or_rows_field_that_is_not_a_list_is_ignored_without_a_warning(): void
@@ -786,7 +811,7 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertSame([], $warnings);
-            self::assertSame(['post' => []], $GLOBALS['uams_test_options']['uams_search_settings']['fields']);
+            self::assertSame(['post' => []], self::stored('uams_search_settings')['fields']);
         }
 
         public function test_the_hooks_register_every_handler(): void
@@ -794,17 +819,17 @@ namespace UAMS_Search\Tests {
             Admin::hooks();
 
             foreach (['network_admin_menu', 'admin_init', 'admin_menu', 'admin_post_uams_search_save', 'admin_post_uams_search_site', 'admin_post_uams_search_retry', 'admin_post_uams_search_setup', 'wp_ajax_uams_search_rebuild', 'admin_enqueue_scripts', 'admin_notices', 'network_admin_notices'] as $hook) {
-                self::assertArrayHasKey($hook, $GLOBALS['uams_test_hooks'], $hook);
+                self::assertArrayHasKey($hook, StandIn::hooks(), $hook);
             }
 
-            self::assertCount(2, $GLOBALS['uams_test_hooks']['admin_enqueue_scripts']);
+            self::assertCount(2, StandIn::hooks()['admin_enqueue_scripts']);
         }
 
         public function test_the_hooks_register_each_handler_once_with_its_priority_and_argument_count(): void
         {
             $GLOBALS['uams_test_hook_args'] = [];
             Admin::hooks();
-            $registered = $GLOBALS['uams_test_hook_args'];
+            $registered = StandIn::hook_args();
             $expected = [
                 'network_admin_menu' => [[[Admin::class, 'network_menu'], 10, 1]],
                 'admin_init' => [[[Admin::class, 'redirect_legacy_network_page'], 10, 1]],
@@ -834,7 +859,7 @@ namespace UAMS_Search\Tests {
         public function test_the_pdf_checkbox_html_and_label_are_exact(): void
         {
             Admin::hooks();
-            $edit = $GLOBALS['uams_test_hooks']['attachment_fields_to_edit'][0];
+            $edit = StandIn::hooks()['attachment_fields_to_edit'][0];
             $pdf = new WP_Post;
             $pdf->post_mime_type = 'application/pdf';
 
@@ -842,17 +867,39 @@ namespace UAMS_Search\Tests {
                 'label' => 'Search Visibility',
                 'input' => 'html',
                 'html' => '<input type="hidden" name="attachments[42][uams_search_present]" value="1"><label><input type="checkbox" name="attachments[42][uams_search_exclude]" value="1" > Exclude From Search</label>',
-            ], $edit([], $pdf)['uams_search_exclude']);
+            ], self::excludeField($edit([], $pdf)));
 
             foreach (['1', 1, true, 'yes'] as $stored) {
-                $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = $stored;
-                self::assertStringContainsString("checked='checked'>", $edit([], $pdf)['uams_search_exclude']['html'], var_export($stored, true));
+                StandIn::put_meta(42, '_uams_search_exclude', $stored);
+                self::assertStringContainsString("checked='checked'>", self::excludeHtml($edit([], $pdf)), var_export($stored, true));
             }
 
             foreach (['0', 0, '', false] as $stored) {
-                $GLOBALS['uams_test_meta'][42]['_uams_search_exclude'] = $stored;
-                self::assertStringNotContainsString('checked', $edit([], $pdf)['uams_search_exclude']['html'], var_export($stored, true));
+                StandIn::put_meta(42, '_uams_search_exclude', $stored);
+                self::assertStringNotContainsString('checked', self::excludeHtml($edit([], $pdf)), var_export($stored, true));
             }
+        }
+    }
+
+    /** A database double that holds one rebuild status, or none, and a last error a test can set. */
+    final class IndexStatusDb
+    {
+        public string $last_error = '';
+
+        public string $options = 'wp_options';
+
+        public string $sitemeta = 'wp_sitemeta';
+
+        public function __construct(private readonly ?string $status) {}
+
+        public function prepare(string $query): string
+        {
+            return $query;
+        }
+
+        public function get_var(): ?string
+        {
+            return $this->status === null ? null : serialize(['status' => $this->status]);
         }
     }
 
@@ -874,7 +921,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 
@@ -916,7 +963,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 
