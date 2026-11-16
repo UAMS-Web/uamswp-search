@@ -45,14 +45,14 @@
     "class": "CLI",
     "operator": "IncrementInteger",
     "ordinal": 1,
-    "line_text": "$stats = Queue::process((int) ($assoc['limit'] ?? 100), max(1, min(240, (int) ($assoc['seconds'] ?? 45))));",
+    "line_text": "$stats = Queue::process(Cast::int($assoc['limit'] ?? 100), max(1, min(240, Cast::int($assoc['seconds'] ?? 45))));",
     "reason": "Process the queue within the limits The seconds budget (its default of 45, its 1 to 240 clamp and the casts) changes only how long a run may last, which no test waits for; the casts are read the same by the int parameters. The entry limit and its default of 100 on the same line are killed by the hundred-entry test."
   },
   {
     "class": "CLI",
     "operator": "DecrementInteger",
     "ordinal": 1,
-    "line_text": "$stats = Queue::process((int) ($assoc['limit'] ?? 100), max(1, min(240, (int) ($assoc['seconds'] ?? 45))));",
+    "line_text": "$stats = Queue::process(Cast::int($assoc['limit'] ?? 100), max(1, min(240, Cast::int($assoc['seconds'] ?? 45))));",
     "reason": "Process the queue within the limits The seconds budget (its default of 45, its 1 to 240 clamp and the casts) changes only how long a run may last, which no test waits for; the casts are read the same by the int parameters. The entry limit and its default of 100 on the same line are killed by the hundred-entry test."
   },
   {
