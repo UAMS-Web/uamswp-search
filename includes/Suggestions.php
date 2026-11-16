@@ -46,7 +46,9 @@ final class Suggestions
         self::remove(Cast::int($row['site_id']), Cast::int($row['object_id']));
         // Collect the object's distinct words
         $stop = Text::stops();
-        $words = \array_slice(array_unique(Text::words(implode(' ', array_intersect_key($row, array_flip(['title', 'content', 'fields', 'terms', 'pdf']))))), 0, 10000);
+        // The text fields of a row are text already, so the conversion changes no result.
+        // @pest-mutate-ignore:UnwrapArrayMap
+        $words = \array_slice(array_unique(Text::words(implode(' ', array_map(Cast::string(...), array_intersect_key($row, array_flip(['title', 'content', 'fields', 'terms', 'pdf'])))))), 0, 10000);
         // Add the words 100 at a time
         foreach (array_chunk($words, 100) as $chunk) {
             $doc_values = [];

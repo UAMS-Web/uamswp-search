@@ -49,7 +49,7 @@ final class Pdf
         // A status is a non-numeric word, so a loose comparison with these two matches only when the strict one does.
         // @pest-mutate-ignore:TrueToFalse
         if ($old && $old['file_signature'] === $sig && \in_array($old['status'], ['ready', 'scanned'], true)) {
-            return ['pdf' => $old['pdf'], 'file_signature' => $sig, 'file_size' => $size, 'status' => $old['status'], 'error' => $old['error'], 'fields' => Text::plain(pathinfo($real, PATHINFO_FILENAME))];
+            return ['pdf' => Cast::string($old['pdf']), 'file_signature' => $sig, 'file_size' => $size, 'status' => $old['status'], 'error' => Cast::string($old['error']), 'fields' => Text::plain(pathinfo($real, PATHINFO_FILENAME))];
         }
 
         // Find Poppler and the time limit

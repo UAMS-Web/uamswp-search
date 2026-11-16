@@ -117,7 +117,10 @@ final class NameChoices
             self::check($site);
             foreach (['fields' => $fields, 'taxonomies' => $taxonomies] as $group => $rows) {
                 foreach (\is_array($rows) ? $rows : [] as $row) {
-                    $found[$group][Cast::string($row['type'] ?? '')][] = Cast::string($row['name'] ?? '');
+                    // A row is an array already, and a value that is not one reads both fields as missing, so the cast changes no result.
+                    // @pest-mutate-ignore:RemoveArrayCast
+                    $fields = (array) $row;
+                    $found[$group][Cast::string($fields['type'] ?? '')][] = Cast::string($fields['name'] ?? '');
                 }
             }
         }

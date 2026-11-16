@@ -63,8 +63,9 @@ final class Text
      */
     public static function stops(): array
     {
-        // Combine the built-in and configured stop words
-        return array_fill_keys(array_merge(explode(' ', self::STOP), self::words(implode(' ', Config::section('stopwords')))), true);
+        // Combine the built-in and configured stop words. The saved stop words are text already, so the conversion changes no result.
+        // @pest-mutate-ignore:UnwrapArrayMap
+        return array_fill_keys(array_merge(explode(' ', self::STOP), self::words(implode(' ', array_map(Cast::string(...), Config::section('stopwords'))))), true);
     }
 
     /**

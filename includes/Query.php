@@ -54,9 +54,9 @@ final class Query
         // A non-empty default names no known type, so the filter is empty and every configured type is searched, exactly as with the empty default.
         // @pest-mutate-ignore:EmptyStringToNotEmpty
         $type = $args['type'] ?? '';
-        // Only the values are read from the list, so its keys are never seen.
-        // @pest-mutate-ignore:UnwrapArrayValues
-        $types = array_values(array_intersect((array) $type, array_keys(Config::section('types'))));
+        // Only the values are read from the list, so its keys are never seen. A requested type is text already, so the conversion changes no result.
+        // @pest-mutate-ignore:UnwrapArrayValues,UnwrapArrayMap
+        $types = array_values(array_intersect(array_map(Cast::string(...), (array) $type), array_keys(Config::section('types'))));
         // Limit the rows to the chosen sites and ready objects
         // The site IDs from `Config::sites()` are already integers, so the cast is defensive only.
         // @pest-mutate-ignore:UnwrapArrayMap
