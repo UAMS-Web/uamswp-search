@@ -1,6 +1,7 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
 
     if (! class_exists('WP_Post')) {
         #[AllowDynamicProperties] class WP_Post
@@ -36,12 +37,12 @@ namespace {
 
             public function get(mixed $key): mixed
             {
-                return $this->values[$key] ?? '';
+                return $this->values[Cast::string($key)] ?? '';
             }
 
             public function set(mixed $key, mixed $value): void
             {
-                $this->values[$key] = $value;
+                $this->values[Cast::string($key)] = $value;
             }
 
             public function is_main_query(): bool
@@ -65,11 +66,13 @@ namespace {
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use RuntimeException;
+    use UAMS_Search\Cast;
     use UAMS_Search\Config;
     use UAMS_Search\Integration;
     use UAMS_Search\Linked;
     use UAMS_Search\Query;
     use UAMS_Search\Related;
+    use UAMS_Search\Tests\Support\StandIn;
     use WP_Post;
     use WP_Query;
 
@@ -83,7 +86,7 @@ namespace UAMS_Search\Tests {
         /** @var array<mixed> */
         public array $counts = [21];
 
-        /** @var array<mixed> */
+        /** @var list<string> */
         public array $queries = [];
 
         /** A fragment of SQL that makes the matching query report a database error. */
@@ -92,19 +95,20 @@ namespace UAMS_Search\Tests {
         /** How many queries matching `$fail_on` run normally before the error. */
         public int $fail_after = 0;
 
-        public function esc_like(mixed $s): mixed
+        public function esc_like(mixed $s): string
         {
-            return addcslashes($s, '_%\\');
+            return addcslashes(Cast::string($s), '_%\\');
         }
 
-        public function prepare(mixed $sql, mixed ...$args): mixed
+        public function prepare(mixed $sql, mixed ...$args): string
         {
             if (count($args) === 1 && is_array($args[0])) {
                 $args = $args[0];
             }
 
+            $sql = Cast::string($sql);
             foreach ($args as $arg) {
-                $sql = preg_replace_callback('/%[sd]/', static fn ($m): string => $m[0] === '%d' ? (string) (int) $arg : "'".addslashes((string) $arg)."'", $sql, 1);
+                $sql = (string) preg_replace_callback('/%[sd]/', static fn ($m): string => $m[0] === '%d' ? (string) Cast::int($arg) : "'".addslashes(Cast::string($arg))."'", $sql, 1);
             }
 
             return $sql;
@@ -112,11 +116,12 @@ namespace UAMS_Search\Tests {
 
         public function get_blog_prefix(mixed $site): mixed
         {
-            return $site === 1 ? 'wp_' : 'wp_'.$site.'_';
+            return $site === 1 ? 'wp_' : 'wp_'.Cast::string($site).'_';
         }
 
         public function get_var(mixed $sql): mixed
         {
+            $sql = Cast::string($sql);
             $this->queries[] = $sql;
             $this->maybe_fail($sql);
             if (str_starts_with($sql, 'SHOW TABLES')) {
@@ -128,6 +133,7 @@ namespace UAMS_Search\Tests {
 
         public function get_results(mixed $sql, mixed $format): mixed
         {
+            $sql = Cast::string($sql);
             $this->queries[] = $sql;
             $this->maybe_fail($sql);
             if (str_contains($sql, 'uams_search_words')) {
@@ -210,18 +216,18 @@ namespace UAMS_Search\Tests {
 
         public function test_fallback_and_hostile_pagination_are_bounded(): void
         {
-            $GLOBALS['wpdb']->counts = [0, 2];
+            self::db()->counts = [0, 2];
             $out = Query::run(['s' => 'heart billing', 'page' => PHP_INT_MAX, 'per_page' => -10, 'suggest' => false]);
             self::assertTrue($out['fallback']);
             self::assertSame(2, $out['total']);
-            self::assertStringEndsWith('LIMIT 1 OFFSET 9999', end($GLOBALS['wpdb']->queries));
+            self::assertStringEndsWith('LIMIT 1 OFFSET 9999', self::lastQuery());
         }
 
         public function test_pdfs_are_left_out_when_pdf_search_is_off(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => false, 'types' => ['page' => 1.0, 'attachment' => 0.8]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'pdf' => false, 'types' => ['page' => 1.0, 'attachment' => 0.8]]);
             Query::run(['s' => 'heart', 'suggest' => false]);
-            $sql = implode("\n", $GLOBALS['wpdb']->queries);
+            $sql = implode("\n", self::db()->queries);
             self::assertStringContainsString("i.post_type IN ('page')", $sql);
             self::assertStringNotContainsString("'attachment')", $sql);
             self::assertStringNotContainsString("'page','attachment'", $sql);
@@ -229,27 +235,28 @@ namespace UAMS_Search\Tests {
 
         public function test_pdfs_are_searched_when_pdf_search_is_on(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => true, 'types' => ['page' => 1.0, 'attachment' => 0.8]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'pdf' => true, 'types' => ['page' => 1.0, 'attachment' => 0.8]]);
             Query::run(['s' => 'heart', 'suggest' => false]);
-            self::assertStringContainsString("i.post_type IN ('page','attachment')", implode("\n", $GLOBALS['wpdb']->queries));
+            self::assertStringContainsString("i.post_type IN ('page','attachment')", implode("\n", self::db()->queries));
         }
 
         public function test_only_pdf_types_with_pdf_search_off_return_no_results(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => false, 'types' => ['attachment' => 0.8]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'pdf' => false, 'types' => ['attachment' => 0.8]]);
             $out = Query::run(['s' => 'heart', 'suggest' => false]);
             self::assertSame([], $out['results']);
             self::assertSame(0, $out['total']);
-            self::assertSame([], array_filter($GLOBALS['wpdb']->queries, static fn (string $sql): bool => str_starts_with($sql, 'SELECT')));
+            self::assertSame([], array_filter(self::db()->queries, static fn (string $sql): bool => str_starts_with($sql, 'SELECT')));
         }
 
         public function test_a_database_error_in_each_query_is_thrown(): void
         {
             foreach ([['SELECT COUNT(*)', 0, [21], 'count'], ['SELECT COUNT(*)', 1, [0, 5], 'fallback count'], ['SELECT i.*', 0, [21], 'results']] as [$fragment, $after, $counts, $label]) {
-                $GLOBALS['wpdb'] = new QueryFixtureDB;
-                $GLOBALS['wpdb']->counts = $counts;
-                $GLOBALS['wpdb']->fail_on = $fragment;
-                $GLOBALS['wpdb']->fail_after = $after;
+                $db = new QueryFixtureDB;
+                StandIn::set_db($db);
+                $db->counts = $counts;
+                $db->fail_on = $fragment;
+                $db->fail_after = $after;
                 try {
                     Query::run(['s' => 'heart', 'suggest' => false]);
                     self::fail("No exception for the $label query");
@@ -262,7 +269,7 @@ namespace UAMS_Search\Tests {
         public function test_each_column_score_is_guarded_against_a_non_finite_match_value(): void
         {
             Query::run(['s' => 'heart', 'suggest' => false]);
-            $sql = end($GLOBALS['wpdb']->queries);
+            $sql = self::lastQuery();
             foreach (['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1] as $column => $weight) {
                 $match = "MATCH(i.{$column}_stem) AGAINST('heart*' IN BOOLEAN MODE)";
                 self::assertStringContainsString("(IF($match BETWEEN 0 AND 1000000,$match,0)*$weight)", $sql, $column);
@@ -271,9 +278,9 @@ namespace UAMS_Search\Tests {
 
         public function test_unknown_weight_columns_are_not_queried(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'weights' => ['title' => 5, 'bogus' => 9]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'weights' => ['title' => 5, 'bogus' => 9]]);
             Query::run(['s' => 'heart', 'suggest' => false]);
-            $sql = end($GLOBALS['wpdb']->queries);
+            $sql = self::lastQuery();
             self::assertStringContainsString('i.title_stem', $sql);
             self::assertStringNotContainsString('bogus', $sql);
         }
@@ -282,16 +289,16 @@ namespace UAMS_Search\Tests {
         {
             $out = Query::run(['s' => 'heart', 'explain' => true, 'suggest' => false]);
             self::assertSame(['title' => 1.5, 'content' => 2.5, 'fields' => 0.5, 'terms' => 3.5, 'pdf' => 0.0], $out['results'][0]->scores);
-            self::assertStringContainsString('AS title_score', end($GLOBALS['wpdb']->queries));
+            self::assertStringContainsString('AS title_score', self::lastQuery());
             $plain = Query::run(['s' => 'heart', 'suggest' => false]);
             self::assertNull($plain['results'][0]->scores);
         }
 
         public function test_the_field_score_is_skipped_when_every_weight_is_one(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'related_provider_weight' => 1];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'related_provider_weight' => 1]);
             Query::run(['s' => 'heart', 'suggest' => false]);
-            $sql = end($GLOBALS['wpdb']->queries);
+            $sql = self::lastQuery();
             self::assertStringContainsString('+0)*(CASE', $sql);
             self::assertStringNotContainsString('COALESCE((SELECT SUM((j.weight-1)', $sql);
         }
@@ -299,22 +306,22 @@ namespace UAMS_Search\Tests {
         public function test_a_field_or_taxonomy_weight_other_than_one_adds_the_field_score(): void
         {
             foreach (['fields', 'taxonomies'] as $source) {
-                $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'related_provider_weight' => 1, $source => ['page' => ['x' => 2.0]]];
+                StandIn::put_option('uams_search_settings', ['enabled' => true, 'related_provider_weight' => 1, $source => ['page' => ['x' => 2.0]]]);
                 Query::run(['s' => 'heart', 'suggest' => false]);
-                self::assertStringContainsString('COALESCE((SELECT SUM((j.weight-1)', end($GLOBALS['wpdb']->queries), $source);
+                self::assertStringContainsString('COALESCE((SELECT SUM((j.weight-1)', self::lastQuery(), $source);
             }
         }
 
         public function test_few_results_ask_for_a_spelling_suggestion_and_enough_results_do_not(): void
         {
-            $GLOBALS['wpdb']->counts = [2];
+            self::db()->counts = [2];
             Query::run(['s' => 'heart']);
-            $few = implode("\n", $GLOBALS['wpdb']->queries);
+            $few = implode("\n", self::db()->queries);
             self::assertStringContainsString('uams_search_words', $few);
             $GLOBALS['wpdb'] = new QueryFixtureDB;
-            $GLOBALS['wpdb']->counts = [3];
+            self::db()->counts = [3];
             Query::run(['s' => 'heart']);
-            self::assertStringNotContainsString('uams_search_words', implode("\n", $GLOBALS['wpdb']->queries));
+            self::assertStringNotContainsString('uams_search_words', implode("\n", self::db()->queries));
         }
 
         public function test_malformed_input_and_wrong_site_return_no_results(): void
@@ -328,6 +335,7 @@ namespace UAMS_Search\Tests {
         {
             $query = new WP_Query;
             $posts = Integration::posts(null, $query);
+            self::assertIsArray($posts);
             self::assertCount(1, $posts);
             // The copied post carries only its site; the excerpt is kept by site and post ID
             self::assertSame(1, $posts[0]->blog_id);
@@ -345,22 +353,25 @@ namespace UAMS_Search\Tests {
             self::assertSame(20, Config::page_size());
             $out = Query::run(['s' => 'heart', 'suggest' => false]);
             self::assertSame(2, $out['pages']);
-            self::assertStringEndsWith('LIMIT 20 OFFSET 0', end($GLOBALS['wpdb']->queries));
-            $GLOBALS['uams_test_options']['uams_search_settings']['results_per_page'] = 30;
-            $GLOBALS['wpdb']->counts = [61];
+            self::assertStringEndsWith('LIMIT 20 OFFSET 0', self::lastQuery());
+            $settings = StandIn::option('uams_search_settings');
+            self::assertIsArray($settings);
+            $settings['results_per_page'] = 30;
+            StandIn::put_option('uams_search_settings', $settings);
+            self::db()->counts = [61];
             $query = new WP_Query;
             $query->values['paged'] = 2;
             Integration::posts(null, $query);
             self::assertSame(30, $query->get('posts_per_page'));
             self::assertSame(3, $query->max_num_pages);
-            self::assertStringEndsWith('LIMIT 30 OFFSET 30', end($GLOBALS['wpdb']->queries));
-            $GLOBALS['wpdb']->counts = [61];
+            self::assertStringEndsWith('LIMIT 30 OFFSET 30', self::lastQuery());
+            self::db()->counts = [61];
             $query = new WP_Query;
             $query->query = ['posts_per_page' => 7];
             Integration::posts(null, $query);
             self::assertSame(7, $query->get('posts_per_page'));
             self::assertSame(9, $query->max_num_pages);
-            self::assertStringEndsWith('LIMIT 7 OFFSET 0', end($GLOBALS['wpdb']->queries));
+            self::assertStringEndsWith('LIMIT 7 OFFSET 0', self::lastQuery());
             foreach ([[0, 1], [-5, 1], [999, 100], ['bad', 20], [[], 20], [INF, 20]] as [$input, $expected]) {
                 self::assertSame($expected, Config::page_size($input));
             }
@@ -370,7 +381,9 @@ namespace UAMS_Search\Tests {
         {
             $existing = [new WP_Post];
             self::assertSame($existing, Integration::posts($existing, new WP_Query));
-            unset($GLOBALS['uams_test_options']['uams_search_version']);
+            $options = StandIn::options();
+            unset($options['uams_search_version']);
+            StandIn::set_options($options);
             self::assertNull(Integration::posts(null, new WP_Query));
         }
 
@@ -396,10 +409,24 @@ namespace UAMS_Search\Tests {
             return '((i.site_id='.$site." AND EXISTS (SELECT 1 FROM `$p` p WHERE p.ID=i.object_id AND p.post_password='' AND BINARY p.post_type=BINARY i.post_type AND $visibility) AND NOT EXISTS (SELECT 1 FROM `$m` m WHERE m.post_id=i.object_id AND ((m.meta_key='_uams_search_exclude' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_hidden' AND m.meta_value NOT IN ('','0')) OR (i.post_type='provider' AND m.meta_key='physician_searchable' AND m.meta_value='0') OR (i.post_type='location' AND m.meta_key='location_hidden' AND m.meta_value NOT IN ('','0')))))".' AND '.Related::public_sql($p, $m).' AND '.Linked::public_sql($p, $m, $prefix.'terms').')';
         }
 
+        private static function db(): QueryFixtureDB
+        {
+            return StandIn::db(QueryFixtureDB::class);
+        }
+
+        /** The latest query the database double recorded, checked to exist. */
+        private static function lastQuery(): string
+        {
+            $queries = self::db()->queries;
+            self::assertNotSame([], $queries);
+
+            return (string) end($queries);
+        }
+
         /** @return list<string> The queries run so far, without the table check. */
         private static function selects(): array
         {
-            return array_values(array_filter($GLOBALS['wpdb']->queries, static fn (string $sql): bool => str_starts_with($sql, 'SELECT')));
+            return array_values(array_filter(self::db()->queries, static fn (string $sql): bool => str_starts_with($sql, 'SELECT')));
         }
 
         private static function match_column(string $column, string $against): string
@@ -411,7 +438,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_count_and_results_queries_are_built_exactly(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => false, 'related_provider_weight' => 1, 'types' => ['page' => 1.0, 'post' => 2.0]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'pdf' => false, 'related_provider_weight' => 1, 'types' => ['page' => 1.0, 'post' => 2.0]]);
             Query::run(['s' => 'heart care', 'suggest' => false]);
             $queries = self::selects();
             self::assertCount(2, $queries);
@@ -424,8 +451,8 @@ namespace UAMS_Search\Tests {
 
         public function test_the_fallback_explain_type_and_page_are_built_exactly(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'pdf' => false, 'related_provider_weight' => 1, 'types' => ['page' => 1.0, 'post' => 2.0]];
-            $GLOBALS['wpdb']->counts = [0, 2];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'pdf' => false, 'related_provider_weight' => 1, 'types' => ['page' => 1.0, 'post' => 2.0]]);
+            self::db()->counts = [0, 2];
             $out = Query::run(['s' => 'heart care', 'explain' => true, 'type' => 'post', 'page' => 3, 'per_page' => 5, 'suggest' => false]);
             $queries = self::selects();
             $where = "i.site_id IN (1) AND i.status IN ('ready','scanned') AND i.post_type IN ('post') AND (".self::public_clause(1, 'wp_').')';
@@ -451,7 +478,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_field_score_expression_is_built_exactly(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'related_provider_weight' => 2, 'weights' => ['fields' => 3, 'terms' => 4]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'related_provider_weight' => 2, 'weights' => ['fields' => 3, 'terms' => 4]]);
             $method = new \ReflectionMethod(Query::class, 'field_score');
             $expected = "COALESCE((SELECT SUM((j.weight-1)*(CASE j.source WHEN 'fields' THEN 3 ELSE 4 END)) FROM JSON_TABLE(IF(JSON_VALID(i.weighted_data),i.weighted_data,'[]'),'$[*]' COLUMNS(stem LONGTEXT PATH '\$.stem', weight DOUBLE PATH '\$.weight', source VARCHAR(10) PATH '\$.source')) AS j WHERE (CONCAT(' ',j.stem) LIKE '% heart%' OR CONCAT(' ',j.stem) LIKE '% care%' OR CONCAT(' ',j.stem) LIKE '% billing%' OR CONCAT(' ',j.stem) LIKE '% x%')),0)";
             // Duplicate tokens, quotes and wildcards collapse to one condition per bare token
@@ -463,11 +490,11 @@ namespace UAMS_Search\Tests {
 
         public function test_a_provider_weight_alone_turns_the_field_score_on(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'related_provider_weight' => 2];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'related_provider_weight' => 2]);
             $method = new \ReflectionMethod(Query::class, 'field_score');
-            self::assertStringStartsWith('COALESCE(', $method->invoke(null, [['heart']]));
+            self::assertStringStartsWith('COALESCE(', Cast::string($method->invoke(null, [['heart']])));
             // The default column weights are 2 for fields and 3 for terms
-            self::assertStringContainsString("WHEN 'fields' THEN 2 ELSE 3 END", $method->invoke(null, [['heart']]));
+            self::assertStringContainsString("WHEN 'fields' THEN 2 ELSE 3 END", Cast::string($method->invoke(null, [['heart']])));
         }
 
         public function test_search_text_is_cut_to_200_characters(): void
@@ -487,28 +514,28 @@ namespace UAMS_Search\Tests {
             // A search that is not text is read as empty
             $GLOBALS['wpdb'] = new QueryFixtureDB;
             self::assertSame(0, Query::run(['s' => new \stdClass, 'suggest' => false])['total']);
-            self::assertSame([], $GLOBALS['wpdb']->queries);
+            self::assertSame([], self::db()->queries);
         }
 
         public function test_the_site_scope_and_type_arguments_are_normalized(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'types' => ['page' => 1.0, 'post' => 2.0]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'types' => ['page' => 1.0, 'post' => 2.0]]);
             Query::run(['s' => 'heart', 'site' => '1', 'suggest' => false]);
-            self::assertStringContainsString('i.site_id IN (1)', $GLOBALS['wpdb']->queries[1]);
+            self::assertStringContainsString('i.site_id IN (1)', self::db()->queries[1]);
             // A site below one is read as the first site
             $GLOBALS['wpdb'] = new QueryFixtureDB;
             Query::run(['s' => 'heart', 'site' => 0, 'suggest' => false]);
-            self::assertStringContainsString('i.site_id IN (1)', $GLOBALS['wpdb']->queries[1]);
+            self::assertStringContainsString('i.site_id IN (1)', self::db()->queries[1]);
             // Unknown types are dropped, and no known type falls back to every configured type
             $GLOBALS['wpdb'] = new QueryFixtureDB;
             Query::run(['s' => 'heart', 'type' => ['post', 'bogus'], 'suggest' => false]);
-            self::assertStringContainsString("i.post_type IN ('post') AND", $GLOBALS['wpdb']->queries[1]);
+            self::assertStringContainsString("i.post_type IN ('post') AND", self::db()->queries[1]);
             $GLOBALS['wpdb'] = new QueryFixtureDB;
             Query::run(['s' => 'heart', 'type' => 'bogus', 'suggest' => false]);
-            self::assertStringContainsString("i.post_type IN ('page','post') AND", $GLOBALS['wpdb']->queries[1]);
+            self::assertStringContainsString("i.post_type IN ('page','post') AND", self::db()->queries[1]);
             $GLOBALS['wpdb'] = new QueryFixtureDB;
             Query::run(['s' => 'heart', 'type' => '', 'suggest' => false]);
-            self::assertStringContainsString("i.post_type IN ('page','post') AND", $GLOBALS['wpdb']->queries[1]);
+            self::assertStringContainsString("i.post_type IN ('page','post') AND", self::db()->queries[1]);
         }
 
         public function test_page_numbers_are_whole_and_at_least_one(): void
@@ -516,7 +543,7 @@ namespace UAMS_Search\Tests {
             foreach ([['2.7', 'LIMIT 20 OFFSET 20'], [0, 'LIMIT 20 OFFSET 0'], [-4, 'LIMIT 20 OFFSET 0'], [10001, 'LIMIT 20 OFFSET 199980']] as [$page, $tail]) {
                 $GLOBALS['wpdb'] = new QueryFixtureDB;
                 Query::run(['s' => 'heart', 'page' => $page, 'suggest' => false]);
-                self::assertStringEndsWith($tail, end($GLOBALS['wpdb']->queries), (string) $page);
+                self::assertStringEndsWith($tail, self::lastQuery(), (string) $page);
             }
         }
 
@@ -533,7 +560,7 @@ namespace UAMS_Search\Tests {
                     ]];
                 }
             };
-            $GLOBALS['wpdb']->counts = ['5'];
+            self::db()->counts = ['5'];
             $out = Query::run(['s' => 'heart', 'explain' => true, 'suggest' => false]);
             $result = $out['results'][0];
             self::assertSame(42, $result->id);
@@ -548,14 +575,14 @@ namespace UAMS_Search\Tests {
 
         public function test_totals_of_zero_one_and_string_counts_set_the_fallback_flag_and_pages(): void
         {
-            $GLOBALS['wpdb']->counts = ['0', '0'];
+            self::db()->counts = ['0', '0'];
             $none = Query::run(['s' => 'heart', 'suggest' => false]);
-            self::assertTrue($GLOBALS['wpdb']->queries !== []);
+            self::assertTrue(self::db()->queries !== []);
             self::assertSame(0, $none['total']);
             self::assertSame(0, $none['pages']);
             self::assertFalse($none['fallback']);
             $GLOBALS['wpdb'] = new QueryFixtureDB;
-            $GLOBALS['wpdb']->counts = ['0', '1'];
+            self::db()->counts = ['0', '1'];
             $one = Query::run(['s' => 'heart', 'suggest' => false]);
             self::assertTrue($one['fallback']);
             self::assertSame(1, $one['total']);
@@ -572,8 +599,8 @@ namespace UAMS_Search\Tests {
 
         public function test_the_requested_scope_decides_which_sites_are_searched(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true];
-            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            StandIn::put_option('uams_search_settings', ['enabled' => true]);
+            StandIn::put_option('uams_search_google', true);
             // Site 999 is not public, so the site scope has nothing to search
             self::assertSame(0, Query::run(['s' => 'heart', 'site' => 999, 'suggest' => false])['total']);
             self::assertSame([], self::selects());
@@ -584,7 +611,7 @@ namespace UAMS_Search\Tests {
 
         public function test_an_unknown_weight_column_before_a_known_one_does_not_stop_the_scoring(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true, 'weights' => ['bogus' => 9, 'title' => 5]];
+            StandIn::put_option('uams_search_settings', ['enabled' => true, 'weights' => ['bogus' => 9, 'title' => 5]]);
             Query::run(['s' => 'heart', 'suggest' => false]);
             $sql = self::selects()[1];
             self::assertStringContainsString('MATCH(i.title_stem)', $sql);
