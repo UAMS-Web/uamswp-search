@@ -7,6 +7,7 @@ namespace {
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
+    use RuntimeException;
     use UAMS_Search\DB;
     use UAMS_Search\Misses;
     use UAMS_Search\Tests\Support\Prepare;
@@ -74,6 +75,21 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString("UPDATE `wp_uams_search_misses` SET count=count+1 WHERE site_id=1 AND search_hash='".hash('sha256', 'orthopaedics')."'", $this->db->queries[1]);
         }
 
+        public function test_a_search_is_not_recorded_when_prepare_gives_no_statement_back(): void
+        {
+            $this->db->prepare_gives_nothing = true;
+
+            try {
+                Misses::record('Orthopaedics');
+                self::fail('A statement that cannot be prepared must stop the record.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('Database operation failed', $runtimeException->getMessage());
+            }
+
+            self::assertCount(1, $this->db->queries);
+            self::assertStringStartsWith('SHOW TABLES', $this->db->queries[0]);
+        }
+
         public function test_a_new_search_is_inserted_below_the_daily_limit(): void
         {
             $this->db->day_count = Misses::DAILY_LIMIT - 1;
@@ -131,9 +147,12 @@ namespace UAMS_Search\Tests {
             return $text;
         }
 
-        public function prepare(string $query, mixed ...$args): string
+        /** Whether `prepare()` gives no statement back for a statement on the misses table, as `wpdb` does when it cannot fill the placeholders. The schema check keeps working. */
+        public bool $prepare_gives_nothing = false;
+
+        public function prepare(string $query, mixed ...$args): ?string
         {
-            return Prepare::sql($query, $args);
+            return $this->prepare_gives_nothing && ($args[0] ?? null) === 'wp_uams_search_misses' ? null : Prepare::sql($query, $args);
         }
 
         public function get_var(string $query): string
