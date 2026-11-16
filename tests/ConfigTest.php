@@ -361,22 +361,25 @@ namespace UAMS_Search\Tests {
             self::assertSame(['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'], Config::result_labels());
         }
 
-        public function test_google_is_offered_unless_the_option_or_a_filter_says_otherwise(): void
+        public function test_google_is_off_until_the_option_or_a_filter_turns_it_on(): void
         {
+            self::assertFalse(Config::google_enabled(), 'A site that has never saved the setting does not load the Google script.');
+
+            $GLOBALS['uams_test_options']['uams_search_google'] = '1';
             self::assertTrue(Config::google_enabled());
 
             $GLOBALS['uams_test_options']['uams_search_google'] = '0';
             self::assertFalse(Config::google_enabled());
 
-            $GLOBALS['uams_test_options']['uams_search_google'] = '1';
             $GLOBALS['uams_test_filters']['uams_search_google_enabled'] = [static fn (): array => ['yes']];
             self::assertTrue(Config::google_enabled());
         }
 
         public function test_the_scope_falls_back_to_the_saved_default_and_then_to_the_first_option(): void
         {
-            // A single site offers `site` and `all`
+            // A single site offers `site` and, once Google is on, `all`
             $GLOBALS['uams_test_multisite'] = false;
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
             self::assertSame('all', Config::scope('all'));
             self::assertSame('site', Config::scope('install'));
             self::assertSame('site', Config::scope(5));

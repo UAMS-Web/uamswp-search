@@ -425,7 +425,7 @@ final class Admin
         }
 
         // Print the Google results switch and the save button
-        echo '</fieldset><p><label><input type="checkbox" name="google" value="1" '.checked(Config::option_flag('uams_search_google', true), true, false).'> Show the Existing All of UAMS Google Search</label></p>';
+        echo '</fieldset><p><label><input type="checkbox" name="google" value="1" '.checked(Config::option_flag('uams_search_google', false), true, false).'> Show the Existing All of UAMS Google Search</label><br><span class="description">Off by default. The block loads a script from Google that cannot carry Subresource Integrity, so turning it on is a launch decision.</span></p>';
         submit_button('Save search settings');
         echo '</form></div>';
     }

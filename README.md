@@ -1,6 +1,6 @@
 # UAMSWP Search
 
-WordPress multisite search owned by UAMS. The build includes core indexing and relevance, PDF text, synonyms, spelling links, no-result counts, and keyboard-accessible live search. It uses the install's InnoDB full-text indexes. No external search service is used. The optional existing Google “All of UAMS” block still contacts Google.
+WordPress multisite search owned by UAMS. The build includes core indexing and relevance, PDF text, synonyms, spelling links, no-result counts, and keyboard-accessible live search. It uses the install's InnoDB full-text indexes. No external search service is used. The optional existing Google “All of UAMS” block still contacts Google, and it is off by default (see below).
 
 **Status: ready for a staging trial, not approved for production.** PHP tests, browser component checks, and isolated WordPress/database tests pass on MySQL 9.4.0. Target MariaDB 10.6.27, the live reference theme, screen-reader checks, SearchWP relevance comparisons, and largest-install performance still need verification. See [the verification record](docs/VERIFICATION.md).
 
@@ -12,7 +12,7 @@ WordPress multisite search owned by UAMS. The build includes core indexing and r
 4. While signed in, compare `/?s=heart&engine=uams` with the ordinary SearchWP results. The new engine is **off for visitors by default**. Suggestions work in the signed-in preview too.
 5. After all release checks pass, enable “Use UAMSWP Search for visitors” and disable SearchWP. Leave the old plugins installed through the comparison period so rollback is easy.
 
-The menu has three screens: **Index** (rebuild and index status), **Reports** (failed items, PDFs without text, and searches with no results), and **Settings** (network settings). On a single-site install they are under Settings → UAMSWP Search Index, UAMSWP Search Reports, and UAMSWP Search Settings. Each site's scope is under Settings → UAMSWP Search, and under UAMS Settings → Search when the existing top-level menu is available. The older reference theme has no usable settings hook for its Google block, so the plugin preserves the block's default visibility and supplies its own per-site checkbox and filter.
+The menu has three screens: **Index** (rebuild and index status), **Reports** (failed items, PDFs without text, and searches with no results), and **Settings** (network settings). On a single-site install they are under Settings → UAMSWP Search Index, UAMSWP Search Reports, and UAMSWP Search Settings. Each site's scope is under Settings → UAMSWP Search, and under UAMS Settings → Search when the existing top-level menu is available. The older reference theme has no usable settings hook for its Google block, so the plugin supplies its own per-site checkbox (`uams_search_google`) and the `uams_search_google_enabled` filter. The block is **off by default**: it loads `cse.google.com/cse.js`, a script that cannot carry Subresource Integrity, so it prints nothing and the “All UAMS websites” scope is not offered until the checkbox is ticked or the filter returns true. Turning it on is a launch decision (`docs/DECISIONS.md`, 2026-11-15).
 
 ## Operations
 
