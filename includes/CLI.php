@@ -39,7 +39,8 @@ final class CLI
 
             // Rebuild each site and report its counts
             foreach ($sites as $site) {
-                $stats = Indexer::rebuild($site, $assoc['post-type'] ?? null);
+                $post_type = $assoc['post-type'] ?? null;
+                $stats = Indexer::rebuild($site, \is_string($post_type) ? $post_type : null);
                 WP_CLI::log(sprintf('Site %d: %d indexed, %d failed.', $site, $stats['indexed'], $stats['errors']));
             }
 
@@ -98,7 +99,7 @@ final class CLI
             format_items('table', $rows, ['site_id', 'post_type', 'status', 'count']);
             // Print the queue size and last run time
             WP_CLI::log('Queue: '.$wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`'));
-            WP_CLI::log('Queue last ran: '.Time::local(get_site_option('uams_search_last_queue', '')));
+            WP_CLI::log('Queue last ran: '.Time::local(Cast::string(get_site_option('uams_search_last_queue', ''))));
         });
     }
 
@@ -144,7 +145,7 @@ final class CLI
 
             // Report an indexing failure as an error
             if ($row['status'] === 'error') {
-                throw new RuntimeException($row['error']);
+                throw new RuntimeException(Cast::string($row['error']));
             }
         });
     }
