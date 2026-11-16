@@ -24,8 +24,10 @@ namespace {
 
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
+    use RuntimeException;
     use stdClass;
     use UAMS_Search\Related;
+    use UAMS_Search\Tests\Support\Prepare;
     use WP_Post;
 
     /**
@@ -76,6 +78,31 @@ namespace UAMS_Search\Tests {
             self::assertSame(substr_count($sql, '('), substr_count($sql, ')'));
         }
 
+        public function test_a_statement_that_prepare_does_not_give_back_is_a_failure_not_an_empty_statement(): void
+        {
+            $GLOBALS['wpdb'] = new class
+            {
+                public string $base_prefix = 'wp_';
+
+                public function esc_like(string $text): string
+                {
+                    return addcslashes($text, '_%\\');
+                }
+
+                public function prepare(string $query, mixed ...$args): null
+                {
+                    return null;
+                }
+            };
+
+            try {
+                $this->expectExceptionObject(new RuntimeException('Database operation failed'));
+                Related::queue_dependents(2, 77);
+            } finally {
+                unset($GLOBALS['wpdb']);
+            }
+        }
+
         public function test_queue_dependents_requeues_pages_that_copied_the_provider_name(): void
         {
             $db = new class
@@ -90,13 +117,9 @@ namespace UAMS_Search\Tests {
                     return addcslashes($text, '_%\\');
                 }
 
-                /** @param array<mixed> $args */
-                public function prepare(string $query, array $args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
-                    $this->queries[] = $query;
-                    $this->queries[] = json_encode($args, JSON_THROW_ON_ERROR);
-
-                    return 'prepared';
+                    return Prepare::sql($query, $args);
                 }
 
                 public function query(string $query): int
@@ -117,9 +140,8 @@ namespace UAMS_Search\Tests {
 
             self::assertStringContainsString('INSERT INTO `wp_uams_search_queue` (site_id,object_id,action,queued_at,available_at)', $queries[0]);
             self::assertStringContainsString('FROM `wp_uams_search_index`', $queries[0]);
-            self::assertStringContainsString('post_type IN (%s,%s,%s,%s) AND weighted_data LIKE %s', $queries[0]);
-            self::assertSame('[2,77,"location","expertise","condition","treatment","%\"provider\\\\_id\":77,%"]', $queries[1]);
-            self::assertSame('prepared', $queries[2]);
+            self::assertCount(1, $queries);
+            self::assertStringContainsString("WHERE site_id=2 AND object_id<>77 AND post_type IN ('location','expertise','condition','treatment') AND weighted_data LIKE ".Prepare::sql('%s', ['%'.addcslashes('"provider_id":77,', '_%\\').'%']), $queries[0]);
         }
     }
 }

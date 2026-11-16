@@ -287,7 +287,12 @@ final class Config
         $labels = ['provider' => 'People', 'expertise' => 'Clinical Areas of Expertise', 'location' => 'Clinical Locations', 'post' => 'News', 'attachment' => 'PDFs'];
 
         // A filter can return anything, so each label reads as text
-        return array_map(Cast::string(...), Filters::array('uams_search_type_labels', $labels));
+        $text = [];
+        foreach (Filters::array('uams_search_type_labels', $labels) as $type => $label) {
+            $text[Cast::string($type)] = Cast::string($label);
+        }
+
+        return $text;
     }
 
     /**
@@ -300,7 +305,12 @@ final class Config
         $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
 
         // A filter can return anything, so each label reads as text
-        return array_map(Cast::string(...), Filters::array('uams_search_result_labels', $labels));
+        $text = [];
+        foreach (Filters::array('uams_search_result_labels', $labels) as $type => $label) {
+            $text[Cast::string($type)] = Cast::string($label);
+        }
+
+        return $text;
     }
 
     /**
