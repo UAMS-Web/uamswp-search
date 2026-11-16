@@ -7,7 +7,8 @@ namespace {
         return $GLOBALS['uams_test_environment'] ?? 'production';
     }
 
-    function get_sites(mixed $args): mixed
+    /** @return array<int, mixed> */
+    function get_sites(mixed $args): array
     {
         $GLOBALS['uams_test_sites_args'][] = $args;
         if (isset($GLOBALS['uams_test_sites_return'])) {

@@ -29,20 +29,20 @@ namespace {
     }
 
     if (! function_exists('check_admin_referer')) {
-        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int|false
+        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
-            return true;
+            return 1;
         }
     }
 
     if (! function_exists('check_ajax_referer')) {
-        function check_ajax_referer(mixed $action = '', mixed $field = ''): mixed
+        function check_ajax_referer(mixed $action = '', mixed $field = ''): int
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
-            return true;
+            return 1;
         }
     }
 
@@ -147,7 +147,7 @@ namespace {
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url(mixed $url): string
+        function esc_url(mixed $url, mixed $_protocols = null): string
         {
             return $url;
         }
@@ -190,7 +190,7 @@ namespace {
     }
 
     if (! function_exists('update_post_meta')) {
-        function update_post_meta(mixed $id, mixed $key, mixed $value): mixed
+        function update_post_meta(mixed $id, mixed $key, mixed $value): bool
         {
             $GLOBALS['uams_test_meta'][$id][$key] = $value;
 

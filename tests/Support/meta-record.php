@@ -3,7 +3,7 @@
 namespace UAMS_Search;
 
 // Code in this namespace calls these in place of the global functions. Each records its key and whether it asked for one value, when a test turns the record on with `uams_test_meta_record`, then reads through the global stand-in.
-function get_post_meta($id, $key, $single = false)
+function get_post_meta(mixed $id, mixed $key, mixed $single = false): mixed
 {
     if (! empty($GLOBALS['uams_test_meta_record'])) {
         $GLOBALS['uams_test_meta_reads'][] = [$key, $single];
@@ -12,7 +12,7 @@ function get_post_meta($id, $key, $single = false)
     return \get_post_meta($id, $key, $single);
 }
 
-function get_term_meta($id, $key, $single = false)
+function get_term_meta(mixed $id, mixed $key, mixed $single = false): mixed
 {
     if (! empty($GLOBALS['uams_test_meta_record'])) {
         $GLOBALS['uams_test_meta_reads'][] = [$key, $single];

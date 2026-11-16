@@ -8,7 +8,7 @@ namespace {
         return new DateTimeZone($GLOBALS['uams_test_timezone'] ?? 'UTC');
     }
 
-    function wp_date(mixed $format, mixed $timestamp, mixed $timezone): string|false
+    function wp_date(mixed $format, mixed $timestamp, mixed $timezone): string
     {
         return (new DateTimeImmutable('@'.$timestamp))->setTimezone($timezone)->format($format);
     }

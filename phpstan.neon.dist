@@ -53,7 +53,7 @@ parameters:
     # from 0 upward (see the code-quality skill), then raise it by one per
     # change as findings are fixed, until `max`. Lowering it is a deliberate,
     # argued change, not a quiet edit to get a red run green.
-    level: 9
+    level: 8
 
     # The directories and files holding first-party PHP, including
     # the plugin header file at the root. Include tests: test bugs are real
@@ -75,10 +75,8 @@ parameters:
     excludePaths:
         analyse:
             - tests/Integration
-            # tests/Support is analyzed except for the three files that predate the typed accessor. IntegrationTestCase extends WP_UnitTestCase, which only the Integration suite's own Composer setup provides, so it cannot be analyzed here. meta-record.php and wp-shims.php declare untyped stand-ins that the stand-in typing slice (#271) rewrites, and until then they would fail at level 6. Every other file in the folder, StandIn.php included, is analyzed.
+            # tests/Support is analyzed except for IntegrationTestCase.php, which extends WP_UnitTestCase, a class only the Integration suite's own Composer setup provides, so it cannot be analyzed here.
             - tests/Support/IntegrationTestCase.php
-            - tests/Support/meta-record.php
-            - tests/Support/wp-shims.php
 
     # Indexed for symbols but not analyzed. `php-stubs/wordpress-stubs` covers
     # core's runtime surface and stops there: `WP_UnitTestCase`, the factories

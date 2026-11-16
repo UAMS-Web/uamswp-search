@@ -43,7 +43,7 @@ namespace {
     }
 
     if (! function_exists('wp_schedule_event')) {
-        function wp_schedule_event(mixed $time, mixed $recurrence, mixed $hook): mixed
+        function wp_schedule_event(mixed $time, mixed $recurrence, mixed $hook): bool
         {
             $GLOBALS['uams_test_scheduled'][] = [$hook, $recurrence, $time];
 
@@ -52,7 +52,7 @@ namespace {
     }
 
     if (! function_exists('wp_clear_scheduled_hook')) {
-        function wp_clear_scheduled_hook(mixed $hook): mixed
+        function wp_clear_scheduled_hook(mixed $hook): int
         {
             $GLOBALS['uams_test_cleared'][] = $hook;
 

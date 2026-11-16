@@ -43,7 +43,7 @@ namespace {
     }
 
     if (! function_exists('switch_to_blog')) {
-        function switch_to_blog(mixed $_id): mixed
+        function switch_to_blog(mixed $_id): true
         {
             return true;
         }

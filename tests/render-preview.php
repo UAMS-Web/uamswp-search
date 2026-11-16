@@ -36,7 +36,7 @@ function wp_unique_id(mixed $prefix): string
     return $prefix.++$i;
 }
 
-function is_scalar_string(mixed $v): mixed
+function is_scalar_string(mixed $v): string
 {
     return is_scalar($v) ? (string) $v : '';
 }
@@ -57,7 +57,10 @@ function sanitize_text_field(mixed $s): string
  */
 function wp_unslash(mixed $s): mixed
 {
-    return stripslashes($s);
+    /** @var T $unslashed */
+    $unslashed = is_string($s) ? stripslashes($s) : $s;
+
+    return $unslashed;
 }
 
 function esc_html(mixed $s): string
@@ -115,17 +118,23 @@ function add_query_arg(mixed $args, mixed $url): string
     return $url.'?'.http_build_query(array_filter($args, static fn ($v): bool => $v !== false));
 }
 
-function get_post_type_object(mixed $type): mixed
+/** @return object{labels: object{name: string}}|null */
+function get_post_type_object(mixed $type): ?object
 {
+    // WordPress answers null for a post type that is not registered
+    if (! is_string($type) || $type === '') {
+        return null;
+    }
+
     return (object) ['labels' => (object) ['name' => ucfirst($type).'s']];
 }
 
-function size_format(mixed $size): string|false
+function size_format(mixed $size): string
 {
     return number_format($size / 1024).' KB';
 }
 
-function paginate_links(mixed $_args): mixed
+function paginate_links(mixed $_args): string
 {
     return '';
 }

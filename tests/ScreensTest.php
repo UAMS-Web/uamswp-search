@@ -15,7 +15,7 @@ namespace {
     }
 
     if (! function_exists('esc_textarea')) {
-        function esc_textarea(mixed $s): mixed
+        function esc_textarea(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
@@ -29,7 +29,7 @@ namespace {
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url(mixed $url): string
+        function esc_url(mixed $url, mixed $_protocols = null): string
         {
             return $url;
         }
@@ -89,6 +89,7 @@ namespace {
     }
 
     if (! function_exists('get_post_types')) {
+        /** @return array<string, string> */
         function get_post_types(mixed $_args = []): array
         {
             return ['post' => 'post'];
@@ -96,14 +97,15 @@ namespace {
     }
 
     if (! function_exists('get_post_type_object')) {
-        function get_post_type_object(mixed $type): mixed
+        /** @return object{labels: object{name: string}}|null */
+        function get_post_type_object(mixed $type): ?object
         {
             return $GLOBALS['uams_test_types'][$type] ?? null;
         }
     }
 
     if (! function_exists('get_bloginfo')) {
-        function get_bloginfo(mixed $_show = ''): mixed
+        function get_bloginfo(mixed $_show = ''): string
         {
             return 'Main Site';
         }

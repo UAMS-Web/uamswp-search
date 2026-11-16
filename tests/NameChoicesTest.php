@@ -4,6 +4,7 @@ namespace {
 
     // Records the arguments and answers from a global a test sets; ScreensTest declares the same name with a fixed answer, and whichever file loads first defines it.
     if (! function_exists('get_post_types')) {
+        /** @return array<string, string> */
         function get_post_types(mixed $args = []): array
         {
             $GLOBALS['uams_test_post_types_args'] = $args;
@@ -14,6 +15,7 @@ namespace {
 
     // The same ACF definition stand-in FieldTextTest and ExtractorTest declare; whichever file loads first defines it.
     if (! function_exists('acf_get_field')) {
+        /** @return array<string, mixed>|false */
         function acf_get_field(mixed $selector): array|false
         {
             $GLOBALS['uams_test_acf_lookups'][] = $selector;
@@ -23,7 +25,7 @@ namespace {
     }
 
     if (! function_exists('get_taxonomy')) {
-        function get_taxonomy(mixed $name): mixed
+        function get_taxonomy(mixed $name): object|false
         {
             return $GLOBALS['uams_test_taxonomies'][$name] ?? false;
         }

@@ -76,7 +76,8 @@ if (! class_exists('WP_Post')) {
 
 // A term by ID. A test sets what comes back in place of the term (`uams_test_get_term`, which WordPress also answers with a WP_Error), or a term per ID (`uams_test_term_objects`); `CardFieldsTest` reads term 501 in the `degree` taxonomy through the last line. A term that is not there reads as none, as WordPress reports it.
 if (! function_exists('get_term')) {
-    function get_term(mixed $id, mixed $taxonomy = ''): mixed
+    /** @return object|array<string, mixed>|null */
+    function get_term(mixed $id, mixed $taxonomy = ''): object|array|null
     {
         $GLOBALS['uams_test_term_calls'][] = $id;
         if (array_key_exists('uams_test_get_term', $GLOBALS)) {
@@ -88,7 +89,7 @@ if (! function_exists('get_term')) {
 }
 
 if (! function_exists('get_post')) {
-    function get_post(mixed $id): mixed
+    function get_post(mixed $id): ?WP_Post
     {
         // A test that names no post for an ID gets a blank post, or whatever `uams_test_posts_default` holds, such as null for no post at all.
         return array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : (array_key_exists('uams_test_posts_default', $GLOBALS) ? $GLOBALS['uams_test_posts_default'] : new WP_Post);

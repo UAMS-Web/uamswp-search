@@ -5,6 +5,7 @@ namespace UAMS_Search;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
+use WP_Post;
 
 /** Writes posts into the search index, singly or for a whole site. */
 final class Indexer
@@ -39,7 +40,7 @@ final class Indexer
             $table = DB::table($target);
             // Remove the post from the table when it should not be indexed
             // The site ID and the indexed site IDs are both integers, so loose matching finds the same sites.
-            if (! $post || ! \in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) { // @pest-mutate-ignore:TrueToFalse
+            if (! $post instanceof WP_Post || ! \in_array($site, Config::index_sites(), true) || ! Extractor::eligible($post)) { // @pest-mutate-ignore:TrueToFalse
                 if ($wpdb->delete($table, ['site_id' => $site, 'object_id' => $id]) === false) {
                     throw new RuntimeException($wpdb->last_error);
                 }
@@ -79,9 +80,8 @@ final class Indexer
             return $row;
         } catch (Throwable $throwable) {
             // Save the failure as an error row
-            // `$post` is unset only when `get_post()` itself throws, which WordPress never does; a null post gives the page type either way.
-            // @pest-mutate-ignore:BooleanAndToBooleanOr
-            return self::failure($site, $id, isset($post) && $post ? $post->post_type : 'page', $throwable->getMessage(), $target);
+            // `$post` is unset when `get_post()` itself throws, and null for no post; both give the page type.
+            return self::failure($site, $id, isset($post) ? $post->post_type : 'page', $throwable->getMessage(), $target);
         } finally {
             // Log an extraction that took too long
             $elapsed = microtime(true) - $start;

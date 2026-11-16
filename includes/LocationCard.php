@@ -356,7 +356,7 @@ final class LocationCard
 
             // Assemble the card
             return ['name' => $name, 'url' => get_permalink($post) ?: $result->url, 'image' => $image,
-                'parent' => $parent ? ['name' => CardFields::text($parent->post_title), 'url' => get_permalink($parent), 'prefix' => CardFields::flag(CardFields::field('location_prepend_the', $parent->ID)) ? 'Part of the ' : 'Part of '] : null,
+                'parent' => $parent ? ['name' => CardFields::text($parent->post_title), 'url' => Cast::string(get_permalink($parent)), 'prefix' => CardFields::flag(CardFields::field('location_prepend_the', $parent->ID)) ? 'Part of the ' : 'Part of '] : null,
                 'address' => self::address($address_id), 'phones' => self::phones($id), 'directions' => self::directions(CardFields::field('location_map', $address_id)), 'notice' => self::notice($id)];
         } finally {
             // Switch back to the earlier site

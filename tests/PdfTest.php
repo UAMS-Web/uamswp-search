@@ -11,6 +11,7 @@ namespace {
     }
 
     if (! function_exists('wp_get_upload_dir')) {
+        /** @return array<string, mixed> */
         function wp_get_upload_dir(): array
         {
             return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
@@ -50,7 +51,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static function (): never {
                 throw new RuntimeException('Cache should skip extraction');
             }]];
-            $path = (string) realpath(get_attached_file(42));
+            $path = (string) realpath((string) get_attached_file(42));
             $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
             try {
                 $cached = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'ready', 'pdf' => 'cached text', 'error' => '']);
@@ -318,7 +319,7 @@ namespace UAMS_Search\Tests {
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
             $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
-            $path = (string) realpath(get_attached_file(42));
+            $path = (string) realpath((string) get_attached_file(42));
             $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
 
             $row = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'failed', 'pdf' => 'stale text', 'error' => 'x']);

@@ -10,7 +10,7 @@ namespace {
     }
 
     // Stand-in for the multisite lookup: counts calls so per-site caching can be asserted.
-    function get_blog_details(mixed $id): mixed
+    function get_blog_details(mixed $id): object|false
     {
         $GLOBALS['uams_test_blog_lookups'][] = $id;
         $sites = $GLOBALS['uams_test_sites'] ?? [];

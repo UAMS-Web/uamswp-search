@@ -79,7 +79,7 @@ final class CLI
             }
 
             // Print the counts
-            WP_CLI::log(wp_json_encode($stats));
+            WP_CLI::log(Cast::string(wp_json_encode($stats)));
         });
     }
 
@@ -136,7 +136,7 @@ final class CLI
                     throw new RuntimeException('Resume or cancel the browser rebuild before reindexing.');
                 } $row = Indexer::one($site, $id);
                 // Print the extracted row
-                WP_CLI::log(wp_json_encode($row, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                WP_CLI::log(Cast::string(wp_json_encode($row, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)));
             } finally {
                 // Release the lock
                 DB::unlock();
@@ -172,7 +172,7 @@ final class CLI
             // @pest-mutate-ignore:EmptyStringToNotEmpty
             $out = Query::run(['s' => $args[0], 'site' => Cast::int($assoc['site'] ?? get_current_blog_id()), 'scope' => $assoc['scope'] ?? 'site', 'type' => $assoc['type'] ?? '', 'explain' => isset($assoc['explain'])]);
             // Print the results
-            WP_CLI::log(wp_json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            WP_CLI::log(Cast::string(wp_json_encode($out, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)));
         });
     }
 
@@ -181,7 +181,7 @@ final class CLI
     {
         global $wpdb;
         // Print what the database and server support
-        WP_CLI::log(wp_json_encode([
+        WP_CLI::log(Cast::string(wp_json_encode([
             'database' => $wpdb->get_var('SELECT VERSION()'),
             'minimum_token_size' => $wpdb->get_var('SELECT @@innodb_ft_min_token_size'),
             'stopword_control' => 'Session innodb_ft_user_stopword_table with empty plugin-owned table',
@@ -189,7 +189,7 @@ final class CLI
             'proc_open' => \function_exists('proc_open'), 'php_cli' => PHP_BINDIR.'/php',
             'mbstring' => \extension_loaded('mbstring'), 'zlib' => \extension_loaded('zlib'), 'iconv' => \extension_loaded('iconv'),
             'config_changed' => Config::needs_rebuild(),
-        ], JSON_PRETTY_PRINT));
+        ], JSON_PRETTY_PRINT)));
     }
 
     /**

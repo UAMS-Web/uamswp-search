@@ -32,7 +32,7 @@ namespace {
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url(mixed $url): string
+        function esc_url(mixed $url, mixed $_protocols = null): string
         {
             return $url;
         }
@@ -81,9 +81,10 @@ namespace {
     }
 
     if (! function_exists('get_post_type_object')) {
-        function get_post_type_object(mixed $_type): mixed
+        /** @return object{labels: object{name: string}}|null */
+        function get_post_type_object(mixed $type): ?object
         {
-            return null;
+            return $GLOBALS['uams_test_types'][$type] ?? null;
         }
     }
 
@@ -162,11 +163,11 @@ namespace {
     }
 
     if (! function_exists('check_admin_referer')) {
-        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int|false
+        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
-            return true;
+            return 1;
         }
     }
 
