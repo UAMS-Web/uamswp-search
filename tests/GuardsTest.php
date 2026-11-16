@@ -1,19 +1,21 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins for the WordPress functions the settings save and the result filters call.
     if (! function_exists('wp_die')) {
         function wp_die(mixed $message = ''): never
         {
-            throw new RuntimeException('wp_die: '.$message);
+            throw new RuntimeException('wp_die: '.Cast::string($message));
         }
     }
 
     if (! function_exists('check_admin_referer')) {
         function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int
         {
-            $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
+            StandIn::add_nonce_check(func_get_args());
 
             return 1;
         }
@@ -36,14 +38,14 @@ namespace {
     if (! function_exists('sanitize_key')) {
         function sanitize_key(mixed $key): string
         {
-            return strtolower((string) preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
+            return strtolower((string) preg_replace('/[^a-z0-9_\-]/i', '', Cast::string($key)));
         }
     }
 
     if (! function_exists('update_site_option')) {
         function update_site_option(mixed $name, mixed $value): bool
         {
-            $GLOBALS['uams_test_options'][$name] = $value;
+            StandIn::put_option(Cast::string($name), $value);
 
             return true;
         }
@@ -52,7 +54,7 @@ namespace {
     if (! function_exists('wp_safe_redirect')) {
         function wp_safe_redirect(mixed $url): bool
         {
-            $GLOBALS['uams_test_redirect'] = $url;
+            StandIn::set_redirect(Cast::string($url));
 
             throw new RuntimeException('redirect');
         }
@@ -61,14 +63,14 @@ namespace {
     if (! function_exists('current_user_can')) {
         function current_user_can(mixed $capability, mixed ...$_args): bool
         {
-            return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
+            return in_array($capability, StandIn::caps(), true);
         }
     }
 
     if (! function_exists('admin_url')) {
         function admin_url(mixed $path = ''): string
         {
-            return 'https://example.test/wp-admin/'.$path;
+            return 'https://example.test/wp-admin/'.Cast::string($path);
         }
     }
 
@@ -82,36 +84,35 @@ namespace {
     if (! function_exists('add_query_arg')) {
         function add_query_arg(mixed $args, mixed $url): string
         {
-            return $url.'?'.http_build_query($args);
+            return Cast::string($url).'?'.http_build_query(is_array($args) ? $args : []);
         }
     }
 
     if (! function_exists('home_url')) {
         function home_url(mixed $path = ''): string
         {
-            return 'https://example.test'.$path;
+            return 'https://example.test'.Cast::string($path);
         }
     }
 
     if (! function_exists('esc_url')) {
         function esc_url(mixed $url, mixed $_protocols = null): string
         {
-            return $url;
+            return Cast::string($url);
         }
     }
 
     if (! function_exists('esc_html')) {
         function esc_html(mixed $s): string
         {
-            return htmlspecialchars((string) $s);
+            return htmlspecialchars(Cast::string($s));
         }
     }
 
     if (! function_exists('get_post_type_object')) {
-        /** @return object{labels: object{name: string}}|null */
         function get_post_type_object(mixed $type): ?object
         {
-            return $GLOBALS['uams_test_types'][$type] ?? null;
+            return StandIn::types()[Cast::string($type)] ?? null;
         }
     }
 }
@@ -121,7 +122,9 @@ namespace UAMS_Search\Tests {
     use ReflectionMethod;
     use RuntimeException;
     use UAMS_Search\Admin;
+    use UAMS_Search\Cast;
     use UAMS_Search\Integration;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class GuardsTest extends TestCase
     {
@@ -153,8 +156,8 @@ namespace UAMS_Search\Tests {
                 self::assertSame('redirect', $runtimeException->getMessage());
             }
 
-            self::assertSame(['post' => 2.0], $GLOBALS['uams_test_options']['uams_search_settings']['types']);
-            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', $GLOBALS['uams_test_redirect'], 'The save returns to the settings screen.');
+            self::assertSame(['post' => 2.0], self::saved()['types']);
+            self::assertSame('https://example.test/wp-admin/options-general.php?page=uams-search-settings', StandIn::redirect(), 'The save returns to the settings screen.');
         }
 
         public function test_saving_without_the_stopwords_field_stores_the_rest_and_an_empty_list(): void
@@ -166,7 +169,7 @@ namespace UAMS_Search\Tests {
             } catch (RuntimeException) {
             }
 
-            $saved = $GLOBALS['uams_test_options']['uams_search_settings'];
+            $saved = self::saved();
             self::assertSame(['post' => 2.0], $saved['types']);
             self::assertSame([], $saved['stopwords']);
         }
@@ -180,7 +183,7 @@ namespace UAMS_Search\Tests {
             } catch (RuntimeException) {
             }
 
-            self::assertSame(['alpha', 'beta'], $GLOBALS['uams_test_options']['uams_search_settings']['stopwords']);
+            self::assertSame(['alpha', 'beta'], self::saved()['stopwords']);
         }
 
         public function test_saving_without_a_post_type_is_refused_and_stores_nothing(): void
@@ -194,13 +197,13 @@ namespace UAMS_Search\Tests {
                 self::assertSame('wp_die: Choose at least one post type.', $runtimeException->getMessage());
             }
 
-            self::assertArrayNotHasKey('uams_search_settings', $GLOBALS['uams_test_options']);
+            self::assertArrayNotHasKey('uams_search_settings', StandIn::options());
         }
 
         public function test_the_type_filter_skips_a_type_that_is_not_registered(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['post' => 1.0, 'gone' => 1.0]];
-            $GLOBALS['uams_test_types']['post'] = (object) ['labels' => (object) ['name' => 'Posts']];
+            StandIn::put_option('uams_search_settings', ['types' => ['post' => 1.0, 'gone' => 1.0]]);
+            StandIn::put_type('post', (object) ['labels' => (object) ['name' => 'Posts']]);
 
             $method = new ReflectionMethod(Integration::class, 'filters');
             ob_start();
@@ -235,10 +238,32 @@ namespace UAMS_Search\Tests {
             } catch (RuntimeException) {
             }
 
-            $saved = $GLOBALS['uams_test_options']['uams_search_settings'];
-            self::assertSame(['kept_first' => 2.0, 'kept_second' => 3.0, 'added_one' => 1.0, 'added_two' => 0.5], $saved['fields']['post']);
-            self::assertSame([], $saved['taxonomies']['post']);
-            self::assertArrayNotHasKey('removed_row', $saved['fields']['post']);
+            $saved = self::saved();
+            self::assertSame(['kept_first' => 2.0, 'kept_second' => 3.0, 'added_one' => 1.0, 'added_two' => 0.5], self::array_of($saved['fields'])['post']);
+            self::assertSame([], self::array_of($saved['taxonomies'])['post']);
+            self::assertArrayNotHasKey('removed_row', self::array_of(self::array_of($saved['fields'])['post']));
+        }
+
+        /**
+         * The saved settings option, checked to be an array.
+         *
+         * @return array<mixed>
+         */
+        private static function saved(): array
+        {
+            return self::array_of(StandIn::option('uams_search_settings'));
+        }
+
+        /**
+         * A value that must be an array, checked to be one.
+         *
+         * @return array<mixed>
+         */
+        private static function array_of(mixed $value): array
+        {
+            self::assertIsArray($value);
+
+            return $value;
         }
 
         /**
@@ -256,7 +281,7 @@ namespace UAMS_Search\Tests {
                 self::assertSame('redirect', $runtimeException->getMessage());
             }
 
-            return $GLOBALS['uams_test_options']['uams_search_settings'];
+            return self::saved();
         }
 
         public function test_synonym_rules_keep_one_word_keys_and_clean_alternates(): void
@@ -265,11 +290,11 @@ namespace UAMS_Search\Tests {
             $many = implode(', ', array_map(static fn (int $n): string => 'alt'.$n, range(1, 12)));
             $saved = $this->save(['synonyms' => "Heart = Cardiac, Cardiology, cardiac, , Heart Care\ntwo words = ignored\nno equals sign\nlong = $long\nmany = $many\nbare ="]);
 
-            self::assertSame(['heart', 'long', 'many', 'bare'], array_keys($saved['synonyms']));
-            self::assertSame(['cardiac', 'cardiology', 'heart care'], $saved['synonyms']['heart']);
-            self::assertSame([substr(str_repeat('abc ', 40), 0, 100)], $saved['synonyms']['long']);
-            self::assertSame(array_map(static fn (int $n): string => 'alt'.$n, range(1, 10)), $saved['synonyms']['many']);
-            self::assertSame([], $saved['synonyms']['bare']);
+            self::assertSame(['heart', 'long', 'many', 'bare'], array_keys(self::array_of($saved['synonyms'])));
+            self::assertSame(['cardiac', 'cardiology', 'heart care'], self::array_of($saved['synonyms'])['heart']);
+            self::assertSame([substr(str_repeat('abc ', 40), 0, 100)], self::array_of($saved['synonyms'])['long']);
+            self::assertSame(array_map(static fn (int $n): string => 'alt'.$n, range(1, 10)), self::array_of($saved['synonyms'])['many']);
+            self::assertSame([], self::array_of($saved['synonyms'])['bare']);
             self::assertSame([], $this->save(['synonyms' => ['not', 'text']])['synonyms']);
         }
 
@@ -308,7 +333,7 @@ namespace UAMS_Search\Tests {
                 self::assertSame('wp_die: Create and build the index before enabling search.', $runtimeException->getMessage());
             }
 
-            self::assertArrayNotHasKey('uams_search_settings', $GLOBALS['uams_test_options']);
+            self::assertArrayNotHasKey('uams_search_settings', StandIn::options());
         }
 
         public function test_saving_without_the_capability_is_refused_and_stores_nothing(): void
@@ -323,7 +348,7 @@ namespace UAMS_Search\Tests {
                 self::assertSame('wp_die: You cannot manage search settings.', $runtimeException->getMessage());
             }
 
-            self::assertArrayNotHasKey('uams_search_settings', $GLOBALS['uams_test_options']);
+            self::assertArrayNotHasKey('uams_search_settings', StandIn::options());
         }
 
         public function test_saving_without_a_synonyms_field_stores_no_rules_and_raises_no_warning(): void
@@ -381,7 +406,7 @@ namespace UAMS_Search\Tests {
             // A value that is not empty switches it on, whatever it says
             self::assertTrue($this->save(['pdf' => 'on'])['pdf']);
             // A switch missing from the form is off, not left at its earlier value
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['live' => true, 'logging' => true, 'pdf' => true, 'pdf_parent' => true];
+            StandIn::put_option('uams_search_settings', ['live' => true, 'logging' => true, 'pdf' => true, 'pdf_parent' => true]);
             $saved = $this->save([]);
             foreach ($keys as $key) {
                 self::assertFalse($saved[$key], $key);
@@ -400,7 +425,7 @@ namespace UAMS_Search\Tests {
             }
 
             foreach (['0' => 1.0, '1' => 1.0, '1.5' => 1.5, '2' => 2.0, '99.5' => 99.5, '100' => 100.0, '100.5' => 100.0, '101' => 100.0] as $input => $expected) {
-                self::assertSame($expected, (float) $this->save(['pdf_max_mb' => (string) $input])['pdf_max_mb'], 'size limit '.$input);
+                self::assertSame($expected, Cast::float($this->save(['pdf_max_mb' => (string) $input])['pdf_max_mb']), 'size limit '.$input);
             }
 
             foreach (['0' => 1, '-4' => 1, '1' => 1, '2' => 2, '119' => 119, '120' => 120, '121' => 120, '45.9' => 45] as $input => $expected) {
@@ -436,8 +461,8 @@ namespace UAMS_Search\Tests {
             ]]);
 
             self::assertSame(['posttype' => 2.5, 'page' => 1.0], $saved['types']);
-            self::assertSame(['posttype', 'page'], array_keys($saved['fields']));
-            self::assertSame(['posttype', 'page'], array_keys($saved['taxonomies']));
+            self::assertSame(['posttype', 'page'], array_keys(self::array_of($saved['fields'])));
+            self::assertSame(['posttype', 'page'], array_keys(self::array_of($saved['taxonomies'])));
         }
 
         public function test_fields_and_taxonomies_are_read_from_their_own_rows(): void
@@ -447,8 +472,8 @@ namespace UAMS_Search\Tests {
                 'taxonomies' => [['name' => 'Category', 'weight' => '1.5'], ['name' => 'tag']],
             ]]]);
 
-            self::assertSame(['subtitle' => 4.0, 'nickname' => 1.0], $saved['fields']['post']);
-            self::assertSame(['category' => 1.5, 'tag' => 1.0], $saved['taxonomies']['post']);
+            self::assertSame(['subtitle' => 4.0, 'nickname' => 1.0], self::array_of($saved['fields'])['post']);
+            self::assertSame(['category' => 1.5, 'tag' => 1.0], self::array_of($saved['taxonomies'])['post']);
         }
 
         public function test_stop_words_and_synonyms_accept_text_only(): void
@@ -462,7 +487,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_save_keeps_the_settings_the_form_does_not_carry(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['related_provider_weight' => 0.5];
+            StandIn::put_option('uams_search_settings', ['related_provider_weight' => 0.5]);
 
             self::assertSame(0.5, $this->save([])['related_provider_weight']);
         }
