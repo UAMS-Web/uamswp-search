@@ -51,7 +51,7 @@ final class Extractor
 
             if ($post->post_parent) {
                 $parent = get_post($post->post_parent);
-                if (! $parent || ! is_post_status_viewable($parent->post_status) || $parent->post_password !== '') {
+                if (! $parent instanceof WP_Post || ! is_post_status_viewable($parent->post_status) || $parent->post_password !== '') {
                     return false;
                 }
             }

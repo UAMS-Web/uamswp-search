@@ -155,7 +155,7 @@ final class Integration
                 // it to switch to the post's site. The excerpt is kept by site and ID.
                 try {
                     $post = get_post($result->id);
-                    if ($post) {
+                    if ($post instanceof \WP_Post) {
                         $post = clone $post;
                         // @phpstan-ignore property.notFound (`blog_id` is a dynamic property that the theme's search template reads; WP_Post allows dynamic properties)
                         $post->blog_id = $result->site;

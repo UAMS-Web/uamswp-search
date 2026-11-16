@@ -319,7 +319,7 @@ final class LocationCard
         try {
             // Check the post is a searchable location
             $post = get_post($id);
-            if (! $post || $post->post_type !== 'location' || ! Extractor::eligible($post)) {
+            if (! $post instanceof \WP_Post || $post->post_type !== 'location' || ! Extractor::eligible($post)) {
                 return null;
             }
 
@@ -330,7 +330,7 @@ final class LocationCard
             $parent_id = CardFields::id(CardFields::field('location_parent_id', $id));
             if (CardFields::flag(CardFields::field('location_parent', $id)) && $parent_id && $parent_id !== $id) {
                 $candidate = get_post($parent_id);
-                if ($candidate && $candidate->post_type === 'location' && Extractor::eligible($candidate)) {
+                if ($candidate instanceof \WP_Post && $candidate->post_type === 'location' && Extractor::eligible($candidate)) {
                     $parent = $candidate;
                     $address_id = $parent_id;
                     $image_id = $parent_id;
@@ -338,7 +338,7 @@ final class LocationCard
             }
 
             // Keep the location's own image when it overrides the parent's
-            if ($parent && CardFields::flag(CardFields::field('location_image_override_parent', $id)) && CardFields::flag(CardFields::field('location_image_override_parent_featured', $id))) {
+            if ($parent instanceof \WP_Post && CardFields::flag(CardFields::field('location_image_override_parent', $id)) && CardFields::flag(CardFields::field('location_image_override_parent_featured', $id))) {
                 $image_id = $id;
             }
 
@@ -356,7 +356,7 @@ final class LocationCard
 
             // Assemble the card
             return ['name' => $name, 'url' => get_permalink($post) ?: $result->url, 'image' => $image,
-                'parent' => $parent ? ['name' => CardFields::text($parent->post_title), 'url' => Cast::string(get_permalink($parent)), 'prefix' => CardFields::flag(CardFields::field('location_prepend_the', $parent->ID)) ? 'Part of the ' : 'Part of '] : null,
+                'parent' => $parent instanceof \WP_Post ? ['name' => CardFields::text($parent->post_title), 'url' => Cast::string(get_permalink($parent)), 'prefix' => CardFields::flag(CardFields::field('location_prepend_the', $parent->ID)) ? 'Part of the ' : 'Part of '] : null,
                 'address' => self::address($address_id), 'phones' => self::phones($id), 'directions' => self::directions(CardFields::field('location_map', $address_id)), 'notice' => self::notice($id)];
         } finally {
             // Switch back to the earlier site
