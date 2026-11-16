@@ -115,3 +115,13 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 **Rejected.** Requeueing every page that holds the ID on every change: a cycle of two linking pages never settles. Copying the titles of attachments: the query rechecks no attachment visibility for a copied title, so a hidden attachment would hide the page for good. Following the same fields inside blocks and repeaters: out of the ticket's scope, so those still add nothing.
 
 **Companion.** [#162](https://github.com/UAMS-Web/uamswp-search/issues/162); [#159](https://github.com/UAMS-Web/uamswp-search/issues/159).
+
+## 2026-11-15 Default the Google Custom Search block to off until launch, and leave the script to a site-layer Content Security Policy (#16)
+
+**Decision.** The Google block, which loads `cse.google.com/cse.js`, stays a supported feature but `uams_search_google` defaults to off until launch; turning it on is a launch-checklist decision. A Content Security Policy at the site layer (theme or server headers) is the durable control and its ticket blocks launch. Searching across installs stays with Google Custom Search, as an earlier entry in this log records. The default-off change is [#269](https://github.com/UAMS-Web/uamswp-search/issues/269); the policy is [UAMS-Web/uams-2020#845](https://github.com/UAMS-Web/uams-2020/issues/845).
+
+**Why.** `cse.js` is unversioned, changes without notice and loads further scripts from Google's own hosts, so it cannot carry Subresource Integrity and the plugin can only control whether it loads. The plugin is not in production yet, so defaulting off removes any exposure before launch at no cost. A Content Security Policy covers every third-party script, not only this one, but it only partly helps here, since the policy has to allow the hosts `cse.js` loads from.
+
+**Rejected.** Recording an accepted risk now: nothing is exposed yet, so there is no risk to accept. Removing the block: it loses the cross-install results that stay with Google.
+
+**Companion.** [#16](https://github.com/UAMS-Web/uamswp-search/issues/16).
