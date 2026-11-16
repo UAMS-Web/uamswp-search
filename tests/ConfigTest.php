@@ -1,25 +1,28 @@
 <?php
 
 namespace {
+    use UAMS_Search\Tests\Support\StandIn;
 
     function wp_get_environment_type(): string
     {
-        return $GLOBALS['uams_test_environment'] ?? 'production';
+        return StandIn::environment();
     }
 
     /** @return array<int, mixed> */
     function get_sites(mixed $args): array
     {
-        $GLOBALS['uams_test_sites_args'][] = $args;
-        if (isset($GLOBALS['uams_test_sites_return'])) {
-            return $GLOBALS['uams_test_sites_return'];
+        $query = is_array($args) ? $args : [];
+        StandIn::add_sites_args($query);
+        $returned = StandIn::sites_return();
+        if ($returned !== null) {
+            return $returned;
         }
 
         $sites = [1 => ['public' => 1, 'archived' => 0, 'spam' => 0, 'deleted' => 0], 4 => ['public' => 0, 'archived' => 0, 'spam' => 0, 'deleted' => 0], 5 => ['public' => 0, 'archived' => 1, 'spam' => 0, 'deleted' => 0], 6 => ['public' => 0, 'archived' => 0, 'spam' => 1, 'deleted' => 0], 7 => ['public' => 0, 'archived' => 0, 'spam' => 0, 'deleted' => 1]];
 
-        return array_keys(array_filter($sites, static function (array $site) use ($args): bool {
+        return array_keys(array_filter($sites, static function (array $site) use ($query): bool {
             foreach (['public', 'archived', 'spam', 'deleted'] as $key) {
-                if (isset($args[$key]) && $site[$key] !== $args[$key]) {
+                if (isset($query[$key]) && $site[$key] !== $query[$key]) {
                     return false;
                 }
             }
@@ -34,6 +37,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Config;
     use UAMS_Search\FieldText;
     use UAMS_Search\Related;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class ConfigTest extends TestCase
     {
@@ -84,7 +88,7 @@ namespace UAMS_Search\Tests {
         {
             $GLOBALS['uams_test_environment'] = 'production';
             $GLOBALS['uams_test_logged_in'] = true;
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true];
+            StandIn::put_option('uams_search_settings', ['preview_noindex' => true]);
             self::assertSame([1, 4], Config::public_sites());
             $GLOBALS['uams_test_logged_in'] = false;
             self::assertSame([1], Config::public_sites());
@@ -93,7 +97,7 @@ namespace UAMS_Search\Tests {
 
         public function test_a_saved_setting_of_the_wrong_type_reads_as_its_default(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => ['x'], 'types' => 'page', 'pdf_max_mb' => 'big', 'stopwords' => null, 'sites' => 'all', 'live' => 0, 'extra' => 'kept'];
+            StandIn::put_option('uams_search_settings', ['enabled' => ['x'], 'types' => 'page', 'pdf_max_mb' => 'big', 'stopwords' => null, 'sites' => 'all', 'live' => 0, 'extra' => 'kept']);
             $defaults = Config::defaults();
 
             $config = Config::get();
@@ -109,7 +113,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_typed_accessors_return_their_declared_types(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => '1', 'related_provider_weight' => '0.5', 'types' => ['page' => 2], 'stopwords' => ['a']];
+            StandIn::put_option('uams_search_settings', ['enabled' => '1', 'related_provider_weight' => '0.5', 'types' => ['page' => 2], 'stopwords' => ['a']]);
 
             self::assertTrue(Config::flag('enabled'));
             self::assertFalse(Config::flag('unknown'));
@@ -120,7 +124,7 @@ namespace UAMS_Search\Tests {
 
         public function test_entry_and_chosen_sites_return_arrays_or_null_whatever_is_saved(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['fields' => ['page' => ['a' => 1], 'post' => 'bad'], 'sites' => ['2', 3]];
+            StandIn::put_option('uams_search_settings', ['fields' => ['page' => ['a' => 1], 'post' => 'bad'], 'sites' => ['2', 3]]);
 
             self::assertSame(['a' => 1], Config::entry('fields', 'page'));
             self::assertSame([], Config::entry('fields', 'post'));
@@ -128,7 +132,7 @@ namespace UAMS_Search\Tests {
             self::assertSame([], Config::entry('unknown', 'page'));
             self::assertSame([2, 3], Config::chosen_sites());
 
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['sites' => 'all'];
+            StandIn::put_option('uams_search_settings', ['sites' => 'all']);
             self::assertNull(Config::chosen_sites());
         }
 
@@ -145,7 +149,7 @@ namespace UAMS_Search\Tests {
         public function test_sites_covers_the_current_site_or_the_chosen_public_sites(): void
         {
             $GLOBALS['uams_test_logged_in'] = true;
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true];
+            StandIn::put_option('uams_search_settings', ['preview_noindex' => true]);
 
             // Public sites are 1 and 4 here; with no choice saved every public site is searched.
             self::assertSame([1, 4], Config::sites('install', 1));
@@ -153,18 +157,18 @@ namespace UAMS_Search\Tests {
             self::assertSame([4], Config::sites('site', 4));
             self::assertSame([], Config::sites('site', 9));
 
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true, 'sites' => [4, 99]];
+            StandIn::put_option('uams_search_settings', ['preview_noindex' => true, 'sites' => [4, 99]]);
             self::assertSame([4], Config::sites('install', 1));
             self::assertSame([1], Config::sites('site', 1));
 
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true, 'sites' => []];
+            StandIn::put_option('uams_search_settings', ['preview_noindex' => true, 'sites' => []]);
             self::assertSame([], Config::sites('install', 1));
         }
 
         public function test_the_fingerprint_changes_with_each_setting_that_changes_the_index(): void
         {
             $base = ['fields' => ['page' => ['a' => 1]], 'taxonomies' => ['page' => ['b' => 1]], 'stopwords' => ['x'], 'types' => ['page' => 1.0], 'pdf' => false, 'pdf_parent' => false, 'pdf_max_mb' => 20, 'pdf_timeout' => 30, 'preview_noindex' => false, 'related_provider_weight' => 0.25];
-            $GLOBALS['uams_test_options']['uams_search_settings'] = $base;
+            StandIn::put_option('uams_search_settings', $base);
             $fingerprint = Config::fingerprint();
             self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $fingerprint);
             self::assertSame($fingerprint, Config::fingerprint());
@@ -172,31 +176,34 @@ namespace UAMS_Search\Tests {
 
             $changes = ['fields' => ['page' => ['a' => 2]], 'taxonomies' => ['page' => ['b' => 2]], 'stopwords' => ['y'], 'types' => ['post' => 1.0], 'pdf' => true, 'pdf_parent' => true, 'pdf_max_mb' => 21, 'pdf_timeout' => 31, 'preview_noindex' => true, 'related_provider_weight' => 0.5];
             foreach ($changes as $key => $value) {
-                $GLOBALS['uams_test_options']['uams_search_settings'] = [$key => $value] + $base;
+                StandIn::put_option('uams_search_settings', [$key => $value] + $base);
                 self::assertNotSame($fingerprint, Config::fingerprint(), $key);
             }
 
             // Settings that do not change what the index holds leave it alone.
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['results_per_page' => 50, 'live' => false, 'recency' => 0.9] + $base;
+            StandIn::put_option('uams_search_settings', ['results_per_page' => 50, 'live' => false, 'recency' => 0.9] + $base);
             self::assertSame($fingerprint, Config::fingerprint());
         }
 
         public function test_a_rebuild_is_needed_until_every_indexed_site_has_the_current_fingerprint(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['preview_noindex' => true];
+            StandIn::put_option('uams_search_settings', ['preview_noindex' => true]);
             $fingerprint = Config::fingerprint();
             self::assertTrue(Config::needs_rebuild());
 
-            $GLOBALS['uams_test_options']['uams_search_fingerprint_1'] = $fingerprint;
+            StandIn::put_option('uams_search_fingerprint_1', $fingerprint);
             self::assertTrue(Config::needs_rebuild());
 
-            $GLOBALS['uams_test_options']['uams_search_fingerprint_4'] = 'old';
+            StandIn::put_option('uams_search_fingerprint_4', 'old');
             self::assertTrue(Config::needs_rebuild());
 
-            $GLOBALS['uams_test_options']['uams_search_fingerprint_4'] = $fingerprint;
+            StandIn::put_option('uams_search_fingerprint_4', $fingerprint);
             self::assertFalse(Config::needs_rebuild());
 
-            $GLOBALS['uams_test_options']['uams_search_settings']['pdf_max_mb'] = 99;
+            $settings = StandIn::option('uams_search_settings');
+            self::assertIsArray($settings);
+            $settings['pdf_max_mb'] = 99;
+            StandIn::put_option('uams_search_settings', $settings);
             self::assertTrue(Config::needs_rebuild());
         }
 
@@ -253,7 +260,7 @@ namespace UAMS_Search\Tests {
 
         public function test_numeric_text_saved_for_a_number_becomes_that_number_and_not_its_negative(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['results_per_page' => '5', 'recency' => '0.5', 'pdf_timeout' => 7.5];
+            StandIn::put_option('uams_search_settings', ['results_per_page' => '5', 'recency' => '0.5', 'pdf_timeout' => 7.5]);
             $config = Config::get();
 
             self::assertSame(5, $config['results_per_page']);
@@ -263,14 +270,14 @@ namespace UAMS_Search\Tests {
 
         public function test_an_empty_option_string_reads_as_the_default(): void
         {
-            $GLOBALS['uams_test_options']['date_format'] = '';
+            StandIn::put_option('date_format', '');
 
             self::assertSame('F j, Y', Config::option_string('date_format', 'F j, Y'));
         }
 
         public function test_a_setting_that_is_not_scalar_or_numeric_still_reads_as_its_declared_type(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['custom_list' => [1], 'custom_text' => 'abc'];
+            StandIn::put_option('uams_search_settings', ['custom_list' => [1], 'custom_text' => 'abc']);
 
             self::assertTrue(Config::flag('custom_list'));
             self::assertSame(0.0, Config::number('custom_text'));
@@ -312,16 +319,16 @@ namespace UAMS_Search\Tests {
         {
             self::assertSame(20, Config::page_size());
 
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['results_per_page' => 35];
+            StandIn::put_option('uams_search_settings', ['results_per_page' => 35]);
             self::assertSame(35, Config::page_size());
 
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['results_per_page' => 0];
+            StandIn::put_option('uams_search_settings', ['results_per_page' => 0]);
             self::assertSame(20, Config::page_size());
         }
 
         public function test_the_chosen_sites_are_a_list_whatever_their_keys(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['sites' => ['a' => '3', 'b' => 8]];
+            StandIn::put_option('uams_search_settings', ['sites' => ['a' => '3', 'b' => 8]]);
 
             self::assertSame([3, 8], Config::chosen_sites());
         }
@@ -335,7 +342,7 @@ namespace UAMS_Search\Tests {
             self::assertSame([
                 ['fields' => 'ids', 'number' => 0, 'archived' => 0, 'spam' => 0, 'deleted' => 0, 'public' => 1],
                 ['fields' => 'ids', 'number' => 0, 'archived' => 0, 'spam' => 0, 'deleted' => 0],
-            ], $GLOBALS['uams_test_sites_args']);
+            ], StandIn::sites_args());
         }
 
         public function test_site_ids_are_integers_even_when_the_network_returns_text(): void
@@ -353,7 +360,7 @@ namespace UAMS_Search\Tests {
             self::assertSame([1], Config::site_ids(true));
             self::assertSame([1], Config::public_sites());
             self::assertSame([1], Config::index_sites());
-            self::assertSame([], $GLOBALS['uams_test_sites_args']);
+            self::assertSame([], StandIn::sites_args());
         }
 
         public function test_the_labels_are_exactly_these(): void
@@ -366,13 +373,13 @@ namespace UAMS_Search\Tests {
         {
             self::assertFalse(Config::google_enabled(), 'A site that has never saved the setting does not load the Google script.');
 
-            $GLOBALS['uams_test_options']['uams_search_google'] = '1';
+            StandIn::put_option('uams_search_google', '1');
             self::assertTrue(Config::google_enabled());
 
-            $GLOBALS['uams_test_options']['uams_search_google'] = '0';
+            StandIn::put_option('uams_search_google', '0');
             self::assertFalse(Config::google_enabled());
 
-            $GLOBALS['uams_test_filters']['uams_search_google_enabled'] = [static fn (): array => ['yes']];
+            StandIn::add_filter('uams_search_google_enabled', static fn (): array => ['yes']);
             self::assertTrue(Config::google_enabled());
         }
 
@@ -380,15 +387,15 @@ namespace UAMS_Search\Tests {
         {
             // A single site offers `site` and, once Google is on, `all`
             $GLOBALS['uams_test_multisite'] = false;
-            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            StandIn::put_option('uams_search_google', true);
             self::assertSame('all', Config::scope('all'));
             self::assertSame('site', Config::scope('install'));
             self::assertSame('site', Config::scope(5));
 
-            $GLOBALS['uams_test_options']['uams_search_scope'] = 'all';
+            StandIn::put_option('uams_search_scope', 'all');
             self::assertSame('all', Config::scope('bogus'));
 
-            $GLOBALS['uams_test_options']['uams_search_scope'] = 'install';
+            StandIn::put_option('uams_search_scope', 'install');
             self::assertSame('site', Config::scope());
         }
     }
