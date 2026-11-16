@@ -29,7 +29,7 @@ namespace {
     }
 
     if (! function_exists('check_admin_referer')) {
-        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): mixed
+        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int|false
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
@@ -68,14 +68,14 @@ namespace {
     }
 
     if (! function_exists('sanitize_key')) {
-        function sanitize_key(mixed $key): mixed
+        function sanitize_key(mixed $key): string
         {
             return strtolower((string) preg_replace('/[^a-z0-9_\-]/i', '', (string) $key));
         }
     }
 
     if (! function_exists('sanitize_text_field')) {
-        function sanitize_text_field(mixed $s): mixed
+        function sanitize_text_field(mixed $s): string
         {
             return trim(strip_tags((string) $s));
         }
@@ -103,7 +103,7 @@ namespace {
     }
 
     if (! function_exists('get_current_network_id')) {
-        function get_current_network_id(): mixed
+        function get_current_network_id(): int
         {
             return 1;
         }
@@ -119,42 +119,42 @@ namespace {
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url(mixed $path = ''): mixed
+        function admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('network_admin_url')) {
-        function network_admin_url(mixed $path = ''): mixed
+        function network_admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/network/'.$path;
         }
     }
 
     if (! function_exists('add_query_arg')) {
-        function add_query_arg(mixed $args, mixed $url): mixed
+        function add_query_arg(mixed $args, mixed $url): string
         {
             return $url.(str_contains($url, '?') ? '&' : '?').http_build_query($args);
         }
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url(mixed $url): mixed
+        function esc_url(mixed $url): string
         {
             return $url;
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html(mixed $s): mixed
+        function esc_html(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('checked')) {
-        function checked(mixed $checked, mixed $current = true, mixed $display = true): mixed
+        function checked(mixed $checked, mixed $current = true, mixed $display = true): string
         {
             // The same comparison, output and return as WordPress's helper
             $result = (string) $checked === (string) $current ? " checked='checked'" : '';
@@ -174,7 +174,7 @@ namespace {
     }
 
     if (! function_exists('update_option')) {
-        function update_option(mixed $name, mixed $value): mixed
+        function update_option(mixed $name, mixed $value): bool
         {
             $GLOBALS['uams_test_options'][$name] = $value;
 

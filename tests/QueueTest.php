@@ -18,7 +18,7 @@ namespace {
 
     if (! function_exists('wp_convert_hr_to_bytes')) {
         /** Unlimited, unless a test sets `uams_test_memory_bytes` to a limit or to a list of limits handed out one per call. */
-        function wp_convert_hr_to_bytes(mixed $_value): mixed
+        function wp_convert_hr_to_bytes(mixed $_value): int
         {
             $limit = $GLOBALS['uams_test_memory_bytes'] ?? -1;
 
@@ -34,7 +34,7 @@ namespace {
     }
 
     if (! function_exists('update_site_option')) {
-        function update_site_option(mixed $name, mixed $value): mixed
+        function update_site_option(mixed $name, mixed $value): bool
         {
             $GLOBALS['uams_test_options'][$name] = $value;
 
@@ -50,14 +50,14 @@ namespace {
     }
 
     if (! function_exists('restore_current_blog')) {
-        function restore_current_blog(): mixed
+        function restore_current_blog(): bool
         {
             return true;
         }
     }
 
     if (! function_exists('get_current_network_id')) {
-        function get_current_network_id(): mixed
+        function get_current_network_id(): int
         {
             return 1;
         }

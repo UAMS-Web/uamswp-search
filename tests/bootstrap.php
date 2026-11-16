@@ -19,18 +19,18 @@ function get_option(mixed $name, mixed $default = false): mixed
     return get_site_option($name, $default);
 }
 
-function get_current_blog_id(): mixed
+function get_current_blog_id(): int
 {
     return 1;
 }
 
-function is_multisite(): mixed
+function is_multisite(): bool
 {
     return $GLOBALS['uams_test_multisite'] ?? false;
 }
 
 /** Signed out unless a test sets `$GLOBALS['uams_test_logged_in']`. */
-function is_user_logged_in(): mixed
+function is_user_logged_in(): bool
 {
     return $GLOBALS['uams_test_logged_in'] ?? false;
 }
@@ -45,12 +45,12 @@ function apply_filters(mixed $name, mixed $value, mixed ...$args): mixed
 }
 
 /** The part of WordPress's accent folding the tests rely on: the common accented Latin letters. */
-function remove_accents(mixed $text): mixed
+function remove_accents(mixed $text): string
 {
     return strtr($text, ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'í' => 'i', 'ï' => 'i', 'ó' => 'o', 'ö' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'É' => 'E', 'Á' => 'A', 'Ö' => 'O', 'Ü' => 'U']);
 }
 
-function wp_json_encode(mixed $value, mixed $flags = 0): mixed
+function wp_json_encode(mixed $value, mixed $flags = 0): string|false
 {
     return json_encode($value, $flags);
 }
@@ -96,7 +96,7 @@ if (! function_exists('get_post')) {
 }
 
 if (! function_exists('update_site_option')) {
-    function update_site_option(mixed $name, mixed $value): mixed
+    function update_site_option(mixed $name, mixed $value): bool
     {
         $GLOBALS['uams_test_options'][$name] = $value;
 

@@ -2,7 +2,7 @@
 
 use UAMS_Search\Result;
 
-function wp_timezone(): mixed
+function wp_timezone(): \DateTimeZone
 {
     return new DateTimeZone('America/Chicago');
 }

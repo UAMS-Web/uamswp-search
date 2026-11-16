@@ -36,7 +36,7 @@ namespace {
     }
 
     if (! function_exists('wp_next_scheduled')) {
-        function wp_next_scheduled(mixed $hook): mixed
+        function wp_next_scheduled(mixed $hook): int|false
         {
             return $GLOBALS['uams_test_cron'][$hook] ?? false;
         }
@@ -82,7 +82,7 @@ namespace {
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html(mixed $s): mixed
+        function esc_html(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
