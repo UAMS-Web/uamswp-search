@@ -10,7 +10,9 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
     use RuntimeException;
+    use UAMS_Search\Cast;
     use UAMS_Search\DB;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /** Pins for the schema installer, readiness check and writer lock (#5). A recording stand-in replaces `$wpdb`. */
     final class DBTest extends TestCase
@@ -93,7 +95,7 @@ namespace UAMS_Search\Tests {
 
         public function test_ready_is_false_when_the_installed_schema_version_differs(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
 
             self::assertFalse(DB::ready());
             self::assertSame([], $this->db->queries);
@@ -152,7 +154,7 @@ namespace UAMS_Search\Tests {
         public function test_install_creates_every_table_and_records_the_schema_version(): void
         {
             $this->currentSchema();
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
 
             DB::install();
 
@@ -160,7 +162,7 @@ namespace UAMS_Search\Tests {
                 self::assertNotEmpty($this->db->matching('CREATE TABLE IF NOT EXISTS `wp_uams_search_'.$suffix.'`'), $suffix);
             }
 
-            self::assertSame(UAMS_SEARCH_SCHEMA_VERSION, $GLOBALS['uams_test_options']['uams_search_version']);
+            self::assertSame(UAMS_SEARCH_SCHEMA_VERSION, StandIn::option('uams_search_version'));
             self::assertTrue(DB::ready());
             self::assertSame([], $this->db->matching('GET_LOCK'));
         }
@@ -205,7 +207,7 @@ namespace UAMS_Search\Tests {
         {
             $this->currentSchema();
             $this->db->old_stopword_table = 'test/previous';
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
             $db = $this->db;
             $failing = new FailingSchemaDb($db);
             $GLOBALS['wpdb'] = $failing;
@@ -218,7 +220,7 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertCount(1, $this->db->matching("SET SESSION innodb_ft_user_stopword_table = 'test/previous'"));
-            self::assertSame('0.0.0', $GLOBALS['uams_test_options']['uams_search_version']);
+            self::assertSame('0.0.0', StandIn::option('uams_search_version'));
         }
 
         public function test_install_widens_dictionary_columns_that_are_not_binary_collated_under_the_writer_lock(): void
@@ -406,7 +408,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 

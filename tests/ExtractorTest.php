@@ -936,7 +936,7 @@ namespace UAMS_Search\Tests {
         /** @return array<string, mixed> The earlier row of the fixture PDF, as the cache of an unchanged file reads it. */
         private function cachedPdfRow(): array
         {
-            $path = (string) realpath((string) get_attached_file(42));
+            $path = (string) realpath(get_attached_file(42));
 
             return ['file_signature' => hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path)), 'status' => 'ready', 'pdf' => 'cached text', 'error' => ''];
         }
@@ -952,7 +952,7 @@ namespace UAMS_Search\Tests {
             self::assertSame('cached text', $row['pdf']);
             self::assertSame('cach text', $row['pdf_stem']);
             self::assertSame($old['file_signature'], $row['file_signature']);
-            self::assertSame(filesize((string) realpath((string) get_attached_file(42))), $row['file_size']);
+            self::assertSame(filesize((string) realpath(get_attached_file(42))), $row['file_size']);
             self::assertSame('ready', $row['status']);
             self::assertSame('', $row['error']);
             // With no fields configured, the file name stands alone

@@ -1,21 +1,24 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins for the WordPress timezone and date seam, mirroring wp_date() semantics.
     function wp_timezone(): DateTimeZone
     {
-        return new DateTimeZone($GLOBALS['uams_test_timezone'] ?? 'UTC');
+        return new DateTimeZone(StandIn::timezone());
     }
 
-    function wp_date(mixed $format, mixed $timestamp, mixed $timezone): string
+    function wp_date(mixed $format, mixed $timestamp, DateTimeZone $timezone): string
     {
-        return (new DateTimeImmutable('@'.$timestamp))->setTimezone($timezone)->format($format);
+        return (new DateTimeImmutable('@'.Cast::int($timestamp)))->setTimezone($timezone)->format(Cast::string($format));
     }
 }
 
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
+    use UAMS_Search\Tests\Support\StandIn;
     use UAMS_Search\Time;
 
     final class TimeTest extends TestCase
@@ -45,7 +48,7 @@ namespace UAMS_Search\Tests {
         public function test_utc_zone_and_configured_formats(): void
         {
             $GLOBALS['uams_test_timezone'] = 'UTC';
-            $GLOBALS['uams_test_options']['time_format'] = 'g:i a';
+            StandIn::put_option('time_format', 'g:i a');
             self::assertSame('2026-10-30 7:01 pm UTC', Time::local('2026-10-30 19:01:38'));
         }
 
