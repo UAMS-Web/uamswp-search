@@ -141,6 +141,7 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('INSERT INTO `wp_uams_search_queue` (site_id,object_id,action,queued_at,available_at)', $queries[0]);
             self::assertStringContainsString('FROM `wp_uams_search_index`', $queries[0]);
             self::assertCount(1, $queries);
+            self::assertStringEndsWith("\n            ON DUPLICATE KEY UPDATE action='upsert',queued_at=UTC_TIMESTAMP(),available_at=UTC_TIMESTAMP(),attempts=0,revision=revision+1", $queries[0]);
             self::assertStringContainsString("WHERE site_id=2 AND object_id<>77 AND post_type IN ('location','expertise','condition','treatment') AND weighted_data LIKE ".Prepare::sql('%s', ['%'.addcslashes('"provider_id":77,', '_%\\').'%']), $queries[0]);
         }
     }
