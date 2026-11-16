@@ -288,7 +288,7 @@ The biggest risk is relevance: SearchWP has years of tuning, and ours starts fro
 
 - [x] Database: MariaDB, `innodb_ft_min_token_size = 3` (confirmed 2026-10-29). Version 10.6.27.
 - [ ] Can BigScoots add a server cron job that runs WP-CLI every 5 minutes?
-- [ ] Is `pdftotext` installed, and may PHP run it (`exec` / `proc_open`)?
+- [x] Is `pdftotext` installed, and may PHP run it (`exec` / `proc_open`)? No on both counts, on every BigScoots install checked (2026-11-16, `bigscoots-uamshealth-dev` and `bigscoots-uamshealth-com`): `pdftotext` is not installed, and the PHP-FPM pools disable `exec`, `proc_open` and the other process functions, so the bundled `smalot/pdfparser` fallback is the path production uses. Readings and bounds are on #294.
 - [x] Which sub-sites on each install belong in whole-install search, and what default scope does each want? On a subdirectory network the root site searches the whole install, each child site defaults to its own site with a visible switch to the whole install ("All of <root site name>"), and every public sub-site is in whole-install search (archived, spam and deleted sites are left out, and sites that discourage search engines join only when `preview_noindex` is on). Subdomain networks and single sites search only their own site. Each install's exclusions are recorded when that install is switched, by its content owners (decided 2026-11-16, [#295](https://github.com/UAMS-Web/uamswp-search/issues/295)).
 - [ ] Who writes and keeps the test-search list (content owners, Find-a-Doc team)?
 - [x] Plugin name and repo: the repository is `UAMS-Web/uamswp-search` on GitHub, the plugin folder, slug and text prefix are `uams-search`, and the name shown in the plugin list is `UAMSWP Search`.
