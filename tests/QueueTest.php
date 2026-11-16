@@ -1,18 +1,20 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     if (! function_exists('wp_is_post_revision')) {
         function wp_is_post_revision(mixed $id): bool
         {
-            return in_array($id, $GLOBALS['uams_test_revisions'] ?? [], true);
+            return in_array($id, StandIn::revisions(), true);
         }
     }
 
     if (! function_exists('wp_is_post_autosave')) {
         function wp_is_post_autosave(mixed $id): bool
         {
-            return in_array($id, $GLOBALS['uams_test_autosaves'] ?? [], true);
+            return in_array($id, StandIn::autosaves(), true);
         }
     }
 
@@ -20,9 +22,15 @@ namespace {
         /** Unlimited, unless a test sets `uams_test_memory_bytes` to a limit or to a list of limits handed out one per call. */
         function wp_convert_hr_to_bytes(mixed $_value): int
         {
-            $limit = $GLOBALS['uams_test_memory_bytes'] ?? -1;
+            $limit = StandIn::memory_bytes();
+            if (! is_array($limit)) {
+                return $limit;
+            }
 
-            return is_array($limit) ? array_shift($GLOBALS['uams_test_memory_bytes']) : $limit;
+            $next = array_shift($limit);
+            StandIn::set_memory_bytes($limit);
+
+            return $next ?? throw new RuntimeException('The list of memory limits in `uams_test_memory_bytes` is used up.');
         }
     }
 
@@ -36,7 +44,7 @@ namespace {
     if (! function_exists('update_site_option')) {
         function update_site_option(mixed $name, mixed $value): bool
         {
-            $GLOBALS['uams_test_options'][$name] = $value;
+            StandIn::put_option(Cast::string($name), $value);
 
             return true;
         }
@@ -69,8 +77,10 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
     use RuntimeException;
+    use UAMS_Search\Cast;
     use UAMS_Search\DB;
     use UAMS_Search\Queue;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /** Pins for the write queue (#5). A recording stand-in replaces `$wpdb`; no database runs. */
     final class QueueTest extends TestCase
@@ -144,7 +154,7 @@ namespace UAMS_Search\Tests {
 
         public function test_push_does_nothing_before_the_schema_is_installed(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
             Queue::push(42);
 
             self::assertSame([], $this->db->queries);
@@ -171,7 +181,7 @@ namespace UAMS_Search\Tests {
 
         public function test_term_does_nothing_before_the_schema_is_installed(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
             Queue::term(3, 9);
 
             self::assertSame([], $this->db->queries);
@@ -193,7 +203,7 @@ namespace UAMS_Search\Tests {
 
         public function test_process_reports_nothing_done_before_the_schema_is_installed(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
 
             self::assertSame(['processed' => 0, 'failed' => 0, 'busy' => false], Queue::process());
             self::assertSame([], $this->db->queries);
@@ -205,7 +215,7 @@ namespace UAMS_Search\Tests {
 
             self::assertSame(['processed' => 0, 'failed' => 0, 'busy' => true], Queue::process());
             self::assertSame([], $this->db->matching('RELEASE_LOCK'));
-            self::assertArrayNotHasKey('uams_search_last_queue', $GLOBALS['uams_test_options']);
+            self::assertArrayNotHasKey('uams_search_last_queue', StandIn::options());
         }
 
         public function test_process_stands_aside_for_an_active_rebuild_and_still_releases_the_lock(): void
@@ -221,7 +231,7 @@ namespace UAMS_Search\Tests {
         {
             self::assertSame(['processed' => 0, 'failed' => 0, 'busy' => false], Queue::process(5));
 
-            self::assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', $GLOBALS['uams_test_options']['uams_search_last_queue']);
+            self::assertMatchesRegularExpression('/^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/', Cast::string(StandIn::option('uams_search_last_queue')));
             self::assertCount(1, $this->db->matching('DELETE FROM `wp_uams_search_misses`'));
             self::assertCount(1, $this->db->matching('RELEASE_LOCK'));
             self::assertStringContainsString('LIMIT 5', $this->db->matching('SELECT * FROM')[0]);
@@ -261,7 +271,7 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertCount(1, $this->db->matching('RELEASE_LOCK'));
-            self::assertArrayNotHasKey('uams_search_last_queue', $GLOBALS['uams_test_options']);
+            self::assertArrayNotHasKey('uams_search_last_queue', StandIn::options());
         }
 
         public function test_process_removes_a_row_it_has_handled_by_its_revision(): void
@@ -408,7 +418,7 @@ namespace UAMS_Search\Tests {
         /** @var list<string> */
         public array $queries = [];
 
-        /** @var list<array{string, array<string, int>}> */
+        /** @var list<array{string, array<mixed>}> */
         public array $deletes = [];
 
         /** @var list<array<string, mixed>> */
@@ -442,7 +452,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 
