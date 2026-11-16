@@ -2,6 +2,7 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
 use Throwable;
 use WP_Post;
 use WP_Term;
@@ -232,25 +233,47 @@ final class Linked
         string $marker,
         string $state
     ): void {
-        global $wpdb;
+        $wpdb = Database::get();
         // Name the index and queue tables
         $index = DB::table();
         $queue = DB::table('queue');
         // Skip pages that already hold the current state; a binary match keeps a change of case
-        $args = [$site, $id, '%'.$wpdb->esc_like($marker).'%'];
         $fresh = '';
         if ($state !== '') {
-            $fresh = ' AND NOT (weighted_data LIKE BINARY %s)';
-            $args[] = '%'.$wpdb->esc_like($state).'%';
+            $fresh = self::prepared(' AND NOT (weighted_data LIKE BINARY %s)', '%'.$wpdb->esc_like($state).'%');
         }
 
         // Queue the indexed pages that hold the marker
-        DB::exec($wpdb->prepare(
-            "INSERT INTO `$queue` (site_id,object_id,action,queued_at,available_at)
-            SELECT site_id,object_id,'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM `$index`
-            WHERE site_id=%d AND object_id<>%d AND weighted_data LIKE %s$fresh
-            ON DUPLICATE KEY UPDATE action='upsert',queued_at=UTC_TIMESTAMP(),available_at=UTC_TIMESTAMP(),attempts=0,revision=revision+1",
-            $args
-        ));
+        DB::exec(self::prepared(
+            "INSERT INTO %i (site_id,object_id,action,queued_at,available_at)
+            SELECT site_id,object_id,'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM %i
+            WHERE site_id=%d AND object_id<>%d AND weighted_data LIKE %s",
+            $queue,
+            $index,
+            $site,
+            $id,
+            '%'.$wpdb->esc_like($marker).'%'
+        ).$fresh."
+            ON DUPLICATE KEY UPDATE action='upsert',queued_at=UTC_TIMESTAMP(),available_at=UTC_TIMESTAMP(),attempts=0,revision=revision+1");
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement with its placeholders.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 }

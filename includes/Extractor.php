@@ -176,7 +176,7 @@ final class Extractor
      * blocks.
      *
      * @param  array<mixed>  $blocks  Parsed blocks.
-     * @param  array<string, mixed>  $allowed  Configured field names and weights.
+     * @param  array<mixed>  $allowed  Configured field names and weights.
      * @param  array<string, FieldRow>  $fields  Field rows, added to
      *                                           in place under `block:<name>` keys.
      * @param  int  $depth  Nesting level, capped at 20.

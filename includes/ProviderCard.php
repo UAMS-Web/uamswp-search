@@ -93,7 +93,7 @@ final class ProviderCard
             }
 
             if (! $image && \defined('UAMS_FAD_ROOT_URL')) {
-                $image = '<img src="'.esc_url(rtrim(UAMS_FAD_ROOT_URL, '/').'/assets/svg/no-image_3-4.svg').'" alt="" class="card-img-top" loading="lazy" width="253" height="337">';
+                $image = '<img src="'.esc_url(rtrim(Cast::string(UAMS_FAD_ROOT_URL), '/').'/assets/svg/no-image_3-4.svg').'" alt="" class="card-img-top" loading="lazy" width="253" height="337">';
             }
 
             return ['name' => $name, 'subtitle' => $subtitle, 'image' => $image, 'url' => get_permalink($post) ?: $result->url];

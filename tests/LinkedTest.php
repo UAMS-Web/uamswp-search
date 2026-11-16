@@ -60,6 +60,7 @@ namespace UAMS_Search\Tests {
     use ReflectionClass;
     use RuntimeException;
     use UAMS_Search\Linked;
+    use UAMS_Search\Tests\Support\Prepare;
     use UAMS_Search\Tests\Support\StandIn;
     use WP_Post;
     use WP_Term;
@@ -199,13 +200,9 @@ namespace UAMS_Search\Tests {
                     return addcslashes($text, '_%\\');
                 }
 
-                /** @param array<mixed> $args */
-                public function prepare(string $query, array $args): string
+                public function prepare(string $query, mixed ...$args): string
                 {
-                    $this->queries[] = $query;
-                    $this->queries[] = json_encode($args, JSON_THROW_ON_ERROR);
-
-                    return 'prepared';
+                    return Prepare::sql($query, $args);
                 }
 
                 public function query(string $query): int
@@ -226,12 +223,17 @@ namespace UAMS_Search\Tests {
 
             Linked::queue_post_dependents(1, 77);
 
+            self::assertCount(1, $db->queries);
             self::assertStringContainsString('INSERT INTO `wp_uams_search_queue` (site_id,object_id,action,queued_at,available_at)', $db->queries[0]);
             self::assertStringContainsString('FROM `wp_uams_search_index`', $db->queries[0]);
-            self::assertStringContainsString('WHERE site_id=%d AND object_id<>%d AND weighted_data LIKE %s AND NOT (weighted_data LIKE BINARY %s)', $db->queries[0]);
+            self::assertStringContainsString('WHERE site_id=1 AND object_id<>77 AND weighted_data LIKE '.self::like('"linked_post_id":77,').' AND NOT (weighted_data LIKE BINARY '.self::like('"linked_post_id":77,"linked_post_title":"Heart 50%",').')', $db->queries[0]);
             self::assertStringContainsString("ON DUPLICATE KEY UPDATE action='upsert'", $db->queries[0]);
-            self::assertSame('[1,77,"%\"linked\\\\_post\\\\_id\":77,%","%\"linked\\\\_post\\\\_id\":77,\"linked\\\\_post\\\\_title\":\"Heart 50\\\\%\",%"]', $db->queries[1]);
-            self::assertSame('prepared', $db->queries[2]);
+        }
+
+        /** The statement text for a `LIKE` operand: the text with its wildcards escaped, wrapped in `%`, and quoted. */
+        private static function like(string $text): string
+        {
+            return Prepare::sql('%s', ['%'.addcslashes($text, '_%\\').'%']);
         }
 
         public function test_a_filter_that_fails_on_the_post_is_logged_and_every_page_that_holds_the_id_is_queued(): void
@@ -254,7 +256,7 @@ namespace UAMS_Search\Tests {
 
             self::assertStringContainsString('UAMS Search: could not read linked post site=1 post=77: Intentional fixture failure', $logged);
             self::assertStringNotContainsString('NOT (weighted_data', $db->queries[0]);
-            self::assertSame('[1,77,"%\"linked\\\\_post\\\\_id\":77,%"]', $db->queries[1]);
+            self::assertStringContainsString('WHERE site_id=1 AND object_id<>77 AND weighted_data LIKE '.self::like('"linked_post_id":77,')."\n", $db->queries[0]);
         }
 
         public function test_a_post_read_for_another_site_is_read_on_that_site_and_the_site_is_restored(): void
@@ -276,8 +278,7 @@ namespace UAMS_Search\Tests {
 
             Linked::queue_term_dependents(1, 9);
 
-            self::assertStringContainsString('weighted_data LIKE %s AND NOT (weighted_data LIKE BINARY %s)', $db->queries[0]);
-            self::assertSame('[1,9,"%\"linked\\\\_term\\\\_id\":9,%","%\"linked\\\\_term\\\\_id\":9,\"linked\\\\_term\\\\_name\":\"Cardiology\",%"]', $db->queries[1]);
+            self::assertStringContainsString('weighted_data LIKE '.self::like('"linked_term_id":9,').' AND NOT (weighted_data LIKE BINARY '.self::like('"linked_term_id":9,"linked_term_name":"Cardiology",').')', $db->queries[0]);
         }
 
         public function test_a_deleted_term_requeues_every_page_that_holds_its_id(): void
@@ -287,8 +288,28 @@ namespace UAMS_Search\Tests {
             Linked::queue_term_dependents(1, 9);
 
             self::assertStringNotContainsString('NOT (weighted_data', $db->queries[0]);
-            self::assertStringContainsString('WHERE site_id=%d AND object_id<>%d AND weighted_data LIKE %s', $db->queries[0]);
-            self::assertSame('[1,9,"%\"linked\\\\_term\\\\_id\":9,%"]', $db->queries[1]);
+            self::assertStringContainsString('WHERE site_id=1 AND object_id<>9 AND weighted_data LIKE '.self::like('"linked_term_id":9,')."\n", $db->queries[0]);
+        }
+
+        public function test_a_statement_that_prepare_does_not_give_back_is_a_failure_not_an_empty_statement(): void
+        {
+            $GLOBALS['wpdb'] = new class
+            {
+                public string $base_prefix = 'wp_';
+
+                public function esc_like(string $text): string
+                {
+                    return addcslashes($text, '_%\\');
+                }
+
+                public function prepare(string $query, mixed ...$args): null
+                {
+                    return null;
+                }
+            };
+
+            $this->expectExceptionObject(new RuntimeException('Database operation failed'));
+            Linked::queue_term_dependents(1, 9);
         }
 
         public function test_public_sql_checks_each_copied_title_and_name_against_the_live_post_and_term(): void

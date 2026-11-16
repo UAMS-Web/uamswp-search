@@ -87,18 +87,18 @@ final class CLI
     /** Show index, queue, and failure counts. */
     public function status(): void
     {
-        global $wpdb;
-        $this->guard(function () use ($wpdb): void {
+        $this->guard(function (): void {
+            $wpdb = Database::get();
             // Check that the index exists
             if (! DB::ready()) {
                 throw new RuntimeException('Index is missing. Run wp uams-search index.');
             }
 
             // Print the index counts by site, type and status
-            $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS count FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type,status', ARRAY_A);
+            $rows = (array) $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS count FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type,status', ARRAY_A);
             format_items('table', $rows, ['site_id', 'post_type', 'status', 'count']);
             // Print the queue size and last run time
-            WP_CLI::log('Queue: '.$wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`'));
+            WP_CLI::log('Queue: '.Cast::string($wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`')));
             WP_CLI::log('Queue last ran: '.Time::local(Cast::string(get_site_option('uams_search_last_queue', ''))));
         });
     }
@@ -180,7 +180,7 @@ final class CLI
     /** Check database capabilities and PDF extraction tools. */
     public function doctor(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Print what the database and server support
         WP_CLI::log(Cast::string(wp_json_encode([
             'database' => $wpdb->get_var('SELECT VERSION()'),

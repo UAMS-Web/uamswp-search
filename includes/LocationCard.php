@@ -351,7 +351,7 @@ final class LocationCard
             }
 
             if (! $image && \defined('UAMS_FAD_ROOT_URL')) {
-                $image = '<img src="'.esc_url(rtrim(UAMS_FAD_ROOT_URL, '/').'/assets/svg/no-image_16-9.svg').'" alt="" loading="lazy" width="512" height="288">';
+                $image = '<img src="'.esc_url(rtrim(Cast::string(UAMS_FAD_ROOT_URL), '/').'/assets/svg/no-image_16-9.svg').'" alt="" loading="lazy" width="512" height="288">';
             }
 
             // Assemble the card

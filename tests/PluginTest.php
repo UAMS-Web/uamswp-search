@@ -303,7 +303,7 @@ namespace UAMS_Search\Tests {
             // The pages that copied the deleted term's name through a field are queued too, by the term's marker
             $linked = array_values(array_filter($db->queries, static fn (string $q): bool => str_contains($q, 'linked\_term\_id')));
             self::assertCount(1, $linked);
-            self::assertStringStartsWith('Q[1,1,%', (string) reset($linked));
+            self::assertStringStartsWith('Q[wp_uams_search_queue,wp_uams_search_index,1,1,%', (string) reset($linked));
 
             $db->queries = [];
             StandIn::hooks()['delete_term'][0](1, 2, 'category', null, null);
