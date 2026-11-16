@@ -59,6 +59,27 @@ namespace UAMS_Search\Tests {
             self::assertContains('Conditions', $this->names());
         }
 
+        public function test_condition_and_treatment_stay_separate_types_and_never_become_clinical_resources(): void
+        {
+            $GLOBALS['uams_test_options'] = ['uams_search_settings' => ['types' => ['provider' => 1.5, 'expertise' => 1.3, 'location' => 1.2, 'condition' => 1.0, 'treatment' => 1.0, 'post' => 0.8, 'attachment' => 0.8], 'pdf' => true]];
+            $GLOBALS['uams_test_types'] = [
+                'condition' => (object) ['labels' => (object) ['name' => 'Conditions']],
+                'treatment' => (object) ['labels' => (object) ['name' => 'Treatments']],
+            ];
+
+            $names = $this->names();
+
+            self::assertSame(1, array_count_values($names)['Conditions']);
+            self::assertSame(1, array_count_values($names)['Treatments']);
+            self::assertNotContains('Clinical Resources', $names);
+            self::assertArrayNotHasKey('condition', Config::type_labels());
+            self::assertArrayNotHasKey('treatment', Config::type_labels());
+            self::assertNotContains('Clinical Resources', Config::type_labels());
+            self::assertSame('Condition', Config::result_labels()['condition']);
+            self::assertSame('Treatment or Procedure', Config::result_labels()['treatment']);
+            self::assertNotContains('Clinical Resources', Config::result_labels());
+        }
+
         public function test_a_filter_can_rename_a_type(): void
         {
             StandIn::add_filter('uams_search_type_labels', static fn (array $labels): array => ['provider' => 'Doctors'] + $labels);
