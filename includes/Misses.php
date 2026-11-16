@@ -2,6 +2,8 @@
 
 namespace UAMS_Search;
 
+use RuntimeException;
+
 /** Records searches that found nothing, so editors can see what visitors look for. */
 final class Misses
 {
@@ -20,10 +22,11 @@ final class Misses
      * Count a search that returned no results, within the daily limit.
      *
      * @param  string  $search  The text the visitor searched for.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
      */
     public static function record(string $search): void
     {
-        global $wpdb;
         // Check whether logging is on, the table exists and the text has searchable words
         if (! Config::flag('logging') || ! DB::ready() || ! Text::tokens($search)) {
             return;
@@ -34,20 +37,19 @@ final class Misses
         $table = DB::table('misses');
         $site = get_current_blog_id();
         $hash = hash('sha256', mb_strtolower($search));
+        $wpdb = Database::get();
         // Count a repeat on its existing row. It still counts after the day's limit is reached.
-        if ($wpdb->query($wpdb->prepare("UPDATE `$table` SET count=count+1 WHERE site_id=%d AND search_hash=%s AND day=UTC_DATE()", $site, $hash))) {
+        if ($wpdb->query(self::prepared('UPDATE %i SET count=count+1 WHERE site_id=%d AND search_hash=%s AND day=UTC_DATE()', $table, $site, $hash))) {
             return;
         }
 
         // Check whether the site reached today's limit. This is a plain read, not INSERT ... SELECT, which would lock the range and make concurrent searches wait on each other.
-        // COUNT(*) comes back as a numeric string, which PHP compares with the limit as a number, so the cast changes no result.
-        // @pest-mutate-ignore:RemoveIntegerCast
-        if ((int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `$table` WHERE site_id=%d AND day=UTC_DATE()", $site)) >= self::DAILY_LIMIT) {
+        if (Cast::int($wpdb->get_var(self::prepared('SELECT COUNT(*) FROM %i WHERE site_id=%d AND day=UTC_DATE()', $table, $site))) >= self::DAILY_LIMIT) {
             return;
         }
 
         // Record the new search
-        $wpdb->query($wpdb->prepare("INSERT INTO `$table` (site_id,search_hash,search_text,day) VALUES (%d,%s,%s,UTC_DATE()) ON DUPLICATE KEY UPDATE count=count+1", $site, $hash, $search));
+        $wpdb->query(self::prepared('INSERT INTO %i (site_id,search_hash,search_text,day) VALUES (%d,%s,%s,UTC_DATE()) ON DUPLICATE KEY UPDATE count=count+1', $table, $site, $hash, $search));
     }
 
     /**
@@ -55,8 +57,28 @@ final class Misses
      */
     public static function purge(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Delete the rows past the retention period
         $wpdb->query('DELETE FROM `'.DB::table('misses').'` WHERE day < UTC_DATE() - INTERVAL 90 DAY');
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement, with `%i` for table names.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 }
