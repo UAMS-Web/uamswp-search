@@ -1,6 +1,8 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     if (! class_exists('WP_Post')) {
         #[AllowDynamicProperties] class WP_Post
@@ -33,21 +35,21 @@ namespace {
     if (! function_exists('get_post_meta')) {
         function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
-            return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
+            return StandIn::meta()[Cast::int($id)][Cast::string($key)] ?? '';
         }
     }
 
     if (! function_exists('is_post_status_viewable')) {
         function is_post_status_viewable(mixed $status): bool
         {
-            return in_array($status, $GLOBALS['uams_test_viewable_statuses'] ?? ['publish'], true);
+            return in_array($status, StandIn::viewable_statuses(), true);
         }
     }
 
     if (! function_exists('is_post_type_viewable')) {
         function is_post_type_viewable(mixed $type): bool
         {
-            return ! in_array($type, $GLOBALS['uams_test_hidden_types'] ?? [], true);
+            return ! in_array($type, StandIn::hidden_types(), true);
         }
     }
 }
@@ -58,6 +60,7 @@ namespace UAMS_Search\Tests {
     use ReflectionClass;
     use RuntimeException;
     use UAMS_Search\Linked;
+    use UAMS_Search\Tests\Support\StandIn;
     use WP_Post;
     use WP_Term;
 
@@ -234,9 +237,9 @@ namespace UAMS_Search\Tests {
         public function test_a_filter_that_fails_on_the_post_is_logged_and_every_page_that_holds_the_id_is_queued(): void
         {
             $GLOBALS['uams_test_posts'] = [77 => $this->post(77)];
-            $GLOBALS['uams_test_filters']['uams_search_include_post'][] = static function (): bool {
+            StandIn::add_filter('uams_search_include_post', static function (): bool {
                 throw new RuntimeException('Intentional fixture failure');
-            };
+            });
             $db = $this->database();
             $log = (string) tempnam(sys_get_temp_dir(), 'uamslog');
             $previous = ini_set('error_log', $log);

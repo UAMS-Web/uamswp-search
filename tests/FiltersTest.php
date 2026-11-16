@@ -10,6 +10,7 @@ namespace UAMS_Search\Tests {
     use stdClass;
     use UAMS_Search\Config;
     use UAMS_Search\Filters;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class FiltersTest extends TestCase
     {
@@ -46,7 +47,7 @@ namespace UAMS_Search\Tests {
         #[DataProvider('wrongTypes')]
         public function test_an_array_filter_returning_another_type_falls_back_to_the_default(mixed $returned): void
         {
-            $GLOBALS['uams_test_filters']['hook'] = [static fn (): mixed => $returned];
+            StandIn::set_filters(['hook' => [static fn (): mixed => $returned]] + StandIn::filters());
             $result = Filters::array('hook', ['default']);
 
             self::assertSame(is_array($returned) ? $returned : ['default'], $result);
@@ -54,7 +55,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_arguments_after_the_default_reach_the_callback(): void
         {
-            $GLOBALS['uams_test_filters']['hook'] = [static fn ($value, $first, $second): string => $value.$first.$second];
+            StandIn::set_filters(['hook' => [static fn ($value, $first, $second): string => $value.$first.$second]] + StandIn::filters());
 
             self::assertSame('abc', Filters::string('hook', 'a', 'b', 'c'));
         }
@@ -62,7 +63,7 @@ namespace UAMS_Search\Tests {
         #[DataProvider('wrongTypes')]
         public function test_config_get_ignores_a_config_filter_that_returns_another_type(mixed $returned): void
         {
-            $GLOBALS['uams_test_filters']['uams_search_config'] = [static fn (): mixed => $returned];
+            StandIn::set_filters(['uams_search_config' => [static fn (): mixed => $returned]] + StandIn::filters());
 
             $config = Config::get();
 
@@ -75,7 +76,7 @@ namespace UAMS_Search\Tests {
 
         private function string(mixed $returned): string
         {
-            $GLOBALS['uams_test_filters']['hook'] = [static fn (): mixed => $returned];
+            StandIn::set_filters(['hook' => [static fn (): mixed => $returned]] + StandIn::filters());
 
             return Filters::string('hook', 'default');
         }

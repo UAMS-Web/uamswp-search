@@ -10,6 +10,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Excerpt;
     use UAMS_Search\Phonetic;
     use UAMS_Search\Stemmer;
+    use UAMS_Search\Tests\Support\StandIn;
     use UAMS_Search\Text;
 
     final class TextTest extends TestCase
@@ -84,7 +85,7 @@ namespace UAMS_Search\Tests {
             self::assertSame('+cardiologi* +park*', Text::boolean(Text::groups('+cardiology* -(parking)'), true));
             self::assertCount(20, Text::groups(implode(' ', array_fill(0, 30, 'heart'))));
             self::assertSame([], Text::groups('"the and"'));
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['synonyms' => ['heart' => ['cardiac', 'cardiology', 'heart care']]];
+            StandIn::put_option('uams_search_settings', ['synonyms' => ['heart' => ['cardiac', 'cardiology', 'heart care']]]);
             self::assertSame('+(heart* cardiac* cardiologi* "heart care")', Text::boolean(Text::groups('heart'), true));
         }
 
@@ -115,7 +116,7 @@ namespace UAMS_Search\Tests {
         public function test_stop_words_are_flagged_true_and_include_the_configured_ones(): void
         {
             self::assertSame(['the' => true], array_intersect_key(Text::stops(), ['the' => 1]));
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['stopwords' => ['clinic']];
+            StandIn::put_option('uams_search_settings', ['stopwords' => ['clinic']]);
             self::assertSame(['clinic' => true], array_intersect_key(Text::stops(), ['clinic' => 1]));
         }
 
@@ -134,7 +135,7 @@ namespace UAMS_Search\Tests {
 
         public function test_a_synonym_that_repeats_the_word_is_listed_once_and_the_list_has_no_gaps(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['synonyms' => ['cat' => ['cat', 'kitten']]];
+            StandIn::put_option('uams_search_settings', ['synonyms' => ['cat' => ['cat', 'kitten']]]);
             self::assertSame([['cat*', 'kitten*']], Text::groups('cat'));
         }
 

@@ -8,9 +8,11 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
     use RuntimeException;
+    use UAMS_Search\Cast;
     use UAMS_Search\DB;
     use UAMS_Search\Phonetic;
     use UAMS_Search\Suggestions;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /** Pins for the spelling dictionary (#5). A recording stand-in replaces `$wpdb`; `suggest()` needs the query engine and is only pinned at its early exits. */
     final class SuggestionsTest extends TestCase
@@ -101,7 +103,7 @@ namespace UAMS_Search\Tests {
 
         public function test_record_skips_the_stop_words_the_network_adds(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['stopwords' => ['knee']];
+            StandIn::put_option('uams_search_settings', ['stopwords' => ['knee']]);
             Suggestions::record($this->row(['content' => 'knee hip']));
 
             self::assertStringNotContainsString("'knee'", $this->db->matching('INSERT INTO `wp_uams_search_word_docs`')[0]);
@@ -206,7 +208,7 @@ namespace UAMS_Search\Tests {
         /** @var list<string> */
         public array $queries = [];
 
-        /** @var list<array{string, array<string, int>}> */
+        /** @var list<array{string, array<mixed>}> */
         public array $deletes = [];
 
         public bool $delete_fails = false;
@@ -228,7 +230,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 
