@@ -356,13 +356,13 @@ namespace UAMS_Search\Tests {
             // The pages that copied a term's name are queued by a marker, not by an object ID, so they are counted apart.
             $posts = array_filter($db->queries, static fn (string $q): bool => ! str_contains($q, 'linked\_term\_id'));
 
-            return array_map(static fn (string $q): int => (int) explode(',', substr($q, 2, strpos($q, ']') - 2))[1], array_values($posts));
+            return array_map(static fn (string $q): int => (int) explode(',', substr($q, 2, strpos($q, ']') - 2))[2], array_values($posts));
         }
 
-        /** @return array<int, string> The actions of the recorded queue inserts. */
+        /** @return array<int, string> The actions of the recorded queue inserts, whose arguments are the table, the site, the object and the action. */
         private function actions(PluginDb $db): array
         {
-            return array_map(static fn (string $q): string => explode(',', substr($q, 2, strpos($q, ']') - 2))[2], $db->queries);
+            return array_map(static fn (string $q): string => explode(',', substr($q, 2, strpos($q, ']') - 2))[3], $db->queries);
         }
     }
 
@@ -411,7 +411,7 @@ namespace UAMS_Search\Tests {
         public function get_col(string $query): array
         {
             // Post 13 has one attachment; the next page is empty.
-            return str_starts_with($query, 'Q[13,0]') ? [60] : [];
+            return str_starts_with($query, 'Q[wp_posts,13,0]') ? [60] : [];
         }
     }
 }
