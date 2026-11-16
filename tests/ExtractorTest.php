@@ -154,7 +154,7 @@ namespace {
     }
 
     if (! function_exists('wp_get_upload_dir')) {
-        /** @return array<string, mixed> */
+        /** @return array{basedir: string} */
         function wp_get_upload_dir(): array
         {
             return ['basedir' => StandIn::uploads() ?? __DIR__.'/../fixtures'];

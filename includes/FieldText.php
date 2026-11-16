@@ -117,8 +117,9 @@ final class FieldText
      *
      * @param  string  $key  The saved field key, or an empty string.
      * @param  string  $name  The field name.
-     * @return array<string, mixed>|null The definition, or null when ACF is
-     *                                   absent or does not know the field.
+     * @return array{type: string, ...<string, mixed>}|null The definition, or null
+     *                                                      when ACF is absent or
+     *                                                      does not know the field.
      */
     private static function definition(
         string $key,
