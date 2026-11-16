@@ -1,15 +1,17 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Records the arguments and answers from a global a test sets; ScreensTest declares the same name with a fixed answer, and whichever file loads first defines it.
     if (! function_exists('get_post_types')) {
         /** @return array<string, string> */
         function get_post_types(mixed $args = []): array
         {
-            $GLOBALS['uams_test_post_types_args'] = $args;
+            StandIn::set_post_types_args(is_array($args) ? $args : []);
 
-            return $GLOBALS['uams_test_post_types'] ?? ['post' => 'post'];
+            return array_key_exists('uams_test_post_types', $GLOBALS) ? StandIn::post_types() : ['post' => 'post'];
         }
     }
 
@@ -18,16 +20,17 @@ namespace {
         /** @return array<string, mixed>|false */
         function acf_get_field(mixed $selector): array|false
         {
-            $GLOBALS['uams_test_acf_lookups'][] = $selector;
+            $name = Cast::string($selector);
+            StandIn::add_acf_lookup($name);
 
-            return $GLOBALS['uams_test_acf_fields'][$selector] ?? false;
+            return StandIn::acf_fields()[$name] ?? false;
         }
     }
 
     if (! function_exists('get_taxonomy')) {
         function get_taxonomy(mixed $name): object|false
         {
-            return $GLOBALS['uams_test_taxonomies'][$name] ?? false;
+            return StandIn::taxonomies()[Cast::string($name)] ?? false;
         }
     }
 }
@@ -36,6 +39,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use RuntimeException;
     use UAMS_Search\NameChoices;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /**
      * Pins for the Name suggestions (#45) and their labels (#160). A stand-in `$wpdb` answers each site's two lookups from scripted rows.
@@ -164,10 +168,10 @@ namespace UAMS_Search\Tests {
 
         public function test_the_types_are_the_configured_ones_then_the_public_ones_without_repeats(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['types' => ['page' => 1.0, 'post' => 2.0]];
-            $GLOBALS['uams_test_post_types'] = ['post' => 'post', 'event' => 'An event'];
+            StandIn::put_option('uams_search_settings', ['types' => ['page' => 1.0, 'post' => 2.0]]);
+            StandIn::set_post_types(['post' => 'post', 'event' => 'An event']);
             self::assertSame(['page', 'post', 'event'], NameChoices::types());
-            self::assertSame(['public' => true], $GLOBALS['uams_test_post_types_args']);
+            self::assertSame(['public' => true], StandIn::post_types_args());
         }
 
         public function test_the_taxonomy_lookup_is_prepared_with_the_same_types_and_internal_pattern(): void
@@ -188,7 +192,7 @@ namespace UAMS_Search\Tests {
 
         public function test_saved_choices_are_cleaned_and_ordered_on_read(): void
         {
-            $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['b' => ['x'], 'a' => ['y'], 'e' => [], '' => ['z'], 'c' => ['w']], 'taxonomies' => [], 'labels' => ['fields' => ['kept' => ' Padded ', 'blank' => ' ', ' ' => 'No name'], 'taxonomies' => []]];
+            StandIn::put_option(NameChoices::OPTION, ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['b' => ['x'], 'a' => ['y'], 'e' => [], '' => ['z'], 'c' => ['w']], 'taxonomies' => [], 'labels' => ['fields' => ['kept' => ' Padded ', 'blank' => ' ', ' ' => 'No name'], 'taxonomies' => []]]);
             $saved = $this->saved();
             self::assertSame(['a', 'b', 'c'], array_keys($saved['fields']), 'An empty or unnamed type is skipped and the rest are kept, sorted by type.');
             self::assertSame(['kept' => 'Padded'], $saved['labels']['fields']);
@@ -197,7 +201,7 @@ namespace UAMS_Search\Tests {
         public function test_a_cache_missing_a_part_reads_as_none(): void
         {
             foreach ([['fields' => [], 'taxonomies' => []], ['refreshed' => 5, 'fields' => [], 'taxonomies' => []], ['refreshed' => 'x', 'fields' => [], 'taxonomies' => 'x']] as $saved) {
-                $GLOBALS['uams_test_options'][NameChoices::OPTION] = $saved;
+                StandIn::put_option(NameChoices::OPTION, $saved);
                 self::assertNull(NameChoices::get());
             }
         }
@@ -262,7 +266,7 @@ namespace UAMS_Search\Tests {
             $saved = NameChoices::refresh();
             self::assertSame(['post' => ['subtitle']], $saved['fields']);
             self::assertSame(['fields' => [], 'taxonomies' => ['category' => 'Categories']], $saved['labels']);
-            self::assertSame($saved, $GLOBALS['uams_test_options'][NameChoices::OPTION]);
+            self::assertSame($saved, StandIn::option(NameChoices::OPTION));
         }
 
         public function test_a_failed_refresh_after_a_rebuild_is_logged_with_its_reason_and_does_not_throw(): void
@@ -279,7 +283,7 @@ namespace UAMS_Search\Tests {
             }
 
             self::assertStringContainsString('UAMS Search: could not refresh the Name suggestions after the rebuild. Could not read the names in use on site 1: Table missing', $logged);
-            self::assertArrayNotHasKey(NameChoices::OPTION, $GLOBALS['uams_test_options'], 'Nothing is saved when the lookup fails.');
+            self::assertArrayNotHasKey(NameChoices::OPTION, StandIn::options(), 'Nothing is saved when the lookup fails.');
         }
 
         public function test_a_refresh_after_a_rebuild_saves_the_choices_and_logs_nothing(): void
@@ -301,9 +305,12 @@ namespace UAMS_Search\Tests {
 
         public function test_a_cache_saved_before_labels_existed_reads_with_none(): void
         {
-            $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a']], 'taxonomies' => []];
+            StandIn::put_option(NameChoices::OPTION, ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a']], 'taxonomies' => []]);
             self::assertSame(['fields' => [], 'taxonomies' => []], $this->saved()['labels']);
-            $GLOBALS['uams_test_options'][NameChoices::OPTION]['labels'] = ['fields' => ['a' => 'A', 'b' => '', 'c' => ['x'], '' => 'No name'], 'taxonomies' => 'x'];
+            $cache = StandIn::option(NameChoices::OPTION);
+            self::assertIsArray($cache);
+            $cache['labels'] = ['fields' => ['a' => 'A', 'b' => '', 'c' => ['x'], '' => 'No name'], 'taxonomies' => 'x'];
+            StandIn::put_option(NameChoices::OPTION, $cache);
             self::assertSame(['fields' => ['a' => 'A'], 'taxonomies' => []], $this->saved()['labels'], 'Blank and malformed labels are dropped.');
         }
 
@@ -357,7 +364,7 @@ namespace UAMS_Search\Tests {
             $this->db->rows['wp_postmeta'] = [['type' => 'post', 'name' => 'subtitle']];
             $before = gmdate('Y-m-d H:i:s');
             $saved = NameChoices::refresh();
-            self::assertSame($saved, $GLOBALS['uams_test_options'][NameChoices::OPTION]);
+            self::assertSame($saved, StandIn::option(NameChoices::OPTION));
             self::assertSame(['post' => ['subtitle']], $saved['fields']);
             self::assertGreaterThanOrEqual($before, $saved['refreshed']);
             self::assertSame($saved, NameChoices::get(), 'The screen reads back what was saved.');
@@ -365,7 +372,7 @@ namespace UAMS_Search\Tests {
 
         public function test_a_failed_site_query_saves_nothing_and_names_the_site(): void
         {
-            $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['kept']], 'taxonomies' => []];
+            StandIn::put_option(NameChoices::OPTION, ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['kept']], 'taxonomies' => []]);
             $this->db->fail['wp_term_relationships'] = 'Table missing';
             try {
                 NameChoices::refresh();
@@ -380,11 +387,11 @@ namespace UAMS_Search\Tests {
         public function test_a_missing_or_malformed_cache_reads_as_none(): void
         {
             self::assertNull(NameChoices::get());
-            $GLOBALS['uams_test_options'][NameChoices::OPTION] = 'not an array';
+            StandIn::put_option(NameChoices::OPTION, 'not an array');
             self::assertNull(NameChoices::get());
-            $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => 'x', 'taxonomies' => []];
+            StandIn::put_option(NameChoices::OPTION, ['refreshed' => '2026-11-01 10:00:00', 'fields' => 'x', 'taxonomies' => []]);
             self::assertNull(NameChoices::get());
-            $GLOBALS['uams_test_options'][NameChoices::OPTION] = ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['b', '_hidden', 'a', 'a', ['nested']]], 'taxonomies' => ['' => ['x']]];
+            StandIn::put_option(NameChoices::OPTION, ['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['b', '_hidden', 'a', 'a', ['nested']]], 'taxonomies' => ['' => ['x']]]);
             self::assertSame(['refreshed' => '2026-11-01 10:00:00', 'fields' => ['post' => ['a', 'b']], 'taxonomies' => [], 'labels' => ['fields' => [], 'taxonomies' => []]], NameChoices::get());
         }
     }
@@ -396,7 +403,7 @@ namespace UAMS_Search\Tests {
         /** @var array<string, string> Error to report for the query whose SQL contains the key. */
         public array $fail = [];
 
-        /** @var list<array{string, mixed}> Prepared SQL and the arguments it was given. */
+        /** @var list<array{string, list<mixed>}> Prepared SQL and the arguments it was given. */
         public array $prepared = [];
 
         /** @var list<string> */
@@ -417,7 +424,7 @@ namespace UAMS_Search\Tests {
 
         public function prepare(string $query, mixed ...$args): string
         {
-            $this->prepared[] = [$query, $args];
+            $this->prepared[] = [$query, array_values($args)];
 
             return $query;
         }
