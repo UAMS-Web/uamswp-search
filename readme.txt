@@ -2,7 +2,7 @@
 Contributors: uams-web
 Requires at least: 6.8
 Requires PHP: 8.2
-Stable tag: 0.5.1
+Stable tag: 0.6.0
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,6 +26,12 @@ Optional no-result logging stores search text, date, site, and count, without IP
 The scope links depend on the network layout. A subdirectory network offers This site and All of <root site name> (the root site offers only the whole install), a subdomain network or single site offers This site, and every layout adds All UAMS websites (UAMS.edu and UAMSHealth.com) when Google Custom Search is on. Choosing All UAMS websites shows the Google results in place of the plugin results, matching the reference theme's existing behavior. The local engine itself sends no queries to an external search service.
 
 == Changelog ==
+
+= 0.6.0 =
+* Copy the titles of linked posts and the names of linked terms into the index, so a page is found by what its relationship, post object and taxonomy fields link to. The change is flagged for a rebuild: rebuild every site to index existing pages.
+* Raise the minimum WordPress version to 6.8.
+* Default the Google "All UAMS websites" block to off until launch. A site that already saved the setting keeps its value.
+* Enforce the 2 to 200 character limit on the search text of the suggest route.
 
 = 0.5.1 =
 * Add Results per page in network settings, defaulting to 20 with a range of 1 to 100. Explicit query page sizes still override the default. No index rebuild is needed.
