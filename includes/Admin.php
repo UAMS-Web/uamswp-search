@@ -306,10 +306,12 @@ final class Admin
         // @pest-mutate-ignore:UnwrapArrayMap
         $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map(Cast::int(...), (array) ($input['sites'] ?? []))));
         // Save the source weights
-        $weights = (array) $c['weights'];
+        $weights = Config::section('weights');
+        // The default weights are an array, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveArrayCast
         foreach (array_keys((array) Config::defaults()['weights']) as $key) {
-            // A weight below zero is raised to zero, so a missing weight and -1 both save 0.
-            // @pest-mutate-ignore:DecrementInteger
+            // A weight below zero is raised to zero, so a missing weight and -1 both save 0. A form value that is not a list reads a weight by name as missing, so its cast changes no result.
+            // @pest-mutate-ignore:DecrementInteger,RemoveArrayCast
             $weights[$key] = Config::weight(((array) ($input['weights'] ?? []))[$key] ?? 0);
         }
 
@@ -628,9 +630,13 @@ final class Admin
         }
 
         // Print the stop words and the synonym rules
+        // The saved stop words are text already, so the conversion changes no result.
+        // @pest-mutate-ignore:UnwrapArrayMap
         echo '<p><label for="uams-stopwords">Extra Stop Words, Separated by Spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">'.esc_textarea(implode(' ', array_map(Cast::string(...), Config::section('stopwords')))).'</textarea></p>';
         $synonyms = [];
         foreach (Config::section('synonyms') as $key => $values) {
+            // A saved rule is a list of text, so the conversion and the cast change no result.
+            // @pest-mutate-ignore:UnwrapArrayMap,RemoveArrayCast
             $synonyms[] = $key.' = '.implode(', ', array_map(Cast::string(...), (array) $values));
         }
 
