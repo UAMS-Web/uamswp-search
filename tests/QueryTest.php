@@ -276,7 +276,7 @@ namespace UAMS_Search\Tests {
             Query::run(['s' => 'heart', 'suggest' => false]);
             $sql = self::lastQuery();
             foreach (['title' => 5, 'terms' => 3, 'fields' => 2, 'content' => 1, 'pdf' => 1] as $column => $weight) {
-                $match = "MATCH(i.{$column}_stem) AGAINST('heart*' IN BOOLEAN MODE)";
+                $match = "MATCH(i.`{$column}_stem`) AGAINST('heart*' IN BOOLEAN MODE)";
                 self::assertStringContainsString("(IF($match BETWEEN 0 AND 1000000,$match,0)*$weight)", $sql, $column);
             }
         }
@@ -286,7 +286,7 @@ namespace UAMS_Search\Tests {
             StandIn::put_option('uams_search_settings', ['enabled' => true, 'weights' => ['title' => 5, 'bogus' => 9]]);
             Query::run(['s' => 'heart', 'suggest' => false]);
             $sql = self::lastQuery();
-            self::assertStringContainsString('i.title_stem', $sql);
+            self::assertStringContainsString('i.`title_stem`', $sql);
             self::assertStringNotContainsString('bogus', $sql);
         }
 
@@ -438,7 +438,7 @@ namespace UAMS_Search\Tests {
 
         private static function match_column(string $column, string $against): string
         {
-            $match = "MATCH(i.{$column}_stem) AGAINST('$against' IN BOOLEAN MODE)";
+            $match = "MATCH(i.`{$column}_stem`) AGAINST('$against' IN BOOLEAN MODE)";
 
             return "IF($match BETWEEN 0 AND 1000000,$match,0)";
         }
@@ -621,7 +621,7 @@ namespace UAMS_Search\Tests {
             StandIn::put_option('uams_search_settings', ['enabled' => true, 'weights' => ['bogus' => 9, 'title' => 5]]);
             Query::run(['s' => 'heart', 'suggest' => false]);
             $sql = self::selects()[1];
-            self::assertStringContainsString('MATCH(i.title_stem)', $sql);
+            self::assertStringContainsString('MATCH(i.`title_stem`)', $sql);
             self::assertStringNotContainsString('bogus_stem', $sql);
         }
 

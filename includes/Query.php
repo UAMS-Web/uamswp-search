@@ -8,19 +8,6 @@ use RuntimeException;
 final class Query
 {
     /**
-     * The column match for each weighted column, as a statement `prepare()` can fill.
-     *
-     * @var array<string, literal-string>
-     */
-    private const MATCH_COLUMN = [
-        'title' => 'MATCH(i.title_stem) AGAINST(%s IN BOOLEAN MODE)',
-        'content' => 'MATCH(i.content_stem) AGAINST(%s IN BOOLEAN MODE)',
-        'terms' => 'MATCH(i.terms_stem) AGAINST(%s IN BOOLEAN MODE)',
-        'fields' => 'MATCH(i.fields_stem) AGAINST(%s IN BOOLEAN MODE)',
-        'pdf' => 'MATCH(i.pdf_stem) AGAINST(%s IN BOOLEAN MODE)',
-    ];
-
-    /**
      * Run a search.
      *
      * @param  array<string, mixed>  $args  Search arguments: `s` (text, cut to
@@ -123,7 +110,8 @@ final class Query
             }
 
             // MariaDB can return an infinite score for a row that was re-indexed, and multiplying it raises "DOUBLE value is out of range" (#114), so a score outside 0 to 1,000,000 counts as 0
-            $match = self::prepared(self::MATCH_COLUMN[$column], $scoring);
+            // The column is one of the five checked above, and `%i` quotes it as an identifier
+            $match = self::prepared('MATCH(i.%i) AGAINST(%s IN BOOLEAN MODE)', $column.'_stem', $scoring);
             $expression = "IF($match BETWEEN 0 AND 1000000,$match,0)";
             $parts[] = '('.$expression.'*'.self::sql_weight($weight).')';
             $explain[] = $expression.' AS '.$column.'_score';
