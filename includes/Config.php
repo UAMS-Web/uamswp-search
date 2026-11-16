@@ -157,7 +157,7 @@ final class Config
     {
         $value = self::get()['sites'] ?? null;
 
-        return \is_array($value) ? array_values(array_map(intval(...), $value)) : null;
+        return \is_array($value) ? array_values(array_map(Cast::int(...), $value)) : null;
     }
 
     /**
@@ -249,7 +249,7 @@ final class Config
 
         // `get_sites()` returns a list, so its keys are already sequential.
         // @pest-mutate-ignore:UnwrapArrayValues
-        return array_values(array_map(intval(...), get_sites($args)));
+        return array_values(array_map(Cast::int(...), get_sites($args)));
     }
 
     /**
@@ -286,7 +286,8 @@ final class Config
     {
         $labels = ['provider' => 'People', 'expertise' => 'Clinical Areas of Expertise', 'location' => 'Clinical Locations', 'post' => 'News', 'attachment' => 'PDFs'];
 
-        return Filters::array('uams_search_type_labels', $labels);
+        // A filter can return anything, so each label reads as text
+        return array_map(Cast::string(...), Filters::array('uams_search_type_labels', $labels));
     }
 
     /**
@@ -298,7 +299,8 @@ final class Config
     {
         $labels = ['provider' => 'Person', 'location' => 'Clinical Location', 'expertise' => 'Area of Expertise', 'condition' => 'Condition', 'treatment' => 'Treatment or Procedure', 'post' => 'News', 'page' => 'Page', 'attachment' => 'PDF'];
 
-        return Filters::array('uams_search_result_labels', $labels);
+        // A filter can return anything, so each label reads as text
+        return array_map(Cast::string(...), Filters::array('uams_search_result_labels', $labels));
     }
 
     /**
@@ -322,7 +324,7 @@ final class Config
     {
         // Choose the labels for this site and its network
         if (is_multisite() && ! is_subdomain_install()) {
-            $options = is_main_site() ? ['install' => 'This site'] : ['site' => 'This site', 'install' => 'All of '.get_blog_option(get_main_site_id(), 'blogname')];
+            $options = is_main_site() ? ['install' => 'This site'] : ['site' => 'This site', 'install' => 'All of '.Cast::string(get_blog_option(get_main_site_id(), 'blogname'))];
         } else {
             $options = ['site' => 'This site'];
         }

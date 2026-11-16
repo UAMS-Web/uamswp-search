@@ -65,5 +65,12 @@ namespace UAMS_Search\Tests {
 
             self::assertSame(['All results', 'Doctors'], array_slice($this->names(), 0, 2));
         }
+
+        public function test_a_filter_that_returns_a_number_for_a_label_gets_text_back(): void
+        {
+            StandIn::add_filter('uams_search_type_labels', static fn (array $labels): array => ['provider' => 42] + $labels);
+
+            self::assertSame('42', Config::type_labels()['provider']);
+        }
     }
 }

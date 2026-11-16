@@ -14,6 +14,7 @@ namespace {
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\Attributes\DataProvider;
     use PHPUnit\Framework\TestCase;
+    use UAMS_Search\Config;
     use UAMS_Search\Integration;
     use UAMS_Search\LocationCard;
     use UAMS_Search\ProviderCard;
@@ -139,6 +140,13 @@ namespace UAMS_Search\Tests {
 
             self::assertStringContainsString('&lt;b&gt;Web page&lt;/b&gt;', $html);
             self::assertStringNotContainsString('<b>', $html);
+        }
+
+        public function test_a_filter_that_returns_a_number_for_a_label_gets_text_back(): void
+        {
+            StandIn::add_filter('uams_search_result_labels', static fn (array $labels): array => ['page' => 7] + $labels);
+
+            self::assertSame('7', Config::result_labels()['page']);
         }
     }
 }
