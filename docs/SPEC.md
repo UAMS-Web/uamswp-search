@@ -22,13 +22,13 @@ Build a UAMS-owned WordPress search plugin to replace SearchWP on the \~25 uams-
 
 ## Scope and phases
 
-Phase 1 replaces SearchWP; phases 2 and 3 add what's on the wish list once phase 1 is live.
+Phase 1 replaces SearchWP. Phases 2 and 3 added what was on the wish list, and both are built (v0.5.1).
 
 | Phase | Delivers | Done when |
 | --- | --- | --- |
 | 1. Core | Index table and queue; WP-CLI indexing; whole-install or current sub-site scope; post types, chosen ACF fields and taxonomy terms; field and post-type weighting; stemming; highlighted excerpts; theme integration; network settings and status page | Test searches match or beat SearchWP on uamshealth.com, and SearchWP is turned off there |
-| 2. Wish list | PDF text indexing; "Did you mean" suggestions; synonyms; log of searches with no results | PDFs on the largest install are indexed, and suggestions show on misspelled test searches |
-| 3. Nice to have | Live search-as-you-type through a REST endpoint | The search box shows suggestions as you type, with full keyboard and screen-reader support |
+| 2. Wish list (built) | PDF text indexing; "Did you mean" suggestions; synonyms; log of searches with no results | PDFs on the largest install are indexed, and suggestions show on misspelled test searches |
+| 3. Nice to have (built) | Live search-as-you-type through a REST endpoint | The search box shows suggestions as you type, with full keyboard and screen-reader support |
 
 **Out of scope**
 
