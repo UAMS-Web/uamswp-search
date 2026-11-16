@@ -19,7 +19,7 @@ final class Queue
         string $action = 'upsert',
         ?int $site = null
     ): void {
-        global $wpdb;
+        $wpdb = Database::get();
         // Check that the post is one to index and the tables exist
         if ($id < 1 || wp_is_post_revision($id) || wp_is_post_autosave($id) || ! DB::ready()) {
             return;
@@ -29,7 +29,7 @@ final class Queue
         $site = $site ?: get_current_blog_id();
         $table = DB::table('queue');
         // Insert the entry, or reset it for another attempt
-        $wpdb->query($wpdb->prepare("INSERT INTO `$table` (site_id,object_id,action,queued_at,available_at) VALUES (%d,%d,%s,UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE action=VALUES(action), queued_at=UTC_TIMESTAMP(), available_at=UTC_TIMESTAMP(), attempts=0, revision=revision+1", $site, $id, $action));
+        $wpdb->query(self::prepared('INSERT INTO %i (site_id,object_id,action,queued_at,available_at) VALUES (%d,%d,%s,UTC_TIMESTAMP(),UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE action=VALUES(action), queued_at=UTC_TIMESTAMP(), available_at=UTC_TIMESTAMP(), attempts=0, revision=revision+1', $table, $site, $id, $action));
     }
 
     /**
@@ -48,7 +48,7 @@ final class Queue
         // @pest-mutate-ignore:DecrementInteger,IncrementInteger
         int $seconds = 45
     ): array {
-        global $wpdb;
+        $wpdb = Database::get();
         $stats = ['processed' => 0, 'failed' => 0, 'busy' => false];
         // Check that the tables exist
         if (! DB::ready()) {
@@ -74,13 +74,22 @@ final class Queue
             }
 
             // Read the entries that are due
-            $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM `$q` WHERE attempts<3 AND available_at<=UTC_TIMESTAMP() ORDER BY queued_at,site_id,object_id LIMIT %d", max(1, min(10000, $limit))), ARRAY_A);
+            // A failed query returns null, which reads as no rows, and the check below reports the failure, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $rows = (array) $wpdb->get_results(self::prepared('SELECT * FROM %i WHERE attempts<3 AND available_at<=UTC_TIMESTAMP() ORDER BY queued_at,site_id,object_id LIMIT %d', $q, max(1, min(10000, $limit))), ARRAY_A);
             if ($wpdb->last_error) {
                 throw new RuntimeException($wpdb->last_error);
             }
 
             // Index each entry
             foreach ($rows as $entry) {
+                // A row is an array when it came from the database, so the cast changes no result.
+                // @pest-mutate-ignore:RemoveArrayCast
+                $entry = (array) $entry;
+                $entry_site = Cast::int($entry['site_id']);
+                $entry_object = Cast::int($entry['object_id']);
+                $entry_revision = Cast::int($entry['revision']);
+
                 // Stop when the time or memory limit is near
                 $memory = wp_convert_hr_to_bytes(\ini_get('memory_limit'));
                 $limited = $memory > 0;
@@ -91,21 +100,17 @@ final class Queue
                     break;
                 }
 
-                // Without strict types the numeric text of a database row is turned into the same integers, so the casts change no result.
                 // Re-read current post state even for delete events, so delete/restore races are safe.
-                // @pest-mutate-ignore:RemoveIntegerCast
-                Related::queue_dependents((int) $entry['site_id'], (int) $entry['object_id']);
-                // @pest-mutate-ignore:RemoveIntegerCast
-                Linked::queue_post_dependents((int) $entry['site_id'], (int) $entry['object_id']);
+                Related::queue_dependents($entry_site, $entry_object);
+                Linked::queue_post_dependents($entry_site, $entry_object);
                 // Index the post
-                // @pest-mutate-ignore:RemoveIntegerCast
-                $result = Indexer::one((int) $entry['site_id'], (int) $entry['object_id']);
+                $result = Indexer::one($entry_site, $entry_object);
                 // Retry a failure later, and remove a success from the queue
                 if ($result['status'] === 'error') {
-                    DB::exec($wpdb->prepare("UPDATE `$q` SET attempts=attempts+1, available_at=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE) WHERE site_id=%d AND object_id=%d AND revision=%d", $entry['site_id'], $entry['object_id'], $entry['revision']));
+                    DB::exec(self::prepared('UPDATE %i SET attempts=attempts+1, available_at=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 5 MINUTE) WHERE site_id=%d AND object_id=%d AND revision=%d', $q, $entry_site, $entry_object, $entry_revision));
                     $stats['failed']++;
                 } else {
-                    DB::exec($wpdb->prepare("DELETE FROM `$q` WHERE site_id=%d AND object_id=%d AND revision=%d", $entry['site_id'], $entry['object_id'], $entry['revision']));
+                    DB::exec(self::prepared('DELETE FROM %i WHERE site_id=%d AND object_id=%d AND revision=%d', $q, $entry_site, $entry_object, $entry_revision));
                 }
 
                 $stats['processed']++;
@@ -130,7 +135,7 @@ final class Queue
      */
     public static function related(int $id): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Queue the post itself
         self::push($id);
         // Public attachment visibility and parent links can change when a parent is edited.
@@ -139,13 +144,12 @@ final class Queue
         // A loop that never advanced past its first page would not end, so a test can only time out on the mutant that empties the children.
         // @pest-mutate-ignore:ForeachEmptyIterable
         do {
-            $children = $wpdb->get_col($wpdb->prepare("SELECT ID FROM `$wpdb->posts` WHERE post_parent=%d AND post_type='attachment' AND ID>%d ORDER BY ID LIMIT 100", $id, $after));
+            // A failed query returns null, which reads as no children, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $children = (array) $wpdb->get_col(self::prepared("SELECT ID FROM %i WHERE post_parent=%d AND post_type='attachment' AND ID>%d ORDER BY ID LIMIT 100", $wpdb->posts, $id, $after));
             foreach ($children as $child) {
-                // Without strict types the numeric text of a database row is turned into the same integer, so the casts change no result.
-                // @pest-mutate-ignore:RemoveIntegerCast
-                self::push((int) $child);
-                // @pest-mutate-ignore:RemoveIntegerCast
-                $after = (int) $child;
+                self::push(Cast::int($child));
+                $after = Cast::int($child);
             }
         } while ($children);
     }
@@ -160,7 +164,7 @@ final class Queue
         int $term_id,
         int $tt_id = 0
     ): void {
-        global $wpdb;
+        $wpdb = Database::get();
         // Check that the change names a term taxonomy
         if (! $tt_id) {
             return;
@@ -173,8 +177,28 @@ final class Queue
 
         // Queue the term's posts
         $q = DB::table('queue');
-        $wpdb->query($wpdb->prepare("INSERT INTO `$q` (site_id,object_id,action,queued_at,available_at) SELECT %d,object_id,'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM `$wpdb->term_relationships` WHERE term_taxonomy_id=%d ON DUPLICATE KEY UPDATE queued_at=UTC_TIMESTAMP(),available_at=UTC_TIMESTAMP(),attempts=0,revision=revision+1", get_current_blog_id(), $tt_id));
+        $wpdb->query(self::prepared("INSERT INTO %i (site_id,object_id,action,queued_at,available_at) SELECT %d,object_id,'upsert',UTC_TIMESTAMP(),UTC_TIMESTAMP() FROM %i WHERE term_taxonomy_id=%d ON DUPLICATE KEY UPDATE queued_at=UTC_TIMESTAMP(),available_at=UTC_TIMESTAMP(),attempts=0,revision=revision+1", $q, get_current_blog_id(), $wpdb->term_relationships, $tt_id));
         // Queue the pages that copied the term's name through a field
         Linked::queue_term_dependents(get_current_blog_id(), $term_id);
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement, with `%i` for table names.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 }
