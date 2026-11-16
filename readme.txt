@@ -2,7 +2,7 @@
 Contributors: uams-web
 Requires at least: 6.8
 Requires PHP: 8.2
-Stable tag: 0.6.0
+Stable tag: 0.6.1
 License: GPLv3 or later
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
@@ -26,6 +26,9 @@ Optional no-result logging stores search text, date, site, and count, without IP
 The scope links depend on the network layout. A subdirectory network offers This site and All of <root site name> (the root site offers only the whole install), a subdomain network or single site offers This site, and every layout adds All UAMS websites (UAMS.edu and UAMSHealth.com) when Google Custom Search is on. Choosing All UAMS websites shows the Google results in place of the plugin results, matching the reference theme's existing behavior. The local engine itself sends no queries to an external search service.
 
 == Changelog ==
+
+= 0.6.1 =
+* Print the WP-CLI help descriptions for `wp uams-search`, `status` and `doctor` without comment markers. No index rebuild is needed.
 
 = 0.6.0 =
 * Copy the titles of linked posts and the names of linked terms into the index, so a page is found by what its relationship, post object and taxonomy fields link to. The change is flagged for a rebuild: rebuild every site to index existing pages.
