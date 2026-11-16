@@ -5,6 +5,7 @@ require __DIR__.'/bootstrap.php';
 use UAMS_Search\Cast;
 use UAMS_Search\Excerpt;
 use UAMS_Search\Integration;
+use UAMS_Search\Result;
 use UAMS_Search\Tests\Support\Prepare;
 use UAMS_Search\Tests\Support\StandIn;
 
@@ -147,8 +148,8 @@ class PreviewQuery
     public function get(mixed $key): mixed
     {
         $results = array_key_exists('uams_preview_results', $GLOBALS) ? StandIn::preview_results() : [
-            (object) ['title' => 'Heart care', 'url' => 'https://uams-search.test/heart-care/', 'post_type' => 'page', 'excerpt' => Excerpt::make(['Find heart care and cardiology services at UAMS.'], 'heart')],
-            (object) ['title' => 'Heart clinic guide', 'url' => 'https://uams-search.test/guide.pdf', 'post_type' => 'attachment', 'file_size' => 24000, 'excerpt' => Excerpt::make(['Read our heart clinic guide before your visit.'], 'heart')],
+            new Result(id: 0, site: 1, relevance: 0.0, excerpt: Excerpt::make(['Find heart care and cardiology services at UAMS.'], 'heart'), title: 'Heart care', url: 'https://uams-search.test/heart-care/', post_type: 'page', file_size: 0),
+            new Result(id: 0, site: 1, relevance: 0.0, excerpt: Excerpt::make(['Read our heart clinic guide before your visit.'], 'heart'), title: 'Heart clinic guide', url: 'https://uams-search.test/guide.pdf', post_type: 'attachment', file_size: 24000),
         ];
 
         return ['results' => $results, 'total' => count($results), 'pages' => 1, 'fallback' => true, 'suggestion' => 'heart care'];
