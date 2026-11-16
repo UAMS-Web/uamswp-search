@@ -3,6 +3,7 @@
 namespace UAMS_Search;
 
 use InvalidArgumentException;
+use ReflectionProperty;
 use RuntimeException;
 
 /** The plugin's tables: their names, creation, readiness and the writer lock. */
@@ -26,7 +27,7 @@ final class DB
      */
     public static function table(string $suffix = 'index'): string
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Accept only the plugin's own table names. A suffix is plain text that is never numeric, so a loose comparison with these names matches only when the strict one does.
         // @pest-mutate-ignore:TrueToFalse
         if (! \in_array($suffix, ['index', 'queue', 'words', 'word_docs', 'misses', 'stopwords', 'stage'], true)) {
@@ -46,14 +47,15 @@ final class DB
      */
     public static function exec(string $sql): int
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Run the statement and stop on an error
         $result = $wpdb->query($sql);
         if ($result === false) {
             throw new RuntimeException($wpdb->last_error ?: 'Database operation failed');
         }
 
-        return $result;
+        // A schema statement reports success as `true`, which counts as one row
+        return Cast::int($result);
     }
 
     /**
@@ -64,7 +66,6 @@ final class DB
      */
     public static function ready(): bool
     {
-        global $wpdb;
         // Check the stored schema version
         if (get_site_option('uams_search_version') !== UAMS_SEARCH_SCHEMA_VERSION) {
             return false;
@@ -76,9 +77,10 @@ final class DB
         }
 
         // Look for the index table
+        $wpdb = Database::get();
         $t = self::table();
 
-        return self::$table_ready = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($t))) === $t;
+        return self::$table_ready = $wpdb->get_var(self::prepared('SHOW TABLES LIKE %s', $wpdb->esc_like($t))) === $t;
     }
 
     /**
@@ -89,7 +91,7 @@ final class DB
      */
     public static function install(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Check the required PHP extensions. A test cannot unload one, so every test sees all three loaded and no combination of the three checks can be told apart.
         // @pest-mutate-ignore:BooleanOrToBooleanAnd
         if (! \extension_loaded('mbstring') || ! \extension_loaded('zlib') || ! \extension_loaded('iconv')) {
@@ -108,7 +110,7 @@ final class DB
         // Point the session at the empty table while the full-text indexes are created
         $old = $wpdb->get_var('SELECT @@SESSION.innodb_ft_user_stopword_table');
         // MariaDB exposes enable_stopword globally only. An empty session word list needs no global grants.
-        self::exec($wpdb->prepare('SET SESSION innodb_ft_user_stopword_table = %s', $wpdb->dbname.'/'.$empty));
+        self::exec(self::prepared('SET SESSION innodb_ft_user_stopword_table = %s', self::database_name().'/'.$empty));
         try {
             // Create the index table
             $t = self::table();
@@ -135,7 +137,7 @@ final class DB
             self::short_token_storage();
         } finally {
             // Restore the session's earlier stopword table
-            self::exec($old === null ? 'SET SESSION innodb_ft_user_stopword_table = NULL' : $wpdb->prepare('SET SESSION innodb_ft_user_stopword_table = %s', $old));
+            self::exec($old === null ? 'SET SESSION innodb_ft_user_stopword_table = NULL' : self::prepared('SET SESSION innodb_ft_user_stopword_table = %s', $old));
         }
 
         // Create the queue table
@@ -181,7 +183,7 @@ final class DB
      */
     private static function dictionary_collation(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Find the tables whose word column needs the change
         $change = [];
         foreach (['words', 'word_docs'] as $suffix) {
@@ -225,7 +227,7 @@ final class DB
      */
     private static function short_token_storage(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Find the tables whose column needs the change
         $change = [];
         foreach (['index', 'stage'] as $suffix) {
@@ -235,7 +237,7 @@ final class DB
                 throw new RuntimeException($wpdb->last_error ?: 'Missing short-token column');
             }
 
-            if (strtolower($column['Type']) !== 'longtext') {
+            if (strtolower(Cast::string($column['Type'])) !== 'longtext') {
                 $change[] = $table;
             }
         }
@@ -268,9 +270,9 @@ final class DB
      */
     public static function lock(): bool
     {
-        global $wpdb;
+        $wpdb = Database::get();
 
-        return (int) $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s,0)', self::lock_name())) === 1;
+        return Cast::int($wpdb->get_var(self::prepared('SELECT GET_LOCK(%s,0)', self::lock_name()))) === 1;
     }
 
     /**
@@ -280,9 +282,41 @@ final class DB
      */
     private static function lock_name(): string
     {
-        global $wpdb;
+        return 'uams-search-'.md5(self::database_name().Database::get()->base_prefix);
+    }
 
-        return 'uams-search-'.md5($wpdb->dbname.$wpdb->base_prefix);
+    /**
+     * The name of the database the connection uses.
+     *
+     * `wpdb` keeps it in a protected property, so it is read through reflection, which also reads the public property of a stand-in.
+     *
+     * @return string The database name.
+     */
+    private static function database_name(): string
+    {
+        $wpdb = Database::get();
+
+        return Cast::string((new ReflectionProperty($wpdb, 'dbname'))->getValue($wpdb));
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement with `%s` placeholders.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 
     /**
@@ -290,7 +324,6 @@ final class DB
      */
     public static function unlock(): void
     {
-        global $wpdb;
-        $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', self::lock_name()));
+        Database::get()->get_var(self::prepared('SELECT RELEASE_LOCK(%s)', self::lock_name()));
     }
 }
