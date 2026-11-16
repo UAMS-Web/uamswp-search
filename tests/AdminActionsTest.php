@@ -82,6 +82,11 @@ namespace {
     }
 
     if (! function_exists('wp_unslash')) {
+        /**
+         * @phpstan-template T
+         * @phpstan-param T $s
+         * @phpstan-return T
+         */
         function wp_unslash(mixed $s): mixed
         {
             return $s;
