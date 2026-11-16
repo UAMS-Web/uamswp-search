@@ -101,9 +101,12 @@ namespace UAMS_Search\Tests {
             return addcslashes(Cast::string($s), '_%\\');
         }
 
-        public function prepare(mixed $sql, mixed ...$args): string
+        /** Whether `prepare()` gives nothing back, as `wpdb::prepare()` does when it has no statement. */
+        public bool $prepare_nothing = false;
+
+        public function prepare(mixed $sql, mixed ...$args): ?string
         {
-            return Prepare::sql(Cast::string($sql), $args);
+            return $this->prepare_nothing ? null : Prepare::sql(Cast::string($sql), $args);
         }
 
         public function get_blog_prefix(mixed $site): mixed
@@ -155,11 +158,11 @@ namespace UAMS_Search\Tests {
     /**
      * Mutation notes for `Query`: the mutants that no test can tell from the original.
      *
-     * - `RemoveStringCast`, `RemoveIntegerCast`, `RemoveDoubleCast` on the search text, the `Result` arguments, the total, the page count, the fallback flag, the suggestion test, the weight text and the site ID: PHP coerces the value the same way without the cast.
+     * - `RemoveStringCast`, `RemoveIntegerCast` on the search text, the weight text and the site ID: PHP coerces the value the same way without the cast.
      * - `DecrementInteger` on the page default: `max(1, ...)` makes 0 and -1 the same page; the `max()` bound itself is killed by the page 0 and negative page tests.
      * - `EmptyStringToNotEmpty` on the type default: an unknown type is dropped, so every configured type is searched either way.
      * - `UnwrapArrayValues` on the type list and the configured list, and `UnwrapArrayMap` on the site IDs: the keys are never read and the IDs are integers already.
-     * - `DecrementInteger` and `IncrementInteger` on the `array_fill()` start and the `?? 0` weight defaults: `implode()` ignores keys and `Config` always supplies both weights.
+     * - `DecrementInteger` and `IncrementInteger` on the `?? 0` weight defaults: `Config` always supplies both weights.
      * - `TrueToFalse` on the weight column check: PHP 8 never loosely equals a non-numeric string to another string.
      * - `UnwrapTrim` on the phrase and on the token split: the words carry no spaces and each token is trimmed again.
      * - `IfNegated`, `BooleanAndToBooleanOr` and `CoalesceRemoveLeft` on the suggestion test: the mutant recurses without end through `Suggestions::suggest()`, so it can only time out.
@@ -239,6 +242,16 @@ namespace UAMS_Search\Tests {
             self::assertSame([], $out['results']);
             self::assertSame(0, $out['total']);
             self::assertSame([], array_filter(self::db()->queries, static fn (string $sql): bool => str_starts_with($sql, 'SELECT')));
+        }
+
+        public function test_a_statement_that_prepare_does_not_give_back_is_a_failure_not_an_empty_statement(): void
+        {
+            $db = new QueryFixtureDB;
+            StandIn::set_db($db);
+            $db->prepare_nothing = true;
+
+            $this->expectExceptionObject(new RuntimeException('Database operation failed'));
+            Query::run(['s' => 'heart', 'suggest' => false]);
         }
 
         public function test_a_database_error_in_each_query_is_thrown(): void

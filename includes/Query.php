@@ -8,6 +8,19 @@ use RuntimeException;
 final class Query
 {
     /**
+     * The column match for each weighted column, as a statement `prepare()` can fill.
+     *
+     * @var array<string, literal-string>
+     */
+    private const MATCH_COLUMN = [
+        'title' => 'MATCH(i.title_stem) AGAINST(%s IN BOOLEAN MODE)',
+        'content' => 'MATCH(i.content_stem) AGAINST(%s IN BOOLEAN MODE)',
+        'terms' => 'MATCH(i.terms_stem) AGAINST(%s IN BOOLEAN MODE)',
+        'fields' => 'MATCH(i.fields_stem) AGAINST(%s IN BOOLEAN MODE)',
+        'pdf' => 'MATCH(i.pdf_stem) AGAINST(%s IN BOOLEAN MODE)',
+    ];
+
+    /**
      * Run a search.
      *
      * @param  array<string, mixed>  $args  Search arguments: `s` (text, cut to
@@ -24,7 +37,7 @@ final class Query
      */
     public static function run(array $args): array
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Prepare the empty result returned when nothing can match
         $empty = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
         // Read the search text and split it into term groups
@@ -75,23 +88,26 @@ final class Query
 
         // Limit the rows to the chosen types and to what is public now
         $types = $types ?: $configured;
-        // `implode()` ignores the keys of the placeholder list, so its first key is irrelevant.
-        // @pest-mutate-ignore:DecrementInteger,IncrementInteger
-        $where .= $wpdb->prepare(' AND i.post_type IN ('.implode(',', array_fill(0, \count($types), '%s')).')', $types);
+        $quoted = [];
+        foreach ($types as $post_type) {
+            $quoted[] = self::prepared('%s', $post_type);
+        }
+
+        $where .= ' AND i.post_type IN ('.implode(',', $quoted).')';
         $where .= ' AND ('.self::public_sql($sites).')';
         // Count the results that match every word
         $boolean = Text::boolean($groups, true);
         $fallback = false;
-        $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
-        $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
+        $condition = self::prepared('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
+        $total = Cast::int($wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition"));
         self::fail_on_error();
 
         // Fall back to results that match any word
-        if ((int) $total === 0) {
+        if ($total === 0) {
             $boolean = Text::boolean($groups, false);
             $fallback = true;
-            $condition = $wpdb->prepare('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
-            $total = $wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition");
+            $condition = self::prepared('MATCH(i.search_stem) AGAINST(%s IN BOOLEAN MODE)', $boolean);
+            $total = Cast::int($wpdb->get_var("SELECT COUNT(*) FROM `$t` i WHERE $where AND $condition"));
             self::fail_on_error();
         }
 
@@ -107,7 +123,7 @@ final class Query
             }
 
             // MariaDB can return an infinite score for a row that was re-indexed, and multiplying it raises "DOUBLE value is out of range" (#114), so a score outside 0 to 1,000,000 counts as 0
-            $match = $wpdb->prepare("MATCH(i.{$column}_stem) AGAINST(%s IN BOOLEAN MODE)", $scoring);
+            $match = self::prepared(self::MATCH_COLUMN[$column], $scoring);
             $expression = "IF($match BETWEEN 0 AND 1000000,$match,0)";
             $parts[] = '('.$expression.'*'.self::sql_weight($weight).')';
             $explain[] = $expression.' AS '.$column.'_score';
@@ -116,7 +132,7 @@ final class Query
         // Boost each post type by its weight
         $boost = 'CASE i.post_type';
         foreach (Config::section('types') as $name => $value) {
-            $boost .= $wpdb->prepare(' WHEN %s THEN ', $name).self::sql_weight($value);
+            $boost .= self::prepared(' WHEN %s THEN ', $name).self::sql_weight($value);
         }
 
         $boost .= ' ELSE 1 END';
@@ -124,44 +140,66 @@ final class Query
         // `Text::words()` returns words without spaces, so the joined phrase has no surrounding space to trim.
         // @pest-mutate-ignore:UnwrapTrim
         $phrase = trim(implode(' ', Text::words($search)));
-        $exact = $wpdb->prepare('LOWER(i.title) LIKE %s', '%'.$wpdb->esc_like($phrase).'%');
+        $exact = self::prepared('LOWER(i.title) LIKE %s', '%'.$wpdb->esc_like($phrase).'%');
         $extra = self::field_score($groups);
         $score = '(('.implode('+', $parts)."+$extra)*($boost) + CASE WHEN $exact THEN ".self::sql_weight(Config::number('phrase_bonus'))." ELSE 0 END + CASE WHEN i.post_type='post' AND i.published_at IS NOT NULL THEN ".self::sql_weight(Config::number('recency')).'/(1+GREATEST(0,DATEDIFF(UTC_TIMESTAMP(),i.published_at))/365) ELSE 0 END)';
         // Read the requested page of results, best first
         $columns = ! empty($args['explain']) ? ','.implode(',', $explain) : '';
-        $sql = $wpdb->prepare("SELECT i.*, $score AS relevance $columns FROM `$t` i WHERE $where AND $condition ORDER BY relevance DESC,i.modified_at DESC,i.site_id ASC,i.object_id ASC LIMIT %d OFFSET %d", $limit, ($page - 1) * $limit);
-        $rows = $wpdb->get_results($sql, ARRAY_A);
+        // The paging numbers are integers, so they join the statement as digits; every other value reached `prepare()` above
+        $offset = ($page - 1) * $limit;
+        $sql = "SELECT i.*, $score AS relevance $columns FROM `$t` i WHERE $where AND $condition ORDER BY relevance DESC,i.modified_at DESC,i.site_id ASC,i.object_id ASC LIMIT $limit OFFSET $offset";
+        // A failed query returns null, which reads as no rows, and `fail_on_error()` reports the failure, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveArrayCast
+        $rows = (array) $wpdb->get_results($sql, ARRAY_A);
         self::fail_on_error();
 
         // Turn each row into a result
         $results = [];
         foreach ($rows as $row) {
+            // A row is an array when it came from the database, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $row = (array) $row;
             // Read the per-column scores when asked
             $scores = null;
             if (! empty($args['explain'])) {
                 $scores = [];
                 foreach (['title', 'content', 'fields', 'terms', 'pdf'] as $col) {
-                    $scores[$col] = (float) $row[$col.'_score'];
+                    $scores[$col] = Cast::float($row[$col.'_score']);
                 }
             }
 
-            // The typed `Result` constructor coerces numeric strings to int and float under non-strict typing, so those casts change nothing.
-            // @pest-mutate-ignore:RemoveIntegerCast,RemoveDoubleCast
-            $results[] = new Result((int) $row['object_id'], (int) $row['site_id'], (float) $row['relevance'], Excerpt::make([$row['content'], $row['fields'], $row['pdf']], $search), (string) $row['title'], (string) $row['url'], (string) $row['post_type'], (int) $row['file_size'], $scores);
+            $results[] = new Result(Cast::int($row['object_id']), Cast::int($row['site_id']), Cast::float($row['relevance']), Excerpt::make([Cast::string($row['content']), Cast::string($row['fields']), Cast::string($row['pdf'])], $search), Cast::string($row['title']), Cast::string($row['url']), Cast::string($row['post_type']), Cast::int($row['file_size']), $scores);
         }
 
         // Assemble the answer
-        // A numeric string divides, compares and coerces like its integer, so each cast gives the same count, page total and flag.
-        // @pest-mutate-ignore:RemoveIntegerCast
-        $out = ['results' => $results, 'total' => (int) $total, 'pages' => (int) ceil((int) $total / $limit), 'fallback' => $fallback && (int) $total > 0, 'suggestion' => null];
+        $out = ['results' => $results, 'total' => $total, 'pages' => (int) ceil($total / $limit), 'fallback' => $fallback && $total > 0, 'suggestion' => null];
         // Suggest a spelling when there are few results
-        // A numeric string compares to 3 like its integer. Negating the test, or joining its halves with `||`, or dropping the default for `suggest`, makes the probe searches that `Suggestions::suggest()` runs with `suggest` off ask for a suggestion again, which recurses without end (a timeout, never a failing test).
-        // @pest-mutate-ignore:RemoveIntegerCast
-        if (($args['suggest'] ?? true) && (int) $total < 3) { // @pest-mutate-ignore:IfNegated,BooleanAndToBooleanOr,CoalesceRemoveLeft,RemoveIntegerCast
+        // Negating the test, or joining its halves with `||`, or dropping the default for `suggest`, makes the probe searches that `Suggestions::suggest()` runs with `suggest` off ask for a suggestion again, which recurses without end (a timeout, never a failing test).
+        if (($args['suggest'] ?? true) && $total < 3) { // @pest-mutate-ignore:IfNegated,BooleanAndToBooleanOr,CoalesceRemoveLeft
             $out['suggestion'] = Suggestions::suggest($search, $args);
         }
 
         return $out;
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement with `%s` placeholders.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 
     /**
@@ -173,7 +211,7 @@ final class Query
      */
     private static function fail_on_error(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Fail with the database's own message
         if ($wpdb->last_error) {
             throw new RuntimeException($wpdb->last_error);
@@ -203,7 +241,7 @@ final class Query
      */
     private static function field_score(array $groups): string
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Check whether any field weight differs from 1
         $custom = Config::number('related_provider_weight') !== 1.0 || \function_exists('has_filter') && has_filter('uams_search_fields');
         foreach (['fields', 'taxonomies'] as $source) {
@@ -236,7 +274,7 @@ final class Query
         // Match the tokens against each weighted source's stem
         $matches = [];
         foreach (array_unique($tokens) as $token) {
-            $matches[] = $wpdb->prepare("CONCAT(' ',j.stem) LIKE %s", '% '.$wpdb->esc_like($token).'%');
+            $matches[] = self::prepared("CONCAT(' ',j.stem) LIKE %s", '% '.$wpdb->esc_like($token).'%');
         }
 
         if ($matches === []) {
@@ -258,7 +296,7 @@ final class Query
      */
     private static function public_sql(array $sites): string
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Build one visibility condition per site
         $clauses = [];
         foreach ($sites as $site) {
