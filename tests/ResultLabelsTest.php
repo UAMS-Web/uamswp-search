@@ -1,11 +1,12 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
 
     if (! function_exists('size_format')) {
         function size_format(mixed $size, mixed $_decimals = 0): string
         {
-            return round($size / 1024).' KB';
+            return round(Cast::float($size) / 1024).' KB';
         }
     }
 }
@@ -16,6 +17,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Integration;
     use UAMS_Search\LocationCard;
     use UAMS_Search\ProviderCard;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class ResultLabelsTest extends TestCase
     {
@@ -111,7 +113,7 @@ namespace UAMS_Search\Tests {
 
         public function test_a_card_label_comes_from_the_filter_and_is_escaped(): void
         {
-            $GLOBALS['uams_test_filters']['uams_search_result_labels'][] = static fn (array $labels): array => ['provider' => '<b>Doctor</b>', 'location' => ''] + $labels;
+            StandIn::add_filter('uams_search_result_labels', static fn (array $labels): array => ['provider' => '<b>Doctor</b>', 'location' => ''] + $labels);
 
             $provider = $this->card('provider');
             self::assertStringContainsString('&lt;b&gt;Doctor&lt;/b&gt;', $provider);
@@ -131,7 +133,7 @@ namespace UAMS_Search\Tests {
 
         public function test_labels_come_from_a_filter_and_are_escaped(): void
         {
-            $GLOBALS['uams_test_filters']['uams_search_result_labels'][] = static fn (array $labels): array => ['page' => '<b>Web page</b>'] + $labels;
+            StandIn::add_filter('uams_search_result_labels', static fn (array $labels): array => ['page' => '<b>Web page</b>'] + $labels);
 
             $html = $this->render('page');
 

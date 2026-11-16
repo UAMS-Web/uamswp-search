@@ -1,19 +1,20 @@
 <?php
 
 namespace {
+    use UAMS_Search\Tests\Support\StandIn;
 
     // The network stand-ins `ScopeTest` declares, guarded the same way so whichever file loads first supplies them.
     if (! function_exists('is_subdomain_install')) {
         function is_subdomain_install(): bool
         {
-            return $GLOBALS['uams_test_subdomain'] ?? false;
+            return StandIn::subdomain();
         }
     }
 
     if (! function_exists('is_main_site')) {
         function is_main_site(): bool
         {
-            return $GLOBALS['uams_test_main_site'] ?? true;
+            return StandIn::main_site();
         }
     }
 
@@ -44,6 +45,7 @@ namespace {
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
+    use UAMS_Search\Cast;
     use UAMS_Search\DB;
     use UAMS_Search\Phonetic;
     use UAMS_Search\Suggestions;
@@ -229,7 +231,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 

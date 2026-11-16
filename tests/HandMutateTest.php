@@ -26,7 +26,7 @@ final class HandMutateTest extends TestCase
 {
     private const SOURCE = "<?php\n\ndeclare(strict_types=1);\n\nfunction f(int \$a, bool \$b): int\n{\n    // if (\$a === 5) is only a comment\n    if (\$a === 5 && ! \$b) {\n        return \$a + 2;\n    }\n\n    \$ok = true;\n    \$c = \$a < 3 ? -1 : 0;\n\n    return \$c;\n}\n";
 
-    /** @return array<string, list<array<string, mixed>>> The generated mutants, keyed by operator. */
+    /** @return array<string, list<array{operator: string, line: int, ordinal: int, line_text: string, from: string, to: string, source: string}>> The generated mutants, keyed by operator. */
     private function byOperator(): array
     {
         $out = [];

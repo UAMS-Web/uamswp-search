@@ -9,6 +9,7 @@ namespace UAMS_Search\Tests {
     use ReflectionMethod;
     use UAMS_Search\Config;
     use UAMS_Search\Integration;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class TypeLabelsTest extends TestCase
     {
@@ -60,7 +61,7 @@ namespace UAMS_Search\Tests {
 
         public function test_a_filter_can_rename_a_type(): void
         {
-            $GLOBALS['uams_test_filters']['uams_search_type_labels'][] = static fn (array $labels): array => ['provider' => 'Doctors'] + $labels;
+            StandIn::add_filter('uams_search_type_labels', static fn (array $labels): array => ['provider' => 'Doctors'] + $labels);
 
             self::assertSame(['All results', 'Doctors'], array_slice($this->names(), 0, 2));
         }

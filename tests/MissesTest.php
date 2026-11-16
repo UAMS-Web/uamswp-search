@@ -7,8 +7,10 @@ namespace {
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
+    use UAMS_Search\Cast;
     use UAMS_Search\DB;
     use UAMS_Search\Misses;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /** Pins for the recorded no-result searches (#5). A recording stand-in replaces `$wpdb`. */
     final class MissesTest extends TestCase
@@ -33,7 +35,7 @@ namespace UAMS_Search\Tests {
 
         public function test_nothing_is_recorded_when_logging_is_off(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['logging' => false];
+            StandIn::put_option('uams_search_settings', ['logging' => false]);
             Misses::record('orthopaedics');
 
             self::assertSame([], $this->db->queries);
@@ -41,7 +43,7 @@ namespace UAMS_Search\Tests {
 
         public function test_nothing_is_recorded_before_the_schema_is_installed(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = '0.0.0';
+            StandIn::put_option('uams_search_version', '0.0.0');
             Misses::record('orthopaedics');
 
             self::assertSame([], $this->db->queries);
@@ -137,7 +139,7 @@ namespace UAMS_Search\Tests {
             return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
                 $value = $args[$i++];
 
-                return $m[0] === '%s' ? "'".$value."'" : (string) $value;
+                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
             }, $query);
         }
 
