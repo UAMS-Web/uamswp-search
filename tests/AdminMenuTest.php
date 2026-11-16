@@ -1,26 +1,28 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins that record what the menu registration asks WordPress for.
     if (! function_exists('add_menu_page')) {
         function add_menu_page(mixed ...$args): void
         {
-            $GLOBALS['uams_test_menu'][] = ['add_menu_page', ...$args];
+            StandIn::add_menu_call(['add_menu_page', ...array_values($args)]);
         }
     }
 
     if (! function_exists('add_submenu_page')) {
         function add_submenu_page(mixed ...$args): void
         {
-            $GLOBALS['uams_test_menu'][] = ['add_submenu_page', ...$args];
+            StandIn::add_menu_call(['add_submenu_page', ...array_values($args)]);
         }
     }
 
     if (! function_exists('add_options_page')) {
         function add_options_page(mixed ...$args): void
         {
-            $GLOBALS['uams_test_menu'][] = ['add_options_page', ...$args];
+            StandIn::add_menu_call(['add_options_page', ...array_values($args)]);
         }
     }
 
@@ -36,35 +38,35 @@ namespace {
     if (! function_exists('is_network_admin')) {
         function is_network_admin(): bool
         {
-            return $GLOBALS['uams_test_network_admin'] ?? false;
+            return StandIn::network_admin();
         }
     }
 
     if (! function_exists('current_user_can')) {
         function current_user_can(mixed $capability, mixed ...$_args): bool
         {
-            return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
+            return in_array($capability, StandIn::caps(), true);
         }
     }
 
     if (! function_exists('network_admin_url')) {
         function network_admin_url(mixed $path = ''): string
         {
-            return 'https://example.test/wp-admin/network/'.$path;
+            return 'https://example.test/wp-admin/network/'.Cast::string($path);
         }
     }
 
     if (! function_exists('admin_url')) {
         function admin_url(mixed $path = ''): string
         {
-            return 'https://example.test/wp-admin/'.$path;
+            return 'https://example.test/wp-admin/'.Cast::string($path);
         }
     }
 
     if (! function_exists('sanitize_text_field')) {
         function sanitize_text_field(mixed $s): string
         {
-            return trim(strip_tags((string) $s));
+            return trim(strip_tags(Cast::string($s)));
         }
     }
 
@@ -87,6 +89,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use RuntimeException;
     use UAMS_Search\Admin;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class AdminMenuTest extends TestCase
     {
@@ -110,7 +113,7 @@ namespace UAMS_Search\Tests {
         {
             Admin::network_menu();
 
-            $menu = $GLOBALS['uams_test_menu'];
+            $menu = StandIn::menu_calls();
             self::assertCount(4, $menu);
             // add_menu_page( page title, menu title, capability, slug, callback, icon, position )
             self::assertSame(['add_menu_page', 'UAMSWP Search', 'UAMSWP Search', 'manage_network_options', 'uams-search', [Admin::class, 'page'], 'dashicons-search', 26], $menu[0]);
@@ -124,7 +127,7 @@ namespace UAMS_Search\Tests {
         {
             Admin::network_menu();
 
-            foreach ($GLOBALS['uams_test_menu'] as $call) {
+            foreach (StandIn::menu_calls() as $call) {
                 self::assertNotSame('settings.php', $call[1], 'The network index must not sit under Settings.');
             }
         }
@@ -143,9 +146,9 @@ namespace UAMS_Search\Tests {
             $GLOBALS['menu'] = [];
             Admin::site_menus();
 
-            self::assertSame(['add_options_page', 'UAMSWP Search Index', 'UAMSWP Search Index', 'manage_options', 'uams-search', [Admin::class, 'page']], $GLOBALS['uams_test_menu'][1]);
-            self::assertSame(['add_options_page', 'UAMSWP Search Reports', 'UAMSWP Search Reports', 'manage_options', 'uams-search-reports', [Admin::class, 'reports_page']], $GLOBALS['uams_test_menu'][2]);
-            self::assertSame(['add_options_page', 'UAMSWP Search Settings', 'UAMSWP Search Settings', 'manage_options', 'uams-search-settings', [Admin::class, 'settings_page']], $GLOBALS['uams_test_menu'][3]);
+            self::assertSame(['add_options_page', 'UAMSWP Search Index', 'UAMSWP Search Index', 'manage_options', 'uams-search', [Admin::class, 'page']], StandIn::menu_calls()[1]);
+            self::assertSame(['add_options_page', 'UAMSWP Search Reports', 'UAMSWP Search Reports', 'manage_options', 'uams-search-reports', [Admin::class, 'reports_page']], StandIn::menu_calls()[2]);
+            self::assertSame(['add_options_page', 'UAMSWP Search Settings', 'UAMSWP Search Settings', 'manage_options', 'uams-search-settings', [Admin::class, 'settings_page']], StandIn::menu_calls()[3]);
         }
 
         public function test_the_site_page_joins_the_uams_settings_menu_when_it_is_there(): void
@@ -169,7 +172,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['menu'] = [['Dashboard', 'read', 'index.php'], ['Tools', 'read', 'tools.php']];
             Admin::site_menus();
 
-            self::assertCount(1, $GLOBALS['uams_test_menu']);
+            self::assertCount(1, StandIn::menu_calls());
         }
 
         public function test_the_old_network_address_is_redirected_to_the_new_one(): void

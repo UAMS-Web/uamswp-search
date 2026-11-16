@@ -1,17 +1,19 @@
 <?php
 
 namespace {
-
+    use UAMS_Search\Cast;
     use UAMS_Search\FieldText;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // A stand-in for the ACF definitions FieldText reads. It answers from a global the test sets and records each lookup.
     if (! function_exists('acf_get_field')) {
         /** @return array<string, mixed>|false */
         function acf_get_field(mixed $selector): array|false
         {
-            $GLOBALS['uams_test_acf_lookups'][] = $selector;
+            $name = Cast::string($selector);
+            StandIn::add_acf_lookup($name);
 
-            return $GLOBALS['uams_test_acf_fields'][$selector] ?? false;
+            return StandIn::acf_fields()[$name] ?? false;
         }
     }
 }
@@ -20,6 +22,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\Attributes\DataProvider;
     use PHPUnit\Framework\TestCase;
     use UAMS_Search\FieldText;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /**
      * Pins for how a stored ACF value becomes searchable text, by field type (#159).
@@ -42,7 +45,7 @@ namespace UAMS_Search\Tests {
         /** @param array<string, mixed> $definition */
         private function field(string $type, array $definition = []): void
         {
-            $GLOBALS['uams_test_acf_fields']['field_1'] = ['type' => $type] + $definition;
+            StandIn::put_acf_field('field_1', ['type' => $type] + $definition);
         }
 
         /** @return array<string, array{0: string}> */
@@ -105,9 +108,9 @@ namespace UAMS_Search\Tests {
         public function test_loaded_repeater_rows_index_each_sub_field_by_its_own_type(): void
         {
             $this->field('repeater');
-            $GLOBALS['uams_test_acf_fields']['field_school'] = ['type' => 'text'];
-            $GLOBALS['uams_test_acf_fields']['field_kind'] = ['type' => 'select', 'choices' => ['md' => 'Medical School']];
-            $GLOBALS['uams_test_acf_fields']['field_logo'] = ['type' => 'image'];
+            StandIn::put_acf_field('field_school', ['type' => 'text']);
+            StandIn::put_acf_field('field_kind', ['type' => 'select', 'choices' => ['md' => 'Medical School']]);
+            StandIn::put_acf_field('field_logo', ['type' => 'image']);
             $rows = [
                 ['field_school' => 'Harvard Medical School', 'field_kind' => 'md', 'field_logo' => '345'],
                 ['field_school' => 'UAMS', 'field_kind' => 'md', 'field_logo' => '346'],
@@ -119,7 +122,7 @@ namespace UAMS_Search\Tests {
         public function test_loaded_flexible_content_rows_drop_the_layout_name_and_keep_sub_fields(): void
         {
             $this->field('flexible_content');
-            $GLOBALS['uams_test_acf_fields']['field_title'] = ['type' => 'text'];
+            StandIn::put_acf_field('field_title', ['type' => 'text']);
 
             self::assertSame([['Welcome']], FieldText::readable([['acf_fc_layout' => 'hero', 'field_title' => 'Welcome']], 'field_1', 'uamswp_modules'));
         }
@@ -127,7 +130,7 @@ namespace UAMS_Search\Tests {
         public function test_a_loaded_group_indexes_its_sub_fields_and_a_sub_field_acf_does_not_know_keeps_its_value(): void
         {
             $this->field('group');
-            $GLOBALS['uams_test_acf_fields']['field_state'] = ['type' => 'radio', 'choices' => ['AR' => 'Arkansas']];
+            StandIn::put_acf_field('field_state', ['type' => 'radio', 'choices' => ['AR' => 'Arkansas']]);
 
             self::assertSame([['Arkansas'], 'kept'], FieldText::readable(['field_state' => 'AR', 'field_gone' => 'kept', 'plain_key' => 'dropped'], 'field_1', 'physician_resident_profile_group'));
             // A sub-field key that ACF does not know is not looked up by an empty name, and a key that is not a field key is not looked up at all
@@ -136,14 +139,14 @@ namespace UAMS_Search\Tests {
 
         public function test_sub_fields_are_followed_no_deeper_than_twelve_levels(): void
         {
-            $GLOBALS['uams_test_acf_fields']['field_nest'] = ['type' => 'group'];
+            StandIn::put_acf_field('field_nest', ['type' => 'group']);
             $value = 'deep';
             for ($i = 0; $i < 14; $i++) {
                 $value = ['field_nest' => $value];
             }
 
             self::assertStringNotContainsString('deep', json_encode(FieldText::readable($value, 'field_nest', 'outer'), JSON_THROW_ON_ERROR));
-            self::assertLessThanOrEqual(14, count($GLOBALS['uams_test_acf_lookups']));
+            self::assertLessThanOrEqual(14, count(StandIn::acf_lookups()));
         }
 
         public function test_choices_inside_option_groups_index_their_labels(): void
@@ -189,16 +192,16 @@ namespace UAMS_Search\Tests {
 
         public function test_a_definition_without_a_type_counts_as_unknown(): void
         {
-            $GLOBALS['uams_test_acf_fields']['field_1'] = ['choices' => ['AR' => 'Arkansas']];
+            StandIn::put_acf_field('field_1', ['choices' => ['AR' => 'Arkansas']]);
 
             self::assertSame('AR', FieldText::readable('AR', 'field_1', 'location_state'));
         }
 
         public function test_the_saved_key_is_preferred_and_the_name_is_the_fallback(): void
         {
-            $GLOBALS['uams_test_acf_fields']['field_child'] = ['type' => 'select', 'choices' => ['mon' => 'Monday']];
-            $GLOBALS['uams_test_acf_fields']['location_hours_0_day'] = ['type' => 'text'];
-            $GLOBALS['uams_test_acf_fields']['location_state'] = ['type' => 'select', 'choices' => ['AR' => 'Arkansas']];
+            StandIn::put_acf_field('field_child', ['type' => 'select', 'choices' => ['mon' => 'Monday']]);
+            StandIn::put_acf_field('location_hours_0_day', ['type' => 'text']);
+            StandIn::put_acf_field('location_state', ['type' => 'select', 'choices' => ['AR' => 'Arkansas']]);
 
             // A sub-field's saved name matches nothing useful, so its key decides
             self::assertSame(['Monday'], FieldText::readable('mon', 'field_child', 'location_hours_0_day'));
@@ -218,7 +221,7 @@ namespace UAMS_Search\Tests {
         public function test_a_field_type_is_read_by_key_then_by_name_and_is_none_when_acf_does_not_know_the_field(): void
         {
             $this->field('relationship');
-            $GLOBALS['uams_test_acf_fields']['by_name'] = ['type' => 'taxonomy'];
+            StandIn::put_acf_field('by_name', ['type' => 'taxonomy']);
 
             self::assertSame('relationship', FieldText::type('field_1', 'ignored'));
             self::assertSame('taxonomy', FieldText::type('', 'by_name'));
@@ -233,11 +236,11 @@ namespace UAMS_Search\Tests {
          */
         private function nested(array $types): array
         {
-            $GLOBALS['uams_test_acf_fields']['field_leaf'] = ['type' => 'text'];
+            StandIn::put_acf_field('field_leaf', ['type' => 'text']);
             $value = 'deep leaf';
             $key = 'field_leaf';
             foreach (array_reverse($types, true) as $i => $type) {
-                $GLOBALS['uams_test_acf_fields']['field_l'.$i] = ['type' => $type];
+                StandIn::put_acf_field('field_l'.$i, ['type' => $type]);
                 $value = $type === 'repeater' ? [[$key => $value]] : [$key => $value];
                 $key = 'field_l'.$i;
             }
