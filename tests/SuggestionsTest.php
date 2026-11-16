@@ -38,7 +38,7 @@ namespace UAMS_Search\Tests {
 
         /**
          * @param  array<string, mixed>  $extra
-         * @return array<mixed>
+         * @return array<string, mixed>
          */
         private function row(array $extra = []): array
         {
