@@ -1,21 +1,25 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     if (! function_exists('esc_html')) {
         function esc_html(mixed $s): string
         {
-            return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            return htmlspecialchars(Cast::string($s), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
     }
 
     // Stand-in for the multisite lookup: counts calls so per-site caching can be asserted.
     function get_blog_details(mixed $id): object|false
     {
-        $GLOBALS['uams_test_blog_lookups'][] = $id;
-        $sites = $GLOBALS['uams_test_sites'] ?? [];
+        StandIn::add_blog_lookup(Cast::int($id));
+        $sites = StandIn::sites();
 
-        return $GLOBALS['uams_test_site_details'][$id] ?? (isset($sites[$id]) ? (object) ['blogname' => $sites[$id]] : false);
+        $site = Cast::int($id);
+
+        return StandIn::site_details()[$site] ?? (isset($sites[$site]) ? (object) ['blogname' => $sites[$site]] : false);
     }
 }
 
@@ -24,6 +28,7 @@ namespace UAMS_Search\Tests {
     use ReflectionMethod;
     use UAMS_Search\Admin;
     use UAMS_Search\SiteNames;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class SiteNamesTest extends TestCase
     {
@@ -63,7 +68,7 @@ namespace UAMS_Search\Tests {
         public function test_rows_get_name_then_id_and_keep_their_order(): void
         {
             $rows = SiteNames::prefix([['1', 'post', 'indexed', '5'], ['4', 'page', 'error', '2'], ['99', 'post', 'indexed', '1']]);
-            self::assertSame([['Main Site', 1, 'post', 'indexed', '5'], [$GLOBALS['uams_test_sites'][4], 4, 'page', 'error', '2'], ['(site not found)', 99, 'post', 'indexed', '1']], $rows);
+            self::assertSame([['Main Site', 1, 'post', 'indexed', '5'], [StandIn::sites()[4], 4, 'page', 'error', '2'], ['(site not found)', 99, 'post', 'indexed', '1']], $rows);
         }
 
         public function test_a_single_site_reads_its_title_from_the_option_and_never_calls_get_blog_details(): void

@@ -78,7 +78,7 @@ namespace UAMS_Search\Tests {
 
         public function test_queue_dependents_requeues_pages_that_copied_the_provider_name(): void
         {
-            $GLOBALS['wpdb'] = new class
+            $db = new class
             {
                 public string $base_prefix = 'wp_';
 
@@ -106,10 +106,11 @@ namespace UAMS_Search\Tests {
                     return 3;
                 }
             };
+            $GLOBALS['wpdb'] = $db;
 
             try {
                 Related::queue_dependents(2, 77);
-                $queries = $GLOBALS['wpdb']->queries;
+                $queries = $db->queries;
             } finally {
                 unset($GLOBALS['wpdb']);
             }
