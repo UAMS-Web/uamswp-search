@@ -251,6 +251,7 @@ namespace UAMS_Search\Tests {
         #[DataProvider('layouts')]
         public function test_each_layout_offers_exactly_its_options_in_order(bool $multisite, bool $subdomain, bool $main, array $expected): void
         {
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
             $GLOBALS['uams_test_multisite'] = $multisite;
             $GLOBALS['uams_test_subdomain'] = $subdomain;
             $GLOBALS['uams_test_main_site'] = $main;
@@ -265,12 +266,25 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_options']['uams_search_google'] = false;
 
             self::assertSame(['site' => 'This site'], Config::scope_options());
-            self::assertSame(['site' => 'This site', 'all' => 'All UAMS websites'], Config::scope_options(false), 'The default setting still lists it.');
+            self::assertSame(['site' => 'This site', 'all' => 'All UAMS websites'], Config::scope_options(false), 'The settings screen still lists it.');
             self::assertSame('site', Config::scope('all'));
+        }
+
+        public function test_all_uams_websites_is_offered_only_once_google_is_turned_on(): void
+        {
+            $GLOBALS['uams_test_multisite'] = false;
+
+            self::assertSame(['site' => 'This site'], Config::scope_options(), 'A site that has never saved the setting does not offer it.');
+            self::assertSame('site', Config::scope('all'));
+
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            self::assertSame(['site' => 'This site', 'all' => 'All UAMS websites'], Config::scope_options());
+            self::assertSame('all', Config::scope('all'));
         }
 
         public function test_a_value_the_layout_does_not_offer_falls_back_to_the_default_then_the_first_option(): void
         {
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
             // A subdomain network does not offer `install`.
             $GLOBALS['uams_test_subdomain'] = true;
             $GLOBALS['uams_test_main_site'] = false;
@@ -315,6 +329,7 @@ namespace UAMS_Search\Tests {
 
         public function test_scope_links_are_plain_links_with_the_current_one_marked_and_the_note_in_the_name(): void
         {
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
             $GLOBALS['uams_test_main_site'] = false;
             $_GET = ['scope' => 'all'];
             $html = $this->filters(true);

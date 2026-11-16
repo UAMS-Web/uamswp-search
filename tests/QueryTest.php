@@ -573,6 +573,7 @@ namespace UAMS_Search\Tests {
         public function test_the_requested_scope_decides_which_sites_are_searched(): void
         {
             $GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true];
+            $GLOBALS['uams_test_options']['uams_search_google'] = true;
             // Site 999 is not public, so the site scope has nothing to search
             self::assertSame(0, Query::run(['s' => 'heart', 'site' => 999, 'suggest' => false])['total']);
             self::assertSame([], self::selects());

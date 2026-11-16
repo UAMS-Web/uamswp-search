@@ -26,6 +26,9 @@ final class SearchPageTest extends IntegrationTestCase
 
     private int $user = 0;
 
+    /** The Google switch as it was before the test: index tests run DDL, which commits, so a switch a test turns on is put back by hand. */
+    private mixed $google = null;
+
     private string $word = '';
 
     /** The scope this site searches by default: `site` on a single site, `install` on the main site of a multisite. */
@@ -36,6 +39,7 @@ final class SearchPageTest extends IntegrationTestCase
         parent::set_up();
         $this->globals = ['wp_query' => $GLOBALS['wp_query'], 'wp_the_query' => $GLOBALS['wp_the_query'], 'get' => $_GET, 'rest' => $GLOBALS['wp_rest_server'] ?? null];
         $this->user = get_current_user_id();
+        $this->google = get_option('uams_search_google', null);
         wp_set_current_user(0);
         $this->configure([]);
         $this->scope = Config::scope();
@@ -57,6 +61,7 @@ final class SearchPageTest extends IntegrationTestCase
         remove_all_filters('stylesheet');
         remove_all_filters('uams_search_template');
         remove_all_filters('uams_search_google_cx');
+        $this->google === null ? delete_option('uams_search_google') : update_option('uams_search_google', $this->google);
         $this->restore_index_table();
         parent::tear_down();
     }
@@ -171,6 +176,7 @@ final class SearchPageTest extends IntegrationTestCase
     public function test_all_websites_is_answered_by_google_and_searches_nothing(): void
     {
         $this->indexed('Sentinel '.$this->word);
+        update_option('uams_search_google', '1');
         $query = $this->search($this->word, ['scope' => 'all']);
 
         $this->assertSame([], $query->posts);
@@ -373,6 +379,7 @@ final class SearchPageTest extends IntegrationTestCase
     public function test_the_results_page_prints_the_heading_filters_results_and_count(): void
     {
         $this->indexed('Sentinel '.$this->word);
+        update_option('uams_search_google', '1');
         $html = $this->render($this->search($this->word, ['scope' => $this->scope]));
 
         $this->assertStringContainsString('<h1>Search Results for: '.$this->word.'</h1>', $html);
@@ -421,8 +428,22 @@ final class SearchPageTest extends IntegrationTestCase
         $this->assertMatchesRegularExpression('#<p>Did you mean <a href="[^"]*s=cardiovascularology[^"]*">cardiovascularology</a>\?</p>#', $html);
     }
 
+    public function test_a_fresh_install_does_not_load_the_google_script_until_the_setting_is_turned_on(): void
+    {
+        $this->assertFalse(Config::google_enabled(), 'The setting is off until someone saves it.');
+        $html = $this->render($this->search($this->word, ['scope' => 'all']));
+        $this->assertStringNotContainsString('cse.google.com', $html);
+        $this->assertStringNotContainsString('class="uams-search-google"', $html);
+
+        update_option('uams_search_google', '1');
+        $html = $this->render($this->search($this->word, ['scope' => 'all']));
+        $this->assertStringContainsString('<script async src="https://cse.google.com/cse.js?cx=', $html);
+        $this->assertStringContainsString('class="uams-search-google"', $html);
+    }
+
     public function test_the_all_websites_page_prints_the_google_block_and_no_types(): void
     {
+        update_option('uams_search_google', '1');
         $query = $this->search($this->word, ['scope' => 'all']);
         $html = $this->render($query);
 
@@ -737,6 +758,7 @@ final class SearchPageTest extends IntegrationTestCase
 
     public function test_all_websites_leaves_the_query_with_exactly_the_google_marker(): void
     {
+        update_option('uams_search_google', '1');
         $query = $this->search($this->word, ['scope' => 'all']);
 
         $this->assertSame(['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null, 'google' => true], $query->get('uams_search_results'));
@@ -898,6 +920,7 @@ final class SearchPageTest extends IntegrationTestCase
 
     public function test_the_filters_print_exact_links_for_each_scope_and_type(): void
     {
+        update_option('uams_search_google', '1');
         $this->configure(['types' => ['page' => 1.0], 'pdf' => false]);
         $_GET = ['scope' => $this->scope, 'type' => 'page'];
         $GLOBALS['wp_query'] = $GLOBALS['wp_the_query'] = new WP_Query(['s' => 'findme']);
@@ -913,6 +936,7 @@ final class SearchPageTest extends IntegrationTestCase
 
     public function test_the_google_block_is_exact_and_puts_the_engine_id_first(): void
     {
+        update_option('uams_search_google', '1');
         $html = $this->render($this->search($this->word, ['scope' => 'all']));
 
         $this->assertStringContainsString('<section class="uams-search-google" aria-label="All UAMS websites"><h2>All UAMS Websites</h2><script async src="https://cse.google.com/cse.js?cx=014806496997774146681%3Apyl1jhwi-bo"></script><div class="gcse-searchresults-only" data-queryParameterName="s"></div></section></section>', $html);
