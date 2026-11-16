@@ -103,7 +103,7 @@ final class Config
      */
     public static function number(string $key): float
     {
-        return (float) (self::get()[$key] ?? 0);
+        return Cast::float(self::get()[$key] ?? 0);
     }
 
     /**

@@ -84,7 +84,7 @@ final class Plugin
         });
         // Queue a post, and its attachments, when it is saved or deleted
         add_action('save_post', static function (mixed $id): void {
-            Queue::related((int) $id);
+            Queue::related(Cast::int($id));
         }, 100);
         // Queue the post when ACF saves its fields
         add_action('acf/save_post', static function (mixed $id): void {
@@ -95,51 +95,51 @@ final class Plugin
             }
         }, 30);
         add_action('before_delete_post', static function (mixed $id): void {
-            Queue::related((int) $id);
+            Queue::related(Cast::int($id));
         });
         // Queue the removal of deleted posts and attachments
         add_action('deleted_post', static function (mixed $id): void {
-            Queue::push((int) $id, 'delete');
+            Queue::push(Cast::int($id), 'delete');
         });
         add_action('delete_attachment', static function (mixed $id): void {
-            Queue::push((int) $id, 'delete');
+            Queue::push(Cast::int($id), 'delete');
         });
         // Queue attachments when they are added or edited
         add_action('add_attachment', static function (mixed $id): void {
-            Queue::push((int) $id);
+            Queue::push(Cast::int($id));
         });
         add_action('edit_attachment', static function (mixed $id): void {
-            Queue::push((int) $id);
+            Queue::push(Cast::int($id));
         });
         // Queue a post when its meta changes, except the edit lock
         foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) {
             add_action($hook, static function (mixed $meta_id, mixed $id, mixed $key): void {
                 // Meta keys are strings and never numeric, so loose and strict comparison agree.
                 if (! \in_array($key, ['_edit_lock', '_edit_last'], true)) { // @pest-mutate-ignore:TrueToFalse
-                    Queue::push((int) $id);
+                    Queue::push(Cast::int($id));
                 }
             }, 10, 3);
         }
 
         // Queue a post when its terms change
         add_action('set_object_terms', static function (mixed $id): void {
-            Queue::push((int) $id);
+            Queue::push(Cast::int($id));
         });
         add_action('added_term_relationship', static function (mixed $id): void {
-            Queue::push((int) $id);
+            Queue::push(Cast::int($id));
         });
         add_action('deleted_term_relationships', static function (mixed $id): void {
-            Queue::push((int) $id);
+            Queue::push(Cast::int($id));
         });
         // Queue the posts that use a term when it is renamed or deleted
         add_action('edited_term', [Queue::class, 'term'], 10, 2);
         add_action('delete_term', static function (mixed $id, mixed $tt, mixed $tax, mixed $term, mixed $objects): void {
             foreach ((array) $objects as $object) {
-                Queue::push((int) $object);
+                Queue::push(Cast::int($object));
             }
 
             // Queue the pages that copied the term's name through a field
-            Linked::queue_term_dependents(get_current_blog_id(), (int) $id);
+            Linked::queue_term_dependents(get_current_blog_id(), Cast::int($id));
         }, 10, 5);
         // Connect the search integration and the settings screens
         Integration::hooks();
