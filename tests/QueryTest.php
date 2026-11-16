@@ -338,7 +338,9 @@ namespace UAMS_Search\Tests {
             self::assertIsArray($posts);
             self::assertCount(1, $posts);
             // The copied post carries only its site; the excerpt is kept by site and post ID
-            self::assertSame(1, $posts[0]->blog_id);
+            $first = $posts[0];
+            self::assertInstanceOf(WP_Post::class, $first);
+            self::assertSame(1, get_object_vars($first)['blog_id'] ?? null);
             self::assertSame(21, $query->found_posts);
             self::assertSame(2, $query->max_num_pages);
             self::assertSame(20, $query->get('posts_per_page'));

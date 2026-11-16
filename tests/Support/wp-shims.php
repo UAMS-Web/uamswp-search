@@ -2,21 +2,30 @@
 
 namespace UAMS_Search;
 
+use UAMS_Search\Tests\Support\StandIn;
+
 // The typed accessor for the stand-in state is loaded here, with the other support code, so a test reaches it without its own require.
 require_once __DIR__.'/StandIn.php';
 
 // Code in this namespace calls these in place of the global functions. Each answers a test's own setting when one is present and otherwise passes the call to the global stand-in, so the test files that define those stand-ins behave as before.
 /**
- * @return array<int, mixed>
+ * @param  array<string, mixed>  $args  The arguments `Config` passes.
+ * @return array<int|string, mixed> The list a test set, or the one for public sites or for every site.
  */
-function get_sites(mixed $args): array
+function get_sites(array $args): array
 {
-    if (isset($GLOBALS['uams_test_site_ids'])) {
-        $GLOBALS['uams_test_sites_asked'][] = $args;
-        $ids = $GLOBALS['uams_test_site_ids'];
+    $ids = StandIn::site_ids();
+    if ($ids !== null) {
+        StandIn::add_sites_asked($args);
 
         // A test can give one list for the public sites and another for every site
-        return isset($ids['public'], $ids['all']) ? (isset($args['public']) ? $ids['public'] : $ids['all']) : $ids;
+        $public = $ids['public'] ?? null;
+        $all = $ids['all'] ?? null;
+        if (\is_array($public) && \is_array($all)) {
+            return isset($args['public']) ? $public : $all;
+        }
+
+        return $ids;
     }
 
     return \get_sites($args);
@@ -24,8 +33,8 @@ function get_sites(mixed $args): array
 
 function switch_to_blog(mixed $id): true
 {
-    if (isset($GLOBALS['uams_test_blog_calls'])) {
-        $GLOBALS['uams_test_blog_calls'][] = ['switch', $id];
+    if (StandIn::blog_calls() !== null) {
+        StandIn::add_blog_call(['switch', Cast::int($id)]);
 
         return true;
     }
@@ -35,8 +44,8 @@ function switch_to_blog(mixed $id): true
 
 function restore_current_blog(): bool
 {
-    if (isset($GLOBALS['uams_test_blog_calls'])) {
-        $GLOBALS['uams_test_blog_calls'][] = ['restore'];
+    if (StandIn::blog_calls() !== null) {
+        StandIn::add_blog_call(['restore']);
 
         return true;
     }
@@ -56,8 +65,11 @@ function wp_is_post_autosave(mixed $id): bool
 
 function get_blog_details(mixed $id): object|false
 {
-    if (isset($GLOBALS['uams_test_blog_names'])) {
-        return isset($GLOBALS['uams_test_blog_names'][$id]) ? (object) ['blogname' => $GLOBALS['uams_test_blog_names'][$id]] : false;
+    $names = StandIn::blog_names();
+    if ($names !== null) {
+        $site = Cast::int($id);
+
+        return isset($names[$site]) ? (object) ['blogname' => $names[$site]] : false;
     }
 
     return \get_blog_details($id);
