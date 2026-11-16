@@ -83,9 +83,18 @@ namespace {
     }
 
     if (! function_exists('get_post_type_object')) {
+        /**
+         * The stand-in reads like the stub it replaces, so a caller that reads `labels->name` analyzes the same whichever declaration PHPStan finds first.
+         *
+         * @return object{labels: object{name: string}}|null
+         */
         function get_post_type_object(mixed $type): ?object
         {
-            return StandIn::types()[Cast::string($type)] ?? null;
+            // The types the tests register all carry the labels the code under test reads
+            /** @var object{labels: object{name: string}}|null $found */
+            $found = StandIn::types()[Cast::string($type)] ?? null;
+
+            return $found;
         }
     }
 
