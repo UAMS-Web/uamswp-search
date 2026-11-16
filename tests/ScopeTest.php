@@ -32,42 +32,42 @@ namespace {
     }
 
     if (! function_exists('esc_url')) {
-        function esc_url(mixed $url): mixed
+        function esc_url(mixed $url): string
         {
             return $url;
         }
     }
 
     if (! function_exists('esc_html')) {
-        function esc_html(mixed $s): mixed
+        function esc_html(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('esc_attr')) {
-        function esc_attr(mixed $s): mixed
+        function esc_attr(mixed $s): string
         {
             return htmlspecialchars((string) $s);
         }
     }
 
     if (! function_exists('add_query_arg')) {
-        function add_query_arg(mixed $args, mixed $url): mixed
+        function add_query_arg(mixed $args, mixed $url): string
         {
             return $url.'?'.http_build_query($args);
         }
     }
 
     if (! function_exists('home_url')) {
-        function home_url(mixed $path = ''): mixed
+        function home_url(mixed $path = ''): string
         {
             return 'https://example.test'.$path;
         }
     }
 
     if (! function_exists('get_search_query')) {
-        function get_search_query(mixed $_escaped = true): mixed
+        function get_search_query(mixed $_escaped = true): string
         {
             return 'heart';
         }
@@ -88,14 +88,14 @@ namespace {
     }
 
     if (! function_exists('number_format_i18n')) {
-        function number_format_i18n(mixed $number, mixed $decimals = 0): mixed
+        function number_format_i18n(mixed $number, mixed $decimals = 0): string
         {
             return number_format((float) $number, $decimals);
         }
     }
 
     if (! function_exists('_n')) {
-        function _n(mixed $single, mixed $plural, mixed $number, mixed $_domain = 'default'): mixed
+        function _n(mixed $single, mixed $plural, mixed $number, mixed $_domain = 'default'): string
         {
             return $number === 1 ? $single : $plural;
         }
@@ -109,14 +109,14 @@ namespace {
     }
 
     if (! function_exists('wp_kses')) {
-        function wp_kses(mixed $html, mixed $_allowed = []): mixed
+        function wp_kses(mixed $html, mixed $_allowed = []): string
         {
             return $html;
         }
     }
 
     if (! function_exists('wp_nonce_field')) {
-        function wp_nonce_field(mixed $action = -1, mixed $name = '_wpnonce', mixed $_referer = true, mixed $display = true): mixed
+        function wp_nonce_field(mixed $action = -1, mixed $name = '_wpnonce', mixed $_referer = true, mixed $display = true): string
         {
             $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
             if ($display) {
@@ -135,7 +135,7 @@ namespace {
     }
 
     if (! function_exists('checked')) {
-        function checked(mixed $checked, mixed $current = true, mixed $display = true): mixed
+        function checked(mixed $checked, mixed $current = true, mixed $display = true): string
         {
             // The same comparison, output and return as WordPress's helper
             $result = (string) $checked === (string) $current ? " checked='checked'" : '';
@@ -148,7 +148,7 @@ namespace {
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url(mixed $path = ''): mixed
+        function admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/'.$path;
         }
@@ -162,7 +162,7 @@ namespace {
     }
 
     if (! function_exists('check_admin_referer')) {
-        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): mixed
+        function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int|false
         {
             $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
 
@@ -171,7 +171,7 @@ namespace {
     }
 
     if (! function_exists('update_option')) {
-        function update_option(mixed $name, mixed $value): mixed
+        function update_option(mixed $name, mixed $value): bool
         {
             $GLOBALS['uams_test_options'][$name] = $value;
 
@@ -187,7 +187,7 @@ namespace {
     }
 
     if (! function_exists('sanitize_text_field')) {
-        function sanitize_text_field(mixed $s): mixed
+        function sanitize_text_field(mixed $s): string
         {
             return trim(strip_tags((string) $s));
         }

@@ -2,7 +2,7 @@
 
 namespace {
 
-    function wp_get_environment_type(): mixed
+    function wp_get_environment_type(): string
     {
         return $GLOBALS['uams_test_environment'] ?? 'production';
     }

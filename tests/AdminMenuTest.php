@@ -34,7 +34,7 @@ namespace {
     }
 
     if (! function_exists('is_network_admin')) {
-        function is_network_admin(): mixed
+        function is_network_admin(): bool
         {
             return $GLOBALS['uams_test_network_admin'] ?? false;
         }
@@ -48,21 +48,21 @@ namespace {
     }
 
     if (! function_exists('network_admin_url')) {
-        function network_admin_url(mixed $path = ''): mixed
+        function network_admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/network/'.$path;
         }
     }
 
     if (! function_exists('admin_url')) {
-        function admin_url(mixed $path = ''): mixed
+        function admin_url(mixed $path = ''): string
         {
             return 'https://example.test/wp-admin/'.$path;
         }
     }
 
     if (! function_exists('sanitize_text_field')) {
-        function sanitize_text_field(mixed $s): mixed
+        function sanitize_text_field(mixed $s): string
         {
             return trim(strip_tags((string) $s));
         }

@@ -46,14 +46,14 @@ namespace {
     }
 
     if (! function_exists('parse_blocks')) {
-        function parse_blocks(mixed $content): mixed
+        function parse_blocks(mixed $content): array
         {
             return $GLOBALS['uams_test_blocks'] ?? [['blockName' => null, 'attrs' => [], 'innerBlocks' => [], 'innerHTML' => $content]];
         }
     }
 
     if (! function_exists('serialize_blocks')) {
-        function serialize_blocks(mixed $blocks): mixed
+        function serialize_blocks(mixed $blocks): string
         {
             $out = '';
             foreach ($blocks as $block) {
@@ -65,7 +65,7 @@ namespace {
     }
 
     if (! function_exists('strip_shortcodes')) {
-        function strip_shortcodes(mixed $text): mixed
+        function strip_shortcodes(mixed $text): string
         {
             return preg_replace('/\[[a-z_]+[^\]]*\]/', '', $text);
         }
@@ -96,7 +96,7 @@ namespace {
 
     // The same ACF definition stand-in FieldTextTest declares; whichever file loads first defines it.
     if (! function_exists('acf_get_field')) {
-        function acf_get_field(mixed $selector): mixed
+        function acf_get_field(mixed $selector): array|false
         {
             $GLOBALS['uams_test_acf_lookups'][] = $selector;
 
@@ -115,14 +115,14 @@ namespace {
     }
 
     if (! function_exists('get_permalink')) {
-        function get_permalink(mixed $post): mixed
+        function get_permalink(mixed $post): string|false
         {
             return 'https://example.test/?p='.($post instanceof WP_Post ? $post->ID : $post);
         }
     }
 
     if (! function_exists('wp_get_attachment_url')) {
-        function wp_get_attachment_url(mixed $id): mixed
+        function wp_get_attachment_url(mixed $id): string|false
         {
             return 'https://example.test/files/'.$id.'.pdf';
         }
@@ -130,14 +130,14 @@ namespace {
 
     // The same stand-ins `PdfTest` declares; whichever file loads first defines them.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file(mixed $_id): mixed
+        function get_attached_file(mixed $_id): string|false
         {
             return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
         }
     }
 
     if (! function_exists('wp_get_upload_dir')) {
-        function wp_get_upload_dir(): mixed
+        function wp_get_upload_dir(): array
         {
             return ['basedir' => $GLOBALS['uams_test_uploads'] ?? __DIR__.'/../fixtures'];
         }
