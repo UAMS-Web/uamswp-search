@@ -9,7 +9,9 @@ use WP_CLI;
 
 use function WP_CLI\Utils\format_items;
 
-/** UAMS install-wide search operations. Stored dates are UTC; dates shown here use the site timezone and formats. */
+/**
+ * UAMS install-wide search operations. Stored dates are UTC; dates shown here use the site timezone and formats.
+ */
 final class CLI
 {
     /**
@@ -84,7 +86,9 @@ final class CLI
         });
     }
 
-    /** Show index, queue, and failure counts. */
+    /**
+     * Show index, queue, and failure counts.
+     */
     public function status(): void
     {
         $this->guard(function (): void {
@@ -177,7 +181,9 @@ final class CLI
         });
     }
 
-    /** Check database capabilities and PDF extraction tools. */
+    /**
+     * Check database capabilities and PDF extraction tools.
+     */
     public function doctor(): void
     {
         $wpdb = Database::get();
