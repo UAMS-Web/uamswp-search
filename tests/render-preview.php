@@ -47,15 +47,14 @@ function sanitize_text_field(mixed $s): string
 }
 
 /**
-
  * @phpstan-template T
 
+ *
  * @phpstan-param T $s
 
+ *
  * @phpstan-return T
-
  */
-
 function wp_unslash(mixed $s): mixed
 {
     return stripslashes($s);
