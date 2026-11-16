@@ -5,7 +5,11 @@ namespace UAMS_Search;
 use RuntimeException;
 use Throwable;
 
-/** Resumable browser-driven rebuild. Every write is serialized with the CLI/queue writer lock. */
+/**
+ * Resumable browser-driven rebuild. Every write is serialized with the CLI/queue writer lock.
+ *
+ * @phpstan-type Job array{id: string, revision: int, status: string, phase: string, sites: list<array{id: int, name: string, maximum: int, total: int}>, site_index: int, completed_sites: int, types: list<string>, fingerprint: string, include_noindex: bool, cursor: int, site_checked: int, dictionary_cursor: int, dictionary_done: int, dictionary_total: int, checked: int, total: int, indexed: int, failed: int, dictionary_skipped: int, inflight: array{object: int, phase: string, attempts: int}|null, error: string, started_at: string, updated_at?: string}
+ */
 final class Rebuild
 {
     /** The network option that holds the saved rebuild job. */
@@ -14,7 +18,7 @@ final class Rebuild
     /**
      * The saved rebuild job.
      *
-     * @return array<string, mixed>|null The job (id, revision, status, phase, cursors and counts), or null when none is saved.
+     * @return Job|null The job (id, revision, status, phase, cursors and counts), or null when none is saved.
      *
      * @throws RuntimeException When the database reports an error.
      */
@@ -36,7 +40,11 @@ final class Rebuild
         // Return the job, or null when none is saved
         $value = maybe_unserialize($value);
 
-        return \is_array($value) ? $value : null;
+        // The job is one this class saved, so its fields are the ones `Job` lists
+        /** @var Job|null $job */
+        $job = \is_array($value) ? $value : null;
+
+        return $job;
     }
 
     /**
@@ -56,7 +64,7 @@ final class Rebuild
     /**
      * Save the job with a new revision and update time.
      *
-     * @param  array<string, mixed>  $job  The job, updated in place.
+     * @param  Job  $job  The job, updated in place.
      *
      * @throws RuntimeException When the option cannot be saved.
      */
@@ -75,7 +83,7 @@ final class Rebuild
      * Start a rebuild, or return the one already active.
      *
      * @param  bool  $include_noindex  Whether to include sites that discourage search engines.
-     * @return array{job: array<string, mixed>|null, busy: bool} The job, and whether another writer holds the lock.
+     * @return array{job: Job|null, busy: bool} The job, and whether another writer holds the lock.
      *
      * @throws RuntimeException When no content type is chosen, no site is eligible, or the database reports an error.
      */
@@ -150,7 +158,7 @@ final class Rebuild
      * The answer returned when another writer holds the lock.
      *
      * @param  string|null  $id  The job ID to check against, or null to return the saved job.
-     * @return array{job: array<string, mixed>|null, busy: bool} The job, with `busy` true.
+     * @return array{job: Job|null, busy: bool} The job, with `busy` true.
      *
      * @throws RuntimeException When the ID is not the current job.
      */
@@ -166,7 +174,7 @@ final class Rebuild
      * @param  int  $revision  The revision the caller last saw.
      * @param  int  $limit  Most units to run, limited to 1 to 50.
      * @param  int  $seconds  Most seconds to run, limited to 1 to 10.
-     * @return array{job: array<string, mixed>|null, busy: bool} The job after the batch, and whether another writer holds the lock.
+     * @return array{job: Job|null, busy: bool} The job after the batch, and whether another writer holds the lock.
      *
      * @throws RuntimeException When the job is not current and nothing can be paused.
      * @throws Throwable When a failure happens before the job exists or after it has stopped.
@@ -246,7 +254,7 @@ final class Rebuild
      * The saved job, checked against an ID.
      *
      * @param  string  $id  The job ID.
-     * @return array<string, mixed> The job.
+     * @return Job The job.
      *
      * @throws RuntimeException When there is no job or its ID differs.
      */
@@ -264,7 +272,7 @@ final class Rebuild
      * Pause a running rebuild.
      *
      * @param  string  $id  The job ID.
-     * @return array{job: array<string, mixed>|null, busy: bool} The job, and whether another writer holds the lock.
+     * @return array{job: Job|null, busy: bool} The job, and whether another writer holds the lock.
      *
      * @throws RuntimeException When the job is not current.
      */
@@ -293,7 +301,7 @@ final class Rebuild
      * Cancel a running or paused rebuild and delete the staged rows of the site in progress.
      *
      * @param  string  $id  The job ID.
-     * @return array{job: array<string, mixed>|null, busy: bool} The job, and whether another writer holds the lock.
+     * @return array{job: Job|null, busy: bool} The job, and whether another writer holds the lock.
      *
      * @throws RuntimeException When the job is not current or cannot be saved.
      */
@@ -332,7 +340,7 @@ final class Rebuild
     /**
      * Run one unit of work for the current phase: prepare, scan, promote, dictionary cleanup, dictionary or finish.
      *
-     * @param  array<string, mixed>  $job  The job, updated in place.
+     * @param  Job  $job  The job, updated in place.
      *
      * @throws RuntimeException When the site is no longer eligible, the phase is unknown or the database reports an error.
      */
@@ -492,7 +500,7 @@ final class Rebuild
     /**
      * Whether an item has been tried and interrupted three times; records an attempt when not.
      *
-     * @param  array<string, mixed>  $job  The job, updated in place.
+     * @param  Job  $job  The job, updated in place.
      * @param  int  $object  The post ID being worked on.
      * @return bool True when the item should be skipped.
      *
