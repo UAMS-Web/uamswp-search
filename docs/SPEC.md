@@ -291,5 +291,5 @@ The biggest risk is relevance: SearchWP has years of tuning, and ours starts fro
 - [ ] Is `pdftotext` installed, and may PHP run it (`exec` / `proc_open`)?
 - [ ] Which sub-sites on each install belong in whole-install search, and what default scope does each want?
 - [ ] Who writes and keeps the test-search list (content owners, Find-a-Doc team)?
-- [ ] Plugin name and repo, for example `UAMSWP-Search` under UAMS-Web on GitHub.
+- [x] Plugin name and repo: the repository is `UAMS-Web/uamswp-search` on GitHub, the plugin folder, slug and text prefix are `uams-search`, and the name shown in the plugin list is `UAMSWP Search`.
 - [ ] When do the first installs move to Statamic? This decides whether phases 2 and 3 are worth building.
