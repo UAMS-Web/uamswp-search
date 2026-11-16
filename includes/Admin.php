@@ -36,7 +36,7 @@ final class Admin
         add_action('admin_notices', [self::class, 'notice']);
         add_action('network_admin_notices', [self::class, 'notice']);
         // Add the Exclude From Search checkbox to PDF attachments
-        add_filter('attachment_fields_to_edit', static function (mixed $fields, WP_Post $post): mixed {
+        add_filter('attachment_fields_to_edit', static function (array $fields, WP_Post $post): array {
             if ($post->post_mime_type !== 'application/pdf') {
                 return $fields;
             }
@@ -47,7 +47,7 @@ final class Admin
             return $fields;
         }, 10, 2);
         // Save the checkbox for users who can edit the attachment
-        add_filter('attachment_fields_to_save', static function (mixed $post, mixed $attachment): mixed {
+        add_filter('attachment_fields_to_save', static function (array $post, array $attachment): array {
             if (! empty($attachment['uams_search_present']) && current_user_can('edit_post', $post['ID'])) {
                 update_post_meta($post['ID'], '_uams_search_exclude', empty($attachment['uams_search_exclude']) ? 0 : 1);
             }
@@ -304,13 +304,16 @@ final class Admin
 
         // The intersection compares numbers and numeric text the same way, so the conversion to integers changes no result.
         // @pest-mutate-ignore:UnwrapArrayMap
-        $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map(intval(...), (array) ($input['sites'] ?? []))));
+        $c['sites'] = array_values(array_intersect(Config::public_sites(), array_map(Cast::int(...), (array) ($input['sites'] ?? []))));
         // Save the source weights
-        foreach (array_keys(Config::defaults()['weights']) as $key) {
+        $weights = (array) $c['weights'];
+        foreach (array_keys((array) Config::defaults()['weights']) as $key) {
             // A weight below zero is raised to zero, so a missing weight and -1 both save 0.
             // @pest-mutate-ignore:DecrementInteger
-            $c['weights'][$key] = Config::weight($input['weights'][$key] ?? 0);
+            $weights[$key] = Config::weight(((array) ($input['weights'] ?? []))[$key] ?? 0);
         }
+
+        $c['weights'] = $weights;
 
         // Read the chosen types with their boosts, field weights and taxonomy weights
         $types = [];
@@ -625,10 +628,10 @@ final class Admin
         }
 
         // Print the stop words and the synonym rules
-        echo '<p><label for="uams-stopwords">Extra Stop Words, Separated by Spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">'.esc_textarea(implode(' ', Config::section('stopwords'))).'</textarea></p>';
+        echo '<p><label for="uams-stopwords">Extra Stop Words, Separated by Spaces</label><br><textarea id="uams-stopwords" name="settings[stopwords]" rows="3" cols="70">'.esc_textarea(implode(' ', array_map(Cast::string(...), Config::section('stopwords')))).'</textarea></p>';
         $synonyms = [];
         foreach (Config::section('synonyms') as $key => $values) {
-            $synonyms[] = $key.' = '.implode(', ', $values);
+            $synonyms[] = $key.' = '.implode(', ', array_map(Cast::string(...), (array) $values));
         }
 
         echo '<p><label for="uams-synonyms">Synonyms, One Rule per Line, Such as heart = cardiac, cardiology</label><br><textarea id="uams-synonyms" name="settings[synonyms]" rows="5" cols="70">'.esc_textarea(implode("\n", $synonyms)).'</textarea></p>';
@@ -708,7 +711,7 @@ final class Admin
     {
         global $wpdb;
         // Print the queue length and the last run
-        echo '<section id="status"><h2>Index Status</h2><p>Queue length: '.(int) $wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`').'. Last queue run: '.esc_html(Time::local(get_site_option('uams_search_last_queue', ''))).'.</p>';
+        echo '<section id="status"><h2>Index Status</h2><p>Queue length: '.(int) $wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`').'. Last queue run: '.esc_html(Time::local(Cast::string(get_site_option('uams_search_last_queue', '')))).'.</p>';
         // Print the counts by site, type and status
         $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
         // The names are put in front of the values whatever their keys, so the conversion to a list changes no result.
