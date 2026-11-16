@@ -24,12 +24,12 @@ final class Rebuild
      */
     public static function state(): ?array
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Read fresh under the writer lock; a persistent object cache must not replay an old cursor.
         if (is_multisite()) {
-            $value = $wpdb->get_var($wpdb->prepare("SELECT meta_value FROM `$wpdb->sitemeta` WHERE site_id=%d AND meta_key=%s LIMIT 1", get_current_network_id(), self::OPTION));
+            $value = $wpdb->get_var($wpdb->prepare('SELECT meta_value FROM %i WHERE site_id=%d AND meta_key=%s LIMIT 1', $wpdb->sitemeta, get_current_network_id(), self::OPTION));
         } else {
-            $value = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM `$wpdb->options` WHERE option_name=%s LIMIT 1", self::OPTION));
+            $value = $wpdb->get_var($wpdb->prepare('SELECT option_value FROM %i WHERE option_name=%s LIMIT 1', $wpdb->options, self::OPTION));
         }
 
         // Fail on a database error
@@ -89,7 +89,7 @@ final class Rebuild
      */
     public static function start(bool $include_noindex): array
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Create the tables and take the writer lock
         DB::install();
         if (! DB::lock()) {
@@ -125,16 +125,14 @@ final class Rebuild
             $marks = implode(',', array_fill(0, \count($types), '%s'));
             foreach ($ids as $id) {
                 $posts = $wpdb->get_blog_prefix($id).'posts';
-                $count = $wpdb->get_row($wpdb->prepare("SELECT COUNT(*) AS total,COALESCE(MAX(ID),0) AS maximum FROM `$posts` WHERE post_type IN ($marks)", $types), ARRAY_A);
+                $count = $wpdb->get_row($wpdb->prepare("SELECT COUNT(*) AS total,COALESCE(MAX(ID),0) AS maximum FROM %i WHERE post_type IN ($marks)", array_merge([$posts], $types)), ARRAY_A);
                 if ($wpdb->last_error || ! $count) {
                     throw new RuntimeException($wpdb->last_error ?: 'Could not count site content');
                 }
 
                 $name = is_multisite() ? SiteNames::name($id) : get_bloginfo('name');
-                $sites[] = ['id' => $id, 'name' => $name, 'maximum' => (int) $count['maximum'], 'total' => (int) $count['total']];
-                // Adding a numeric string to an int gives the same int.
-                // @pest-mutate-ignore:RemoveIntegerCast
-                $total += (int) $count['total'];
+                $sites[] = ['id' => $id, 'name' => $name, 'maximum' => Cast::int($count['maximum']), 'total' => Cast::int($count['total'])];
+                $total += Cast::int($count['total']);
             }
 
             // Create and save the job
@@ -307,7 +305,6 @@ final class Rebuild
      */
     public static function cancel(string $id): array
     {
-        global $wpdb;
         // Take the writer lock
         if (! DB::lock()) {
             return self::busy($id);
@@ -327,7 +324,7 @@ final class Rebuild
                 // Stop the saved cursor before deleting its data. A failed cleanup is safe to retry.
                 self::save($job);
                 if ($site) {
-                    DB::exec($wpdb->prepare('DELETE FROM `'.DB::table('stage').'` WHERE site_id=%d', $site));
+                    self::clear_stage($site);
                 }
             }
 
@@ -346,7 +343,7 @@ final class Rebuild
      */
     private static function unit(array &$job): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Read the current site and check it is still eligible
         $site = $job['sites'][$job['site_index']];
         $id = Cast::int($site['id']);
@@ -356,12 +353,11 @@ final class Rebuild
         }
 
         // Run the phase
-        $stage = DB::table('stage');
         $live = DB::table();
         switch ($job['phase']) {
             case 'prepare':
                 // Clear the site's staged rows and reset its cursors
-                DB::exec($wpdb->prepare("DELETE FROM `$stage` WHERE site_id=%d", $id));
+                self::clear_stage($id);
                 $job['cursor'] = 0;
                 $job['site_checked'] = 0;
                 $job['dictionary_cursor'] = 0;
@@ -374,7 +370,7 @@ final class Rebuild
                 // Only the number of placeholders matters, not the keys array_fill gives them.
                 // @pest-mutate-ignore:DecrementInteger,IncrementInteger
                 $marks = implode(',', array_fill(0, \count($job['types']), '%s'));
-                $post = $wpdb->get_row($wpdb->prepare("SELECT ID,post_type FROM `$posts` WHERE ID>%d AND ID<=%d AND post_type IN ($marks) ORDER BY ID LIMIT 1", array_merge([$job['cursor'], $site['maximum']], $job['types'])), ARRAY_A);
+                $post = $wpdb->get_row($wpdb->prepare("SELECT ID,post_type FROM %i WHERE ID>%d AND ID<=%d AND post_type IN ($marks) ORDER BY ID LIMIT 1", array_merge([$posts, $job['cursor'], $site['maximum']], $job['types'])), ARRAY_A);
                 if ($wpdb->last_error) {
                     throw new RuntimeException($wpdb->last_error);
                 }
@@ -386,15 +382,10 @@ final class Rebuild
                 }
 
                 // Index the post, or record a failure after three interruptions
-                // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
-                if (self::interrupted($job, (int) $post['ID'])) { // @pest-mutate-ignore:RemoveIntegerCast
-                    // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
-                    // @pest-mutate-ignore:RemoveIntegerCast
-                    $row = Indexer::failure($id, (int) $post['ID'], $post['post_type'], 'Browser indexing interrupted three times. Check server time/memory limits, then retry this item.', 'stage');
+                if (self::interrupted($job, Cast::int($post['ID']))) {
+                    $row = Indexer::failure($id, Cast::int($post['ID']), Cast::string($post['post_type']), 'Browser indexing interrupted three times. Check server time/memory limits, then retry this item.', 'stage');
                 } else {
-                    // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
-                    // @pest-mutate-ignore:RemoveIntegerCast
-                    $row = Indexer::one($id, (int) $post['ID'], 'stage');
+                    $row = Indexer::one($id, Cast::int($post['ID']), 'stage');
                 }
 
                 // Count the post and move the cursor
@@ -406,13 +397,13 @@ final class Rebuild
                     $job['indexed']++;
                 }
 
-                $job['cursor'] = (int) $post['ID'];
+                $job['cursor'] = Cast::int($post['ID']);
                 $job['inflight'] = null;
                 break;
             case 'promote':
                 // Make the staged rows live and count the dictionary work
                 Indexer::promote($id);
-                $job['dictionary_total'] = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM `$live` WHERE site_id=%d AND status IN ('ready','scanned')", $id));
+                $job['dictionary_total'] = (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM %i WHERE site_id=%d AND status IN ('ready','scanned')", $live, $id));
                 if ($wpdb->last_error) {
                     throw new RuntimeException($wpdb->last_error);
                 }
@@ -425,7 +416,7 @@ final class Rebuild
             case 'dictionary_cleanup':
                 // Find a dictionary entry whose post is gone or failed
                 $docs = DB::table('word_docs');
-                $stale = $wpdb->get_var($wpdb->prepare("SELECT d.object_id FROM `$docs` d LEFT JOIN `$live` i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.site_id=%d AND (i.id IS NULL OR i.status='error') LIMIT 1", $id));
+                $stale = $wpdb->get_var($wpdb->prepare("SELECT d.object_id FROM %i d LEFT JOIN %i i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.site_id=%d AND (i.id IS NULL OR i.status='error') LIMIT 1", $docs, $live, $id));
                 if ($wpdb->last_error) {
                     throw new RuntimeException($wpdb->last_error);
                 }
@@ -436,15 +427,13 @@ final class Rebuild
                     break;
                 }
 
-                // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
-                // @pest-mutate-ignore:RemoveIntegerCast
                 self::dictionary_transaction(static function () use ($id, $stale): void {
-                    Suggestions::remove($id, (int) $stale);
+                    Suggestions::remove($id, Cast::int($stale));
                 });
                 break;
             case 'dictionary':
                 // Read the next live row after the cursor
-                $row = $wpdb->get_row($wpdb->prepare("SELECT site_id,object_id,title,content,fields,terms,pdf FROM `$live` WHERE site_id=%d AND object_id>%d AND status IN ('ready','scanned') ORDER BY object_id LIMIT 1", $id, $job['dictionary_cursor']), ARRAY_A);
+                $row = $wpdb->get_row($wpdb->prepare("SELECT site_id,object_id,title,content,fields,terms,pdf FROM %i WHERE site_id=%d AND object_id>%d AND status IN ('ready','scanned') ORDER BY object_id LIMIT 1", $live, $id, $job['dictionary_cursor']), ARRAY_A);
                 if ($wpdb->last_error) {
                     throw new RuntimeException($wpdb->last_error);
                 }
@@ -455,16 +444,15 @@ final class Rebuild
                     break;
                 }
 
+                // A row read with `ARRAY_A` is keyed by column name
+                /** @var array<string, mixed> $row */
                 // Add the row's words to the dictionary, or skip it after three interruptions
-                // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
-                if (self::interrupted($job, (int) $row['object_id'])) { // @pest-mutate-ignore:RemoveIntegerCast
-                    // This file is not strict-typed, so the int parameter coerces a numeric string to the same value.
-                    // @pest-mutate-ignore:RemoveIntegerCast
+                if (self::interrupted($job, Cast::int($row['object_id']))) {
                     self::dictionary_transaction(static function () use ($id, $row): void {
-                        Suggestions::remove($id, (int) $row['object_id']);
+                        Suggestions::remove($id, Cast::int($row['object_id']));
                     });
                     $job['dictionary_skipped']++;
-                    error_log('UAMS Search: skipped interrupted spelling dictionary site='.$id.' post='.$row['object_id']);
+                    error_log('UAMS Search: skipped interrupted spelling dictionary site='.$id.' post='.Cast::string($row['object_id']));
                 } else {
                     self::dictionary_transaction(static function () use ($row): void {
                         Suggestions::record($row);
@@ -473,12 +461,12 @@ final class Rebuild
 
                 // Count the row and move the cursor
                 $job['dictionary_done']++;
-                $job['dictionary_cursor'] = (int) $row['object_id'];
+                $job['dictionary_cursor'] = Cast::int($row['object_id']);
                 $job['inflight'] = null;
                 break;
             case 'finish':
                 // Clear the staged rows, record the fingerprint and move to the next site, or complete
-                DB::exec($wpdb->prepare("DELETE FROM `$stage` WHERE site_id=%d", $id));
+                self::clear_stage($id);
                 update_site_option('uams_search_fingerprint_'.$id, $job['fingerprint']);
                 update_site_option('uams_search_rebuilt_'.$id, gmdate('Y-m-d H:i:s'));
                 $job['completed_sites']++;
@@ -497,6 +485,25 @@ final class Rebuild
     }
 
     /** A hard PHP timeout/OOM leaves this checkpoint behind. Resume eventually skips that one item. */
+    /**
+     * Delete one site's staged rows.
+     *
+     * @param  int  $site  The site id.
+     *
+     * @throws RuntimeException When the statement cannot be prepared.
+     */
+    private static function clear_stage(int $site): void
+    {
+        $sql = Database::get()->prepare('DELETE FROM %i WHERE site_id=%d', DB::table('stage'), $site);
+
+        // Stop on a statement WordPress could not prepare, never run an empty one
+        if (! \is_string($sql)) {
+            throw new RuntimeException('Could not prepare the staged rows delete');
+        }
+
+        DB::exec($sql);
+    }
+
     /**
      * Whether an item has been tried and interrupted three times; records an attempt when not.
      *
