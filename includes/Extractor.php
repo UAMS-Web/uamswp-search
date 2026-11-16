@@ -5,7 +5,11 @@ namespace UAMS_Search;
 use RuntimeException;
 use WP_Post;
 
-/** Reads a post and turns it into an index row. */
+/**
+ * Reads a post and turns it into an index row.
+ *
+ * @phpstan-type FieldRow array{text: string, weight: float|int, source: string}
+ */
 final class Extractor
 {
     /**
@@ -101,6 +105,7 @@ final class Extractor
         }
 
         // Add the related providers, and the fields saved inside blocks
+        /** @var array<string, FieldRow> $fields */
         $fields = array_merge($fields, Related::fields($post), $links);
         $blocks = parse_blocks($post->post_content);
         self::blocks($blocks, $field_list, $fields);
@@ -170,10 +175,10 @@ final class Extractor
      * Collect the allowed field values saved inside blocks, including nested
      * blocks.
      *
-     * @param  array<int, array<string, mixed>>  $blocks  Parsed blocks.
+     * @param  array<mixed>  $blocks  Parsed blocks.
      * @param  array<string, mixed>  $allowed  Configured field names and weights.
-     * @param  array<string, array<string, mixed>>  $fields  Field rows, added to
-     *                                                       in place under `block:<name>` keys.
+     * @param  array<string, FieldRow>  $fields  Field rows, added to
+     *                                           in place under `block:<name>` keys.
      * @param  int  $depth  Nesting level, capped at 20.
      */
     private static function blocks(
@@ -189,7 +194,11 @@ final class Extractor
 
         // Check each block
         foreach ($blocks as $block) {
-            $data = $block['attrs']['data'] ?? [];
+            // Parsed blocks are arrays, and a block with no attributes or no inner blocks reads as empty, so these casts change no result.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $block = (array) $block;
+            // @pest-mutate-ignore:RemoveArrayCast
+            $data = (array) (((array) ($block['attrs'] ?? []))['data'] ?? []);
             foreach ($allowed as $name => $weight) {
                 $values = [];
                 foreach ($data as $key => $value) {
@@ -204,15 +213,19 @@ final class Extractor
                 }
 
                 if ($values !== []) {
-                    $fields['block:'.$name]['text'] = ($fields['block:'.$name]['text'] ?? '').' '.implode(' ', $values);
-                    $fields['block:'.$name]['weight'] = max(0, Cast::float($weight));
-                    $fields['block:'.$name]['source'] = 'fields';
+                    $fields['block:'.$name] = [
+                        'text' => ($fields['block:'.$name]['text'] ?? '').' '.implode(' ', $values),
+                        'weight' => max(0, Cast::float($weight)),
+                        'source' => 'fields',
+                    ];
                 }
             }
 
             // Check the blocks inside this one
-            if (! empty($block['innerBlocks'])) {
-                self::blocks($block['innerBlocks'], $allowed, $fields, $depth + 1);
+            // @pest-mutate-ignore:RemoveArrayCast
+            $inner = (array) ($block['innerBlocks'] ?? []);
+            if ($inner !== []) {
+                self::blocks($inner, $allowed, $fields, $depth + 1);
             }
         }
     }

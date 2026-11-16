@@ -4,6 +4,7 @@ namespace UAMS_Search;
 
 use Throwable;
 use WP_Error;
+use WP_Post;
 use WP_Query;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -155,7 +156,7 @@ final class Integration
                 // it to switch to the post's site. The excerpt is kept by site and ID.
                 try {
                     $post = get_post($result->id);
-                    if ($post instanceof \WP_Post) {
+                    if ($post instanceof WP_Post) {
                         $post = clone $post;
                         // @phpstan-ignore property.notFound (`blog_id` is a dynamic property that the theme's search template reads; WP_Post allows dynamic properties)
                         $post->blog_id = $result->site;
@@ -225,7 +226,7 @@ final class Integration
         mixed $post
     ): mixed {
         // Leave other excerpts alone
-        if (! $post || ! is_search() || ! self::active()) {
+        if (! $post instanceof WP_Post || ! is_search() || ! self::active()) {
             return $excerpt;
         }
 
