@@ -8,6 +8,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\Attributes\DataProvider;
     use PHPUnit\Framework\TestCase;
     use stdClass;
+    use UAMS_Search\Cast;
     use UAMS_Search\Config;
     use UAMS_Search\Filters;
     use UAMS_Search\Tests\Support\StandIn;
@@ -55,7 +56,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_arguments_after_the_default_reach_the_callback(): void
         {
-            StandIn::set_filters(['hook' => [static fn ($value, $first, $second): string => $value.$first.$second]] + StandIn::filters());
+            StandIn::set_filters(['hook' => [static fn ($value, $first, $second): string => Cast::string($value).Cast::string($first).Cast::string($second)]] + StandIn::filters());
 
             self::assertSame('abc', Filters::string('hook', 'a', 'b', 'c'));
         }
