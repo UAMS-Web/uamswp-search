@@ -102,9 +102,12 @@ final class Admin
 
         // Use the existing UAMS Settings menu when it is available, without assuming a plugin slug.
         global $menu;
-        foreach ($menu as $item) {
-            if (strip_tags($item[0]) === 'UAMS Settings') {
-                add_submenu_page($item[2], 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
+        foreach (\is_array($menu) ? $menu : [] as $item) {
+            // A menu item is an array WordPress built, so the cast changes nothing for it.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $item = (array) $item;
+            if (strip_tags(Cast::string($item[0])) === 'UAMS Settings') {
+                add_submenu_page(Cast::string($item[2]), 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
                 break;
             }
         }
@@ -715,11 +718,13 @@ final class Admin
     /** Print the queue length, the last queue run and the index counts. */
     private static function status(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Print the queue length and the last run
         echo '<section id="status"><h2>Index Status</h2><p>Queue length: '.(int) $wpdb->get_var('SELECT COUNT(*) FROM `'.DB::table('queue').'`').'. Last queue run: '.esc_html(Time::local(Cast::string(get_site_option('uams_search_last_queue', '')))).'.</p>';
         // Print the counts by site, type and status
-        $rows = $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
+        // A failed query returns null, which reads as no rows, and a good one is already an array, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveArrayCast
+        $rows = (array) $wpdb->get_results('SELECT site_id,post_type,status,COUNT(*) AS total FROM `'.DB::table().'` GROUP BY site_id,post_type,status ORDER BY site_id,post_type', ARRAY_A);
         // The names are put in front of the values whatever their keys, so the conversion to a list changes no result.
         // @pest-mutate-ignore:UnwrapArrayMap,UnwrapArrayValues
         self::table(['Site Name', 'Site ID', 'Post type', 'Status', 'Count'], SiteNames::prefix(array_map(array_values(...), $rows)));
@@ -729,17 +734,17 @@ final class Admin
     /** Print the failed items and the searches that returned no results. */
     private static function reports(): void
     {
-        global $wpdb;
+        $wpdb = Database::get();
         // Read the latest failed and textless items
         echo '<section id="failed-items"><h2>Failed Items and PDFs Without Text</h2><p>Showing the latest 100 items. PDFs without text still match their titles and filenames.</p>';
-        $rows = $wpdb->get_results('SELECT site_id,object_id,status,error FROM `'.DB::table()."` WHERE status IN ('error','scanned') ORDER BY indexed_at DESC LIMIT 100", ARRAY_A);
+        // A failed query returns null, which reads as no rows, and a good one is already an array, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveArrayCast
+        $rows = (array) $wpdb->get_results('SELECT site_id,object_id,status,error FROM `'.DB::table()."` WHERE status IN ('error','scanned') ORDER BY indexed_at DESC LIMIT 100", ARRAY_A);
         // Print each item with a retry link
         echo '<table class="widefat striped"><thead><tr><th scope="col">Site Name</th><th scope="col">Site ID</th><th scope="col">Item</th><th scope="col">Status</th><th scope="col">Message</th><th scope="col">Action</th></tr></thead><tbody>';
         foreach ($rows as $row) {
             $url = wp_nonce_url(add_query_arg(['action' => 'uams_search_retry', 'site' => $row['site_id'], 'object' => $row['object_id']], admin_url('admin-post.php')), 'uams_search_retry');
-            // The row holds whole numbers as text, which print the same without the cast.
-            // @pest-mutate-ignore:RemoveIntegerCast
-            $link = '<td><a href="'.esc_url($url).'">Retry item '.(int) $row['object_id'].' on site '.(int) $row['site_id'].'</a></td></tr>';
+            $link = '<td><a href="'.esc_url($url).'">Retry item '.Cast::int($row['object_id']).' on site '.Cast::int($row['site_id']).'</a></td></tr>';
             echo '<tr>';
             // Only the order of the values matters here, so dropping their keys first changes no result.
             // @pest-mutate-ignore:UnwrapArrayValues
@@ -752,7 +757,9 @@ final class Admin
 
         // Print the searches with no results
         echo '</tbody></table></section><section id="no-results"><h2>Searches With No Results, Last 30 Days</h2><p>Search text can include health terms. No IP address or user ID is stored. Entries are deleted after 90 days.</p>';
-        $rows = $wpdb->get_results('SELECT site_id,search_text,SUM(count) AS total FROM `'.DB::table('misses').'` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', ARRAY_A);
+        // A failed query returns null, which reads as no rows, and a good one is already an array, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveArrayCast
+        $rows = (array) $wpdb->get_results('SELECT site_id,search_text,SUM(count) AS total FROM `'.DB::table('misses').'` WHERE day>=UTC_DATE()-INTERVAL 30 DAY GROUP BY site_id,search_hash,search_text ORDER BY total DESC LIMIT 100', ARRAY_A);
         // The names are put in front of the values whatever their keys, so the conversion to a list changes no result.
         // @pest-mutate-ignore:UnwrapArrayMap,UnwrapArrayValues
         self::table(['Site Name', 'Site ID', 'Search', 'Count'], SiteNames::prefix(array_map(array_values(...), $rows)));
@@ -763,7 +770,7 @@ final class Admin
      * Print a table.
      *
      * @param  array<int, string>  $heads  The column headings.
-     * @param  array<int, array<int, mixed>>  $rows  The cell values of each row.
+     * @param  array<int, array<mixed>>  $rows  The cell values of each row.
      */
     private static function table(
         array $heads,
