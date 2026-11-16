@@ -1,19 +1,21 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins for the WordPress functions that tell the layout of the network.
     if (! function_exists('is_subdomain_install')) {
         function is_subdomain_install(): bool
         {
-            return $GLOBALS['uams_test_subdomain'] ?? false;
+            return StandIn::subdomain();
         }
     }
 
     if (! function_exists('is_main_site')) {
         function is_main_site(): bool
         {
-            return $GLOBALS['uams_test_main_site'] ?? true;
+            return StandIn::main_site();
         }
     }
 
@@ -34,35 +36,35 @@ namespace {
     if (! function_exists('esc_url')) {
         function esc_url(mixed $url, mixed $_protocols = null): string
         {
-            return $url;
+            return Cast::string($url);
         }
     }
 
     if (! function_exists('esc_html')) {
         function esc_html(mixed $s): string
         {
-            return htmlspecialchars((string) $s);
+            return htmlspecialchars(Cast::string($s));
         }
     }
 
     if (! function_exists('esc_attr')) {
         function esc_attr(mixed $s): string
         {
-            return htmlspecialchars((string) $s);
+            return htmlspecialchars(Cast::string($s));
         }
     }
 
     if (! function_exists('add_query_arg')) {
         function add_query_arg(mixed $args, mixed $url): string
         {
-            return $url.'?'.http_build_query($args);
+            return Cast::string($url).'?'.http_build_query(is_array($args) ? $args : []);
         }
     }
 
     if (! function_exists('home_url')) {
         function home_url(mixed $path = ''): string
         {
-            return 'https://example.test'.$path;
+            return 'https://example.test'.Cast::string($path);
         }
     }
 
@@ -81,24 +83,23 @@ namespace {
     }
 
     if (! function_exists('get_post_type_object')) {
-        /** @return object{labels: object{name: string}}|null */
         function get_post_type_object(mixed $type): ?object
         {
-            return $GLOBALS['uams_test_types'][$type] ?? null;
+            return StandIn::types()[Cast::string($type)] ?? null;
         }
     }
 
     if (! function_exists('number_format_i18n')) {
         function number_format_i18n(mixed $number, mixed $decimals = 0): string
         {
-            return number_format((float) $number, $decimals);
+            return number_format(Cast::float($number), Cast::int($decimals));
         }
     }
 
     if (! function_exists('_n')) {
         function _n(mixed $single, mixed $plural, mixed $number, mixed $_domain = 'default'): string
         {
-            return $number === 1 ? $single : $plural;
+            return Cast::string($number === 1 ? $single : $plural);
         }
     }
 
@@ -112,14 +113,14 @@ namespace {
     if (! function_exists('wp_kses')) {
         function wp_kses(mixed $html, mixed $_allowed = []): string
         {
-            return $html;
+            return Cast::string($html);
         }
     }
 
     if (! function_exists('wp_nonce_field')) {
         function wp_nonce_field(mixed $action = -1, mixed $name = '_wpnonce', mixed $_referer = true, mixed $display = true): string
         {
-            $field = '<input type="hidden" name="'.$name.'" value="nonce-for-'.$action.'">';
+            $field = '<input type="hidden" name="'.Cast::string($name).'" value="nonce-for-'.Cast::string($action).'">';
             if ($display) {
                 echo $field;
             }
@@ -131,7 +132,7 @@ namespace {
     if (! function_exists('submit_button')) {
         function submit_button(mixed $text = null, mixed $_type = 'primary', mixed $_name = 'submit', mixed $_wrap = true, mixed $_other_attributes = null): void
         {
-            echo '<input type="submit" value="'.htmlspecialchars((string) $text).'">';
+            echo '<input type="submit" value="'.htmlspecialchars(Cast::string($text)).'">';
         }
     }
 
@@ -139,7 +140,7 @@ namespace {
         function checked(mixed $checked, mixed $current = true, mixed $display = true): string
         {
             // The same comparison, output and return as WordPress's helper
-            $result = (string) $checked === (string) $current ? " checked='checked'" : '';
+            $result = Cast::string($checked) === Cast::string($current) ? " checked='checked'" : '';
             if ($display) {
                 echo $result;
             }
@@ -151,21 +152,21 @@ namespace {
     if (! function_exists('admin_url')) {
         function admin_url(mixed $path = ''): string
         {
-            return 'https://example.test/wp-admin/'.$path;
+            return 'https://example.test/wp-admin/'.Cast::string($path);
         }
     }
 
     if (! function_exists('current_user_can')) {
         function current_user_can(mixed $capability, mixed ...$_args): bool
         {
-            return in_array($capability, $GLOBALS['uams_test_caps'] ?? [], true);
+            return in_array($capability, StandIn::caps(), true);
         }
     }
 
     if (! function_exists('check_admin_referer')) {
         function check_admin_referer(mixed $action = -1, mixed $query_arg = '_wpnonce'): int
         {
-            $GLOBALS['uams_test_nonce_checks'][] = func_get_args();
+            StandIn::add_nonce_check(func_get_args());
 
             return 1;
         }
@@ -174,7 +175,7 @@ namespace {
     if (! function_exists('update_option')) {
         function update_option(mixed $name, mixed $value): bool
         {
-            $GLOBALS['uams_test_options'][$name] = $value;
+            StandIn::put_option(Cast::string($name), $value);
 
             return true;
         }
@@ -197,7 +198,7 @@ namespace {
     if (! function_exists('sanitize_text_field')) {
         function sanitize_text_field(mixed $s): string
         {
-            return trim(strip_tags((string) $s));
+            return trim(strip_tags(Cast::string($s)));
         }
     }
 
@@ -218,6 +219,20 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\Admin;
     use UAMS_Search\Config;
     use UAMS_Search\Integration;
+    use UAMS_Search\Tests\Support\StandIn;
+
+    /** A query double that answers every `get()` with the result a test sets in `$out`. */
+    final class ScopeQueryDouble
+    {
+        /** @var array<mixed> */
+        public array $out = [];
+
+        /** @return array<mixed> */
+        public function get(): array
+        {
+            return $this->out;
+        }
+    }
 
     final class ScopeTest extends TestCase
     {
@@ -259,7 +274,7 @@ namespace UAMS_Search\Tests {
         #[DataProvider('layouts')]
         public function test_each_layout_offers_exactly_its_options_in_order(bool $multisite, bool $subdomain, bool $main, array $expected): void
         {
-            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            StandIn::put_option('uams_search_google', true);
             $GLOBALS['uams_test_multisite'] = $multisite;
             $GLOBALS['uams_test_subdomain'] = $subdomain;
             $GLOBALS['uams_test_main_site'] = $main;
@@ -271,7 +286,7 @@ namespace UAMS_Search\Tests {
         public function test_google_off_removes_all_uams_websites_and_a_request_for_it_falls_back(): void
         {
             $GLOBALS['uams_test_multisite'] = false;
-            $GLOBALS['uams_test_options']['uams_search_google'] = false;
+            StandIn::put_option('uams_search_google', false);
 
             self::assertSame(['site' => 'This site'], Config::scope_options());
             self::assertSame(['site' => 'This site', 'all' => 'All UAMS websites'], Config::scope_options(false), 'The settings screen still lists it.');
@@ -285,39 +300,41 @@ namespace UAMS_Search\Tests {
             self::assertSame(['site' => 'This site'], Config::scope_options(), 'A site that has never saved the setting does not offer it.');
             self::assertSame('site', Config::scope('all'));
 
-            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            StandIn::put_option('uams_search_google', true);
             self::assertSame(['site' => 'This site', 'all' => 'All UAMS websites'], Config::scope_options());
             self::assertSame('all', Config::scope('all'));
         }
 
         public function test_a_value_the_layout_does_not_offer_falls_back_to_the_default_then_the_first_option(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            StandIn::put_option('uams_search_google', true);
             // A subdomain network does not offer `install`.
             $GLOBALS['uams_test_subdomain'] = true;
             $GLOBALS['uams_test_main_site'] = false;
             self::assertSame('site', Config::scope('install'));
 
-            $GLOBALS['uams_test_options']['uams_search_scope'] = 'all';
+            StandIn::put_option('uams_search_scope', 'all');
             self::assertSame('all', Config::scope('install'), 'The site default applies when it is offered.');
 
             // The root site of a subdirectory network offers neither `site` nor, here, a default it does not have.
             $GLOBALS['uams_test_subdomain'] = false;
             $GLOBALS['uams_test_main_site'] = true;
-            $GLOBALS['uams_test_options']['uams_search_scope'] = 'site';
+            StandIn::put_option('uams_search_scope', 'site');
             self::assertSame('install', Config::scope('site'), 'A default the layout does not offer falls back to its first option.');
             self::assertSame('all', Config::scope('all'));
         }
 
         public function test_the_google_search_engine_id_filter_may_not_break_the_block(): void
         {
-            $GLOBALS['uams_test_filters']['uams_search_google_cx'] = [static fn (): array => ['not', 'a', 'string']];
+            StandIn::add_filter('uams_search_google_cx', static fn (): array => ['not', 'a', 'string']);
             ob_start();
             try {
                 (new ReflectionMethod(Integration::class, 'google'))->invoke(null);
             } finally {
                 $html = (string) ob_get_clean();
-                unset($GLOBALS['uams_test_filters']['uams_search_google_cx']);
+                $filters = StandIn::filters();
+                unset($filters['uams_search_google_cx']);
+                StandIn::set_filters($filters);
             }
 
             self::assertStringContainsString('cx=014806496997774146681%3Apyl1jhwi-bo', $html);
@@ -337,7 +354,7 @@ namespace UAMS_Search\Tests {
 
         public function test_scope_links_are_plain_links_with_the_current_one_marked_and_the_note_in_the_name(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_google'] = true;
+            StandIn::put_option('uams_search_google', true);
             $GLOBALS['uams_test_main_site'] = false;
             $_GET = ['scope' => 'all'];
             $html = $this->filters(true);
@@ -358,7 +375,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_site_default_offers_the_layout_options_and_saves_only_those(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_google'] = false;
+            StandIn::put_option('uams_search_google', false);
             $GLOBALS['uams_test_main_site'] = false;
             $GLOBALS['uams_test_caps'] = ['manage_options'];
             $GLOBALS['uams_test_multisite'] = true;
@@ -388,7 +405,7 @@ namespace UAMS_Search\Tests {
                 } catch (RuntimeException) {
                 }
 
-                self::assertSame($stored, $GLOBALS['uams_test_options']['uams_search_scope'], $posted);
+                self::assertSame($stored, StandIn::option('uams_search_scope'), $posted);
             }
 
             $_POST = [];
@@ -396,21 +413,12 @@ namespace UAMS_Search\Tests {
 
         public function test_all_uams_websites_shows_google_in_place_of_the_results_and_the_block_is_gone_otherwise(): void
         {
-            $GLOBALS['wp_query'] = new class
-            {
-                /** @var array<mixed> */
-                public array $out = [];
-
-                /** @return array<mixed> */
-                public function get(mixed $name): array
-                {
-                    return $this->out;
-                }
-            };
+            $query = new ScopeQueryDouble;
+            StandIn::set_wp_query($query);
             $google = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null, 'google' => true];
             $plugin = ['results' => [], 'total' => 0, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
 
-            $GLOBALS['wp_query']->out = $google;
+            $query->out = $google;
             $_GET = ['scope' => 'all'];
             ob_start();
             try {
@@ -419,7 +427,7 @@ namespace UAMS_Search\Tests {
                 $all = (string) ob_get_clean();
             }
 
-            $GLOBALS['wp_query']->out = $plugin;
+            $query->out = $plugin;
             $_GET = ['scope' => 'install'];
             ob_start();
             try {
@@ -440,21 +448,12 @@ namespace UAMS_Search\Tests {
 
         public function test_the_result_count_is_singular_for_one_result_and_plural_otherwise(): void
         {
-            $GLOBALS['wp_query'] = new class
-            {
-                /** @var array<mixed> */
-                public array $out = [];
-
-                /** @return array<mixed> */
-                public function get(mixed $name): array
-                {
-                    return $this->out;
-                }
-            };
+            $query = new ScopeQueryDouble;
+            StandIn::set_wp_query($query);
             $_GET = ['scope' => 'install'];
 
             foreach ([[0, '0 results'], [1, '1 result'], [2, '2 results'], [1234, '1,234 results']] as [$total, $expected]) {
-                $GLOBALS['wp_query']->out = ['results' => [], 'total' => $total, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
+                $query->out = ['results' => [], 'total' => $total, 'pages' => 0, 'fallback' => false, 'suggestion' => null];
                 ob_start();
                 try {
                     Integration::render();
