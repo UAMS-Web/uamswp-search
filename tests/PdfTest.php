@@ -1,12 +1,13 @@
 <?php
 
 namespace {
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Guarded because `ExtractorTest` declares the same stand-ins and loads first.
     if (! function_exists('get_attached_file')) {
-        function get_attached_file(mixed $_id): string|false
+        function get_attached_file(mixed $_id): string
         {
-            return $GLOBALS['uams_test_attached'] ?? __DIR__.'/../fixtures/text.pdf';
+            return StandIn::attached() ?? __DIR__.'/../fixtures/text.pdf';
         }
     }
 
@@ -23,6 +24,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use RuntimeException;
     use UAMS_Search\Pdf;
+    use UAMS_Search\Tests\Support\StandIn;
     use WP_Post;
 
     final class PdfTest extends TestCase
@@ -51,7 +53,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static function (): never {
                 throw new RuntimeException('Cache should skip extraction');
             }]];
-            $path = (string) realpath((string) get_attached_file(42));
+            $path = (string) realpath(get_attached_file(42));
             $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
             try {
                 $cached = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'ready', 'pdf' => 'cached text', 'error' => '']);
@@ -197,14 +199,14 @@ namespace UAMS_Search\Tests {
 
         public function test_a_file_over_the_size_limit_is_refused(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_max_mb' => 0.0001];
+            StandIn::put_option('uams_search_settings', ['pdf_max_mb' => 0.0001]);
             $this->expectExceptionMessage('PDF exceeds size limit');
             Pdf::extract(new WP_Post, null);
         }
 
         public function test_the_bundled_parser_runs_when_poppler_is_unavailable(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => 60]);
             $GLOBALS['uams_test_filters'] = [
                 'uams_search_pdftotext' => [static fn (): string => ''],
                 'uams_search_php_binary' => [static fn (): string => PHP_BINARY],
@@ -217,7 +219,7 @@ namespace UAMS_Search\Tests {
 
         public function test_extraction_stops_when_poppler_fails_and_no_time_is_left(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 1];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => 1]);
             $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): string => PHP_BINARY]];
             $this->expectExceptionMessage('PDF extraction timed out');
             Pdf::extract(new WP_Post, null);
@@ -225,7 +227,7 @@ namespace UAMS_Search\Tests {
 
         public function test_the_fallback_needs_an_executable_php(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => 60]);
             $GLOBALS['uams_test_filters'] = [
                 'uams_search_pdftotext' => [static fn (): string => ''],
                 'uams_search_php_binary' => [static fn (): string => '/nonexistent/php'],
@@ -309,7 +311,7 @@ namespace UAMS_Search\Tests {
         public function test_a_file_exactly_at_the_size_limit_is_accepted(): void
         {
             $size = filesize(__DIR__.'/../fixtures/text.pdf');
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_max_mb' => $size / 1048576, 'pdf_timeout' => 60];
+            StandIn::put_option('uams_search_settings', ['pdf_max_mb' => $size / 1048576, 'pdf_timeout' => 60]);
             $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
 
             self::assertSame($size, Pdf::extract(new WP_Post, null)['file_size']);
@@ -317,9 +319,9 @@ namespace UAMS_Search\Tests {
 
         public function test_cached_text_is_reused_only_for_a_finished_extraction(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => 60]);
             $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
-            $path = (string) realpath((string) get_attached_file(42));
+            $path = (string) realpath(get_attached_file(42));
             $sig = hash('sha256', $path.'|'.filesize($path).'|'.filemtime($path));
 
             $row = Pdf::extract(new WP_Post, ['file_signature' => $sig, 'status' => 'failed', 'pdf' => 'stale text', 'error' => 'x']);
@@ -333,7 +335,7 @@ namespace UAMS_Search\Tests {
         public function test_a_pdf_without_a_text_layer_is_marked_scanned(): void
         {
             $GLOBALS['uams_test_attached'] = __DIR__.'/../fixtures/scanned.pdf';
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 60];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => 60]);
             $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => PHP_BINARY]];
             $row = Pdf::extract(new WP_Post, null);
 
@@ -496,7 +498,7 @@ namespace UAMS_Search\Tests {
             $this->program($dir, 'pdftotext', 'exit 1');
             $php = $this->program($dir, 'php', $this->log_args($dir.'/php-args')."\necho 'fallback text'");
             $this->on_path($dir);
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => $timeout];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => $timeout]);
             $GLOBALS['uams_test_filters'] = ['uams_search_php_binary' => [static fn (): string => $php]];
             $row = Pdf::extract(new WP_Post, null);
 
@@ -568,7 +570,7 @@ namespace UAMS_Search\Tests {
 
         public function test_running_out_of_time_after_poppler_fails_names_the_failure_that_came_first(): void
         {
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_timeout' => 1];
+            StandIn::put_option('uams_search_settings', ['pdf_timeout' => 1]);
             $GLOBALS['uams_test_filters'] = ['uams_search_pdftotext' => [static fn (): string => PHP_BINARY]];
             try {
                 Pdf::extract(new WP_Post, null);
@@ -584,7 +586,7 @@ namespace UAMS_Search\Tests {
         {
             $size = filesize(__DIR__.'/../fixtures/text.pdf');
             // The limit is a fraction of a byte under the size, so only an exact comparison refuses it
-            $GLOBALS['uams_test_options']['uams_search_settings'] = ['pdf_max_mb' => ($size - 0.3) / 1048576];
+            StandIn::put_option('uams_search_settings', ['pdf_max_mb' => ($size - 0.3) / 1048576]);
             $this->expectExceptionMessage('PDF exceeds size limit');
             Pdf::extract(new WP_Post, null);
         }

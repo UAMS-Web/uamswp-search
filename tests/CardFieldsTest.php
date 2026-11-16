@@ -1,6 +1,8 @@
 <?php
 
 namespace {
+    use UAMS_Search\Cast;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins for the WordPress term class and the functions the card fields read through.
     if (! class_exists('WP_Term')) {
@@ -25,14 +27,14 @@ namespace {
     if (! function_exists('get_post_meta')) {
         function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
-            return $GLOBALS['uams_test_meta'][$id][$key] ?? '';
+            return StandIn::meta()[Cast::int($id)][Cast::string($key)] ?? '';
         }
     }
 
     if (! function_exists('get_term_meta')) {
         function get_term_meta(mixed $id, mixed $key, mixed $_single = true): mixed
         {
-            return $GLOBALS['uams_test_term_meta'][$id][$key] ?? '';
+            return StandIn::term_meta()[Cast::int($id)][Cast::string($key)] ?? '';
         }
     }
 
@@ -40,10 +42,13 @@ namespace {
         /** @return object|array<string, mixed>|null */
         function get_term(mixed $id, mixed $taxonomy = ''): object|array|null
         {
-            $GLOBALS['uams_test_term_calls'][] = $id;
+            StandIn::add_term_call(is_int($id) || is_string($id) ? $id : '');
             // WordPress also answers with a WP_Error; a test sets what comes back in place of the term
-            if (array_key_exists('uams_test_get_term', $GLOBALS)) {
-                return $GLOBALS['uams_test_get_term'];
+            if (StandIn::has_get_term()) {
+                $term = StandIn::get_term();
+
+                /** @var object|array<string, mixed>|null $term */
+                return $term;
             }
 
             return $id === 501 && $taxonomy === 'degree' ? uams_test_term(501) : null;
@@ -55,6 +60,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use stdClass;
     use UAMS_Search\CardFields;
+    use UAMS_Search\Tests\Support\StandIn;
 
     final class CardFieldsTest extends TestCase
     {
@@ -130,8 +136,8 @@ namespace UAMS_Search\Tests {
         {
             // One method on purpose: a function cannot be undefined, so the meta branch must run before get_field exists.
             // After the switch, get_field answers from the same meta unless a test turns ACF on, so later suites read the same values.
-            $GLOBALS['uams_test_meta'][5]['title'] = 'post value';
-            $GLOBALS['uams_test_term_meta'][9]['title'] = 'term value';
+            StandIn::put_meta_row(5, ['title' => 'post value'] + (StandIn::meta()[5] ?? []));
+            StandIn::put_term_meta_row(9, ['title' => 'term value'] + (StandIn::term_meta()[9] ?? []));
 
             self::assertFalse(function_exists('get_field'), 'Another test defined get_field first; this test needs the meta branch.');
             $GLOBALS['uams_test_meta_record'] = true;
