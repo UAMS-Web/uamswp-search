@@ -392,7 +392,7 @@ final class Admin
         // `Config::weight()` already limits the value to 100, so a higher cap changes no result.
         // @pest-mutate-ignore:IncrementInteger
         $c['pdf_max_mb'] = max(1, min(100, Config::weight($input['pdf_max_mb'] ?? 20)));
-        $c['pdf_timeout'] = max(1, min(120, (int) ($input['pdf_timeout'] ?? 30)));
+        $c['pdf_timeout'] = max(1, min(120, Cast::int($input['pdf_timeout'] ?? 30)));
         // Refuse to enable search before the index exists
         if ($c['enabled'] && ! DB::ready()) {
             wp_die('Create and build the index before enabling search.');

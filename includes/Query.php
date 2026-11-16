@@ -37,7 +37,7 @@ final class Query
         }
 
         // Resolve the sites to search
-        $site = max(1, (int) ($args['site'] ?? get_current_blog_id()));
+        $site = max(1, Cast::int($args['site'] ?? get_current_blog_id()));
         $scope = Config::scope($args['scope'] ?? null);
         $sites = Config::sites($scope, $site);
         if ($sites === []) {
@@ -48,7 +48,7 @@ final class Query
         $limit = Config::page_size($args['per_page'] ?? null);
         // The default of 0 and the default of -1 both give page 1 after `max()`; the `max()` bound itself is pinned by the page 0 and negative page tests.
         // @pest-mutate-ignore:DecrementInteger
-        $page = max(1, min(10000, (int) ($args['page'] ?? 1)));
+        $page = max(1, min(10000, Cast::int($args['page'] ?? 1)));
         // Work out the post types to search
         $t = DB::table();
         // A non-empty default names no known type, so the filter is empty and every configured type is searched, exactly as with the empty default.
@@ -209,7 +209,7 @@ final class Query
         foreach (['fields', 'taxonomies'] as $source) {
             foreach (Config::section($source) as $weights) {
                 foreach (\is_array($weights) ? $weights : [] as $weight) {
-                    if ((float) $weight !== 1.0) {
+                    if (Cast::float($weight) !== 1.0) {
                         $custom = true;
                     }
                 }

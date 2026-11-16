@@ -130,17 +130,15 @@ final class Integration
         // Run the search
         try {
             $args = [
-                // `Query::run()` reads a scalar as text, so the string cast changes no result.
-                // @pest-mutate-ignore:RemoveStringCast
-                's' => (string) $query->get('s'),
+                's' => Cast::string($query->get('s')),
                 // `Query::run()` falls back to the current site, so naming it adds nothing.
                 // @pest-mutate-ignore:RemoveArrayItem
                 'site' => get_current_blog_id(),
                 'scope' => Config::scope(self::param('scope')),
                 'type' => self::param('type'),
-                // `Query::run()` casts the page to an integer and keeps it at one or more itself, so the cast and the floor of `max()` here change no result.
-                // @pest-mutate-ignore:RemoveIntegerCast,DecrementInteger
-                'page' => max(1, (int) $query->get('paged')),
+                // `Query::run()` casts the page to an integer and keeps it at one or more itself, so the floor of `max()` here changes no result.
+                // @pest-mutate-ignore:DecrementInteger
+                'page' => max(1, Cast::int($query->get('paged'))),
                 'per_page' => Config::page_size($query->query['posts_per_page'] ?? null),
             ];
             $results = Query::run($args);
@@ -385,7 +383,7 @@ final class Integration
         if (! $out['total']) {
             echo '<p>No results found. Try fewer words or check the spelling.</p>';
             // A string page compares as its number, and a default of 0 or 1 is the first page either way.
-            if ((int) get_query_var('paged', 1) <= 1) { // @pest-mutate-ignore:RemoveIntegerCast,DecrementInteger
+            if (Cast::int(get_query_var('paged', 1)) <= 1) { // @pest-mutate-ignore:DecrementInteger
                 Misses::record(get_search_query(false));
             }
         }
@@ -445,9 +443,9 @@ final class Integration
         if ($out['pages'] > 1) {
             $links = paginate_links([
                 'base' => str_replace('999999999', '%#%', self::url(['paged' => 999999999])),
-                // `paginate_links()` reads the same query variable, and a page of 0 or none is its first page, so the default, the cast and this key change no result.
-                // @pest-mutate-ignore:RemoveArrayItem,RemoveIntegerCast,DecrementInteger
-                'current' => max(1, (int) get_query_var('paged', 1)),
+                // `paginate_links()` reads the same query variable, and a page of 0 or none is its first page, so the default and this key change no result.
+                // @pest-mutate-ignore:RemoveArrayItem,DecrementInteger
+                'current' => max(1, Cast::int(get_query_var('paged', 1))),
                 'total' => $out['pages'],
                 'type' => 'list',
             ]);
