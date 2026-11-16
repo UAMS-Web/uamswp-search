@@ -372,6 +372,7 @@ namespace UAMS_Search\Tests {
             self::assertStringContainsString('value="site" > This site', $html);
             self::assertStringContainsString('value="all"  checked=\'checked\'> All UAMS websites', $html);
             self::assertStringContainsString('name="google" value="1"  checked=\'checked\'> Show', $html);
+            self::assertSame(2, substr_count($html, "checked='checked'"), 'The saved scope and the Google switch, each printed once and in place.');
 
             foreach (['bogus', 5, ['all']] as $saved) {
                 $GLOBALS['uams_test_options']['uams_search_scope'] = $saved;
