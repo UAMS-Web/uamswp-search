@@ -1,6 +1,8 @@
 <?php
 
+use UAMS_Search\Cast;
 use UAMS_Search\Result;
+use UAMS_Search\Tests\Support\StandIn;
 
 class WP_Post
 {
@@ -24,8 +26,8 @@ class WP_Post
 
     public function __construct(public int $ID = 0)
     {
-        $this->post_type = $GLOBALS['uams_preview_post_types'][$this->ID] ?? 'provider';
-        $this->post_title = $GLOBALS['uams_preview_post_titles'][$this->ID] ?? ($this->ID === 103 ? 'Dr. <img src=x onerror=alert(1)> Fallback & "Quoted"' : 'Provider');
+        $this->post_type = StandIn::preview_post_types()[$this->ID] ?? 'provider';
+        $this->post_title = StandIn::preview_post_titles()[$this->ID] ?? ($this->ID === 103 ? 'Dr. <img src=x onerror=alert(1)> Fallback & "Quoted"' : 'Provider');
     }
 }
 
@@ -50,7 +52,10 @@ function get_post_meta(mixed $id, mixed $key, mixed $_single = true): mixed
 {
     $fields = [101 => ['physician_first_name' => 'C.', 'physician_middle_name' => 'Lowry', 'physician_last_name' => 'Barnes', 'physician_degree' => [501], 'physician_title' => 502], 102 => ['physician_first_name' => 'Alex', 'physician_last_name' => 'Resident', 'physician_resident' => 1]];
 
-    return $GLOBALS['uams_preview_fields'][$id][$key] ?? $fields[$id][$key] ?? '';
+    $post = Cast::int($id);
+    $name = Cast::string($key);
+
+    return StandIn::preview_fields()[$post][$name] ?? $fields[$post][$name] ?? '';
 }
 
 function get_term_meta(mixed $id, mixed $key, mixed $_single = true): mixed
@@ -73,16 +78,16 @@ function is_post_type_viewable(mixed $_type): bool
     return true;
 }
 
-function get_post_thumbnail_id(mixed $id): int|false
+function get_post_thumbnail_id(mixed $id): int
 {
-    return $GLOBALS['uams_preview_thumbnails'][$id] ?? ($id === 101 ? 801 : 0);
+    return StandIn::preview_thumbnails()[Cast::int($id)] ?? ($id === 101 ? 801 : 0);
 }
 
 function wp_get_attachment_image(mixed $_id, mixed $_size, mixed $_icon, mixed $attrs): string
 {
     $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="253" height="337"><rect width="253" height="337" fill="#dedbd8"/></svg>';
 
-    return '<img src="data:image/svg+xml;base64,'.base64_encode($svg).'" alt="'.htmlspecialchars($attrs['alt'] ?? 'Location exterior', ENT_QUOTES).'" width="253" height="337">';
+    return '<img src="data:image/svg+xml;base64,'.base64_encode($svg).'" alt="'.htmlspecialchars(is_array($attrs) ? Cast::string($attrs['alt'] ?? 'Location exterior') : 'Location exterior', ENT_QUOTES).'" width="253" height="337">';
 }
 
 function get_permalink(mixed $post): string|false
