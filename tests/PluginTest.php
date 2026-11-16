@@ -1,51 +1,52 @@
 <?php
 
 namespace {
-
+    use UAMS_Search\Cast;
     use UAMS_Search\Plugin;
+    use UAMS_Search\Tests\Support\StandIn;
 
     // Stand-ins for the WordPress functions the plugin bootstrap calls.
     if (! function_exists('add_action')) {
-        function add_action(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
+        function add_action(string $hook, callable $callback, int $priority = 10, int $args = 1): void
         {
-            $GLOBALS['uams_test_hooks'][$hook][] = $callback;
-            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
+            StandIn::add_hook($hook, $callback);
+            StandIn::add_hook_args($hook, [$callback, $priority, $args]);
         }
     }
 
     if (! function_exists('add_filter')) {
-        function add_filter(mixed $hook, mixed $callback, mixed $priority = 10, mixed $args = 1): void
+        function add_filter(string $hook, callable $callback, int $priority = 10, int $args = 1): void
         {
-            $GLOBALS['uams_test_hooks'][$hook][] = $callback;
-            $GLOBALS['uams_test_hook_args'][$hook][] = [$callback, $priority, $args];
+            StandIn::add_hook($hook, $callback);
+            StandIn::add_hook_args($hook, [$callback, $priority, $args]);
         }
     }
 
     if (! function_exists('add_shortcode')) {
-        function add_shortcode(mixed $tag, mixed $callback): void
+        function add_shortcode(string $tag, callable $callback): void
         {
-            $GLOBALS['uams_test_hooks']['shortcode:'.$tag][] = $callback;
+            StandIn::add_hook('shortcode:'.$tag, $callback);
         }
     }
 
     if (! function_exists('is_main_site')) {
         function is_main_site(): bool
         {
-            return $GLOBALS['uams_test_main_site'] ?? true;
+            return StandIn::main_site();
         }
     }
 
     if (! function_exists('wp_next_scheduled')) {
         function wp_next_scheduled(mixed $hook): int|false
         {
-            return $GLOBALS['uams_test_cron'][$hook] ?? false;
+            return StandIn::cron_next(Cast::string($hook));
         }
     }
 
     if (! function_exists('wp_schedule_event')) {
         function wp_schedule_event(mixed $time, mixed $recurrence, mixed $hook): bool
         {
-            $GLOBALS['uams_test_scheduled'][] = [$hook, $recurrence, $time];
+            StandIn::add_scheduled([$hook, $recurrence, $time]);
 
             return true;
         }
@@ -54,7 +55,7 @@ namespace {
     if (! function_exists('wp_clear_scheduled_hook')) {
         function wp_clear_scheduled_hook(mixed $hook): int
         {
-            $GLOBALS['uams_test_cleared'][] = $hook;
+            StandIn::add_cleared_hook(Cast::string($hook));
 
             return 1;
         }
@@ -63,28 +64,28 @@ namespace {
     if (! function_exists('wp_is_post_revision')) {
         function wp_is_post_revision(mixed $id): bool
         {
-            return in_array($id, $GLOBALS['uams_test_revisions'] ?? [], true);
+            return in_array($id, StandIn::revisions(), true);
         }
     }
 
     if (! function_exists('wp_is_post_autosave')) {
         function wp_is_post_autosave(mixed $id): bool
         {
-            return in_array($id, $GLOBALS['uams_test_autosaves'] ?? [], true);
+            return in_array($id, StandIn::autosaves(), true);
         }
     }
 
     if (! function_exists('wp_die')) {
         function wp_die(mixed $message = ''): never
         {
-            throw new RuntimeException('wp_die: '.$message);
+            throw new RuntimeException('wp_die: '.Cast::string($message));
         }
     }
 
     if (! function_exists('esc_html')) {
         function esc_html(mixed $s): string
         {
-            return htmlspecialchars((string) $s);
+            return htmlspecialchars(Cast::string($s));
         }
     }
 }
@@ -92,9 +93,11 @@ namespace {
 namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
+    use UAMS_Search\Cast;
     use UAMS_Search\DB;
     use UAMS_Search\Plugin;
     use UAMS_Search\Queue;
+    use UAMS_Search\Tests\Support\StandIn;
 
     /**
      * The scheduling rules, the hook wiring and the queue job's failure log, against stand-ins. The real hook priorities and accepted arguments, the
@@ -145,8 +148,8 @@ namespace UAMS_Search\Tests {
             Plugin::schedule();
             $after = time();
 
-            self::assertCount(2, $GLOBALS['uams_test_scheduled']);
-            [$queue, $retention] = $GLOBALS['uams_test_scheduled'];
+            self::assertCount(2, StandIn::scheduled());
+            [$queue, $retention] = StandIn::scheduled();
             self::assertSame(['uams_search_queue', 'uams_search_five_minutes'], [$queue[0], $queue[1]]);
             self::assertGreaterThanOrEqual($before + 300, $queue[2]);
             self::assertLessThanOrEqual($after + 300, $queue[2], 'The queue job starts five minutes out, not later.');
@@ -158,39 +161,39 @@ namespace UAMS_Search\Tests {
 
         public function test_schedule_adds_only_the_job_that_is_missing(): void
         {
-            $GLOBALS['uams_test_cron']['uams_search_queue'] = 123;
+            StandIn::put_cron('uams_search_queue', 123);
             Plugin::schedule();
-            self::assertSame(['uams_search_retention'], array_column($GLOBALS['uams_test_scheduled'], 0));
+            self::assertSame(['uams_search_retention'], array_column(StandIn::scheduled(), 0));
 
-            $GLOBALS['uams_test_scheduled'] = [];
-            $GLOBALS['uams_test_cron'] = ['uams_search_retention' => 123];
+            StandIn::set_scheduled([]);
+            StandIn::set_cron(['uams_search_retention' => 123]);
             Plugin::schedule();
-            self::assertSame(['uams_search_queue'], array_column($GLOBALS['uams_test_scheduled'], 0));
+            self::assertSame(['uams_search_queue'], array_column(StandIn::scheduled(), 0));
         }
 
         public function test_schedule_leaves_the_jobs_to_the_main_site_of_a_network(): void
         {
-            $GLOBALS['uams_test_multisite'] = true;
-            $GLOBALS['uams_test_main_site'] = false;
+            StandIn::set_multisite(true);
+            StandIn::set_main_site(false);
             Plugin::schedule();
-            self::assertSame([], $GLOBALS['uams_test_scheduled']);
+            self::assertSame([], StandIn::scheduled());
 
-            $GLOBALS['uams_test_main_site'] = true;
+            StandIn::set_main_site(true);
             Plugin::schedule();
-            self::assertCount(2, $GLOBALS['uams_test_scheduled']);
+            self::assertCount(2, StandIn::scheduled());
 
-            $GLOBALS['uams_test_scheduled'] = [];
-            $GLOBALS['uams_test_multisite'] = false;
-            $GLOBALS['uams_test_main_site'] = false;
+            StandIn::set_scheduled([]);
+            StandIn::set_multisite(false);
+            StandIn::set_main_site(false);
             Plugin::schedule();
-            self::assertCount(2, $GLOBALS['uams_test_scheduled'], 'A single site always schedules.');
+            self::assertCount(2, StandIn::scheduled(), 'A single site always schedules.');
         }
 
         public function test_deactivate_clears_both_jobs(): void
         {
             Plugin::deactivate();
 
-            self::assertSame(['uams_search_queue', 'uams_search_retention'], $GLOBALS['uams_test_cleared']);
+            self::assertSame(['uams_search_queue', 'uams_search_retention'], StandIn::cleared());
         }
 
         public function test_activation_failure_stops_with_the_reason(): void
@@ -206,18 +209,18 @@ namespace UAMS_Search\Tests {
 
             $expected = ['cron_schedules', 'init', 'uams_search_queue', 'uams_search_retention', 'save_post', 'acf/save_post', 'before_delete_post', 'deleted_post', 'delete_attachment', 'add_attachment', 'edit_attachment', 'added_post_meta', 'updated_post_meta', 'deleted_post_meta', 'set_object_terms', 'added_term_relationship', 'deleted_term_relationships', 'edited_term', 'delete_term', 'posts_pre_query', 'admin_menu', 'shortcode:uams_search_form'];
             foreach ($expected as $hook) {
-                self::assertArrayHasKey($hook, $GLOBALS['uams_test_hooks'], $hook);
+                self::assertArrayHasKey($hook, StandIn::hooks(), $hook);
             }
 
-            self::assertSame([Plugin::class, 'schedules'], $GLOBALS['uams_test_hooks']['cron_schedules'][0]);
-            self::assertSame([Plugin::class, 'schedule'], $GLOBALS['uams_test_hooks']['init'][0]);
-            self::assertSame([Queue::class, 'term'], $GLOBALS['uams_test_hooks']['edited_term'][0]);
+            self::assertSame([Plugin::class, 'schedules'], StandIn::hooks()['cron_schedules'][0]);
+            self::assertSame([Plugin::class, 'schedule'], StandIn::hooks()['init'][0]);
+            self::assertSame([Queue::class, 'term'], StandIn::hooks()['edited_term'][0]);
         }
 
         /** Make the index tables look present, with a recording stand-in for the database object. */
         private function database(): PluginDb
         {
-            $GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
+            StandIn::put_option('uams_search_version', UAMS_SEARCH_SCHEMA_VERSION);
             $this->tableReady(true);
 
             return $GLOBALS['wpdb'] = new PluginDb;
@@ -226,7 +229,7 @@ namespace UAMS_Search\Tests {
         public function test_the_retention_job_purges_only_when_the_tables_exist(): void
         {
             Plugin::boot();
-            $job = $GLOBALS['uams_test_hooks']['uams_search_retention'][0];
+            $job = StandIn::hooks()['uams_search_retention'][0];
 
             $db = $this->database();
             $this->tableReady(false);
@@ -246,16 +249,16 @@ namespace UAMS_Search\Tests {
             Plugin::boot();
             $db = $this->database();
 
-            $GLOBALS['uams_test_hooks']['acf/save_post'][0]('12');
-            $GLOBALS['uams_test_hooks']['save_post'][0](13);
-            $GLOBALS['uams_test_hooks']['before_delete_post'][0](14);
+            StandIn::hooks()['acf/save_post'][0]('12');
+            StandIn::hooks()['save_post'][0](13);
+            StandIn::hooks()['before_delete_post'][0](14);
             foreach (['add_attachment', 'edit_attachment', 'set_object_terms', 'added_term_relationship', 'deleted_term_relationships'] as $n => $hook) {
-                $GLOBALS['uams_test_hooks'][$hook][0](20 + $n);
+                StandIn::hooks()[$hook][0](20 + $n);
             }
 
-            $GLOBALS['uams_test_hooks']['added_post_meta'][0](1, 30, 'title');
-            $GLOBALS['uams_test_hooks']['updated_post_meta'][0](1, 31, '_thumbnail_id');
-            $GLOBALS['uams_test_hooks']['deleted_post_meta'][0](1, 32, 'title');
+            StandIn::hooks()['added_post_meta'][0](1, 30, 'title');
+            StandIn::hooks()['updated_post_meta'][0](1, 31, '_thumbnail_id');
+            StandIn::hooks()['deleted_post_meta'][0](1, 32, 'title');
 
             self::assertSame([12, 13, 60, 14, 20, 21, 22, 23, 24, 30, 31, 32], $this->queuedIds($db), 'Saving a post also queues its attachments.');
             self::assertSame(array_fill(0, 12, 'upsert'), $this->actions($db));
@@ -266,8 +269,8 @@ namespace UAMS_Search\Tests {
             Plugin::boot();
             $db = $this->database();
 
-            $GLOBALS['uams_test_hooks']['deleted_post'][0]('40');
-            $GLOBALS['uams_test_hooks']['delete_attachment'][0](41);
+            StandIn::hooks()['deleted_post'][0]('40');
+            StandIn::hooks()['delete_attachment'][0](41);
 
             self::assertSame([40, 41], $this->queuedIds($db));
             self::assertSame(['delete', 'delete'], $this->actions($db));
@@ -278,12 +281,12 @@ namespace UAMS_Search\Tests {
             Plugin::boot();
             $db = $this->database();
 
-            $GLOBALS['uams_test_hooks']['acf/save_post'][0]('options');
-            $GLOBALS['uams_test_hooks']['acf/save_post'][0]('user_5');
-            $GLOBALS['uams_test_hooks']['acf/save_post'][0]('12abc');
+            StandIn::hooks()['acf/save_post'][0]('options');
+            StandIn::hooks()['acf/save_post'][0]('user_5');
+            StandIn::hooks()['acf/save_post'][0]('12abc');
             foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $hook) {
                 foreach (['_edit_lock', '_edit_last'] as $key) {
-                    $GLOBALS['uams_test_hooks'][$hook][0](1, 7, $key);
+                    StandIn::hooks()[$hook][0](1, 7, $key);
                 }
             }
 
@@ -295,7 +298,7 @@ namespace UAMS_Search\Tests {
             Plugin::boot();
             $db = $this->database();
 
-            $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, ['50', 51]);
+            StandIn::hooks()['delete_term'][0](1, 2, 'category', null, ['50', 51]);
             self::assertSame([50, 51], $this->queuedIds($db));
             // The pages that copied the deleted term's name through a field are queued too, by the term's marker
             $linked = array_values(array_filter($db->queries, static fn (string $q): bool => str_contains($q, 'linked\_term\_id')));
@@ -303,7 +306,7 @@ namespace UAMS_Search\Tests {
             self::assertStringStartsWith('Q[1,1,%', (string) reset($linked));
 
             $db->queries = [];
-            $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, null);
+            StandIn::hooks()['delete_term'][0](1, 2, 'category', null, null);
             self::assertCount(1, $db->queries);
             self::assertStringContainsString('linked\_term\_id', implode('', $db->queries));
         }
@@ -317,7 +320,7 @@ namespace UAMS_Search\Tests {
             $GLOBALS['wpdb'] = new \stdClass;
             try {
                 Plugin::boot();
-                $GLOBALS['uams_test_hooks']['uams_search_queue'][0]();
+                StandIn::hooks()['uams_search_queue'][0]();
                 $logged = (string) file_get_contents($log);
             } finally {
                 ini_set('error_log', (string) $previous);
@@ -335,14 +338,14 @@ namespace UAMS_Search\Tests {
             $db = $this->database();
 
             foreach (['save_post', 'before_delete_post', 'deleted_post', 'delete_attachment', 'add_attachment', 'edit_attachment', 'set_object_terms', 'added_term_relationship', 'deleted_term_relationships'] as $n => $hook) {
-                $GLOBALS['uams_test_hooks'][$hook][0]((70 + $n).'x');
+                StandIn::hooks()[$hook][0]((70 + $n).'x');
             }
 
             foreach (['added_post_meta', 'updated_post_meta', 'deleted_post_meta'] as $n => $hook) {
-                $GLOBALS['uams_test_hooks'][$hook][0](1, (80 + $n).'x', 'title');
+                StandIn::hooks()[$hook][0](1, (80 + $n).'x', 'title');
             }
 
-            $GLOBALS['uams_test_hooks']['delete_term'][0](1, 2, 'category', null, ['90x']);
+            StandIn::hooks()['delete_term'][0](1, 2, 'category', null, ['90x']);
 
             self::assertSame([70, 71, 72, 73, 74, 75, 76, 77, 78, 80, 81, 82, 90], array_values(array_unique($this->queuedIds($db))));
         }
@@ -389,7 +392,7 @@ namespace UAMS_Search\Tests {
             // A list of arguments in one array reads as the arguments themselves, as `$wpdb` does.
             $list = \is_array($args[0] ?? null) ? $args[0] : $args;
 
-            return 'Q['.implode(',', $list).'] '.substr($query, 0, 30);
+            return 'Q['.implode(',', array_map(Cast::string(...), $list)).'] '.substr($query, 0, 30);
         }
 
         public function esc_like(string $text): string
