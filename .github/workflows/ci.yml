@@ -47,7 +47,7 @@ jobs:
       # `Integration`, `LocationCard`, `Plugin`, `ProviderCard`, `Rebuild`, `uams-search.php`) close on hand-mutation records
       # instead (UAMS-Web/uamswp-search#5, #208), so they stay out of this list and out of `composer mutate`. A new class
       # under `includes/` is added to both lists, or it is not mutated.
-      mutate-paths: includes/Admin.php includes/autoload.php includes/CardFields.php includes/Config.php includes/DB.php includes/Excerpt.php includes/Extractor.php includes/FieldText.php includes/Filters.php includes/helpers.php includes/Misses.php includes/NameChoices.php includes/Pdf.php includes/Phonetic.php includes/Query.php includes/Queue.php includes/Related.php includes/Result.php includes/SiteNames.php includes/Stemmer.php includes/Suggestions.php includes/Text.php includes/Time.php
+      mutate-paths: includes/Admin.php includes/autoload.php includes/CardFields.php includes/Config.php includes/DB.php includes/Database.php includes/Excerpt.php includes/Extractor.php includes/FieldText.php includes/Filters.php includes/helpers.php includes/Misses.php includes/NameChoices.php includes/Pdf.php includes/Phonetic.php includes/Query.php includes/Queue.php includes/Related.php includes/Result.php includes/SiteNames.php includes/Stemmer.php includes/Suggestions.php includes/Text.php includes/Time.php
       mutate-ignore: true
       global-test-symbols: false
       floor-lint: true
