@@ -369,19 +369,5 @@
     "ordinal": 2,
     "line_text": "} while ($job['status'] === 'running' && $units < $limit && microtime(true) - $started < $seconds); // @pest-mutate-ignore:SmallerToSmallerOrEqual",
     "reason": "The annotation on the loop line covers a tie between two clock readings, which cannot be built."
-  },
-  {
-    "class": "Integration",
-    "operator": "IncrementInteger",
-    "ordinal": 1,
-    "line_text": "'s' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],",
-    "reason": "WordPress 7.0.8 never validates an argument that has a sanitize_callback, so the length limits are not enforced; tracked in UAMS-Web/uamswp-search#252."
-  },
-  {
-    "class": "Integration",
-    "operator": "DecrementInteger",
-    "ordinal": 1,
-    "line_text": "'s' => ['required' => true, 'type' => 'string', 'maxLength' => 200, 'minLength' => 2, 'sanitize_callback' => 'sanitize_text_field'],",
-    "reason": "WordPress 7.0.8 never validates an argument that has a sanitize_callback, so the length limits are not enforced; tracked in UAMS-Web/uamswp-search#252."
   }
 ]
