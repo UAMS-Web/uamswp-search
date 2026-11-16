@@ -44,6 +44,7 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use RuntimeException;
     use UAMS_Search\NameChoices;
+    use UAMS_Search\Tests\Support\Prepare;
     use UAMS_Search\Tests\Support\StandIn;
 
     /**
@@ -431,7 +432,7 @@ namespace UAMS_Search\Tests {
         {
             $this->prepared[] = [$query, array_values($args)];
 
-            return $query;
+            return Prepare::sql($query, $args);
         }
 
         /** @return array<mixed> */
