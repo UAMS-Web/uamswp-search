@@ -3,7 +3,7 @@
 namespace {
 
     // Stand-ins for the WordPress timezone and date seam, mirroring wp_date() semantics.
-    function wp_timezone(): \DateTimeZone
+    function wp_timezone(): DateTimeZone
     {
         return new DateTimeZone($GLOBALS['uams_test_timezone'] ?? 'UTC');
     }
