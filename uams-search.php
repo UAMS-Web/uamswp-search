@@ -6,7 +6,7 @@ use UAMS_Search\Plugin;
  * Plugin Name: UAMSWP Search
  * Plugin URI: https://github.com/UAMS-Web/uamswp-search
  * Description: Install-wide database search, PDFs, spelling suggestions, and accessible live search.
- * Version: 0.5.1
+ * Version: 0.6.0
  * Author: UAMS Web Services
  * Author URI: https://communications.uams.edu/web/
  * License: GPL-3.0-or-later
