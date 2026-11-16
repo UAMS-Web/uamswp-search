@@ -2,24 +2,26 @@
 
 // Render the actual plugin result component with fake data. This is not a WordPress integration test.
 require __DIR__.'/bootstrap.php';
+use UAMS_Search\Cast;
 use UAMS_Search\Excerpt;
 use UAMS_Search\Integration;
+use UAMS_Search\Tests\Support\StandIn;
 
-$GLOBALS['uams_test_options']['uams_search_settings'] = ['enabled' => true];
-$GLOBALS['uams_test_options']['uams_search_google'] = false;
-$GLOBALS['uams_test_options']['uams_search_version'] = UAMS_SEARCH_SCHEMA_VERSION;
+StandIn::put_option('uams_search_settings', ['enabled' => true]);
+StandIn::put_option('uams_search_google', false);
+StandIn::put_option('uams_search_version', UAMS_SEARCH_SCHEMA_VERSION);
 class PreviewDB
 {
     public string $base_prefix = 'wp_';
 
     public function prepare(mixed $query, mixed ...$args): mixed
     {
-        return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], $query), $args);
+        return vsprintf(str_replace(['%s', '%d'], ["'%s'", '%d'], Cast::string($query)), array_map(static fn (mixed $arg): bool|float|int|string|null => is_scalar($arg) || $arg === null ? $arg : '', $args));
     }
 
     public function esc_like(mixed $s): mixed
     {
-        return addcslashes($s, '_%\\');
+        return addcslashes(Cast::string($s), '_%\\');
     }
 
     public function get_var(mixed $query): mixed
@@ -33,7 +35,7 @@ function wp_unique_id(mixed $prefix): string
 {
     static $i = 0;
 
-    return $prefix.++$i;
+    return Cast::string($prefix).++$i;
 }
 
 function is_scalar_string(mixed $v): string
@@ -43,7 +45,7 @@ function is_scalar_string(mixed $v): string
 
 function sanitize_text_field(mixed $s): string
 {
-    return trim(strip_tags($s));
+    return trim(strip_tags(Cast::string($s)));
 }
 
 /**
@@ -65,7 +67,7 @@ function wp_unslash(mixed $s): mixed
 
 function esc_html(mixed $s): string
 {
-    return htmlspecialchars((string) $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return htmlspecialchars(Cast::string($s), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
 function esc_attr(mixed $s): string
@@ -80,7 +82,7 @@ function esc_url(mixed $s, mixed $_protocols = null): string
 
 function home_url(mixed $suffix = ''): string
 {
-    return 'https://uams-search.test'.$suffix;
+    return 'https://uams-search.test'.Cast::string($suffix);
 }
 
 function get_search_query(mixed $_escaped = true): string
@@ -95,27 +97,27 @@ function get_query_var(mixed $_key, mixed $default = ''): mixed
 
 function number_format_i18n(mixed $n): string
 {
-    return number_format($n);
+    return number_format(Cast::float($n));
 }
 
 function _n(mixed $single, mixed $plural, mixed $number, mixed $_domain = 'default'): string
 {
-    return $number === 1 ? $single : $plural;
+    return Cast::string($number === 1 ? $single : $plural);
 }
 
 function wp_kses(mixed $s, mixed $_allow): string
 {
-    return strip_tags($s, '<mark>');
+    return strip_tags(Cast::string($s), '<mark>');
 }
 
 function wp_kses_post(mixed $s): string
 {
-    return $s;
+    return Cast::string($s);
 }
 
 function add_query_arg(mixed $args, mixed $url): string
 {
-    return $url.'?'.http_build_query(array_filter($args, static fn ($v): bool => $v !== false));
+    return Cast::string($url).'?'.http_build_query(is_array($args) ? array_filter($args, static fn ($v): bool => $v !== false) : []);
 }
 
 /** @return object{labels: object{name: string}}|null */
@@ -131,7 +133,7 @@ function get_post_type_object(mixed $type): ?object
 
 function size_format(mixed $size): string
 {
-    return number_format($size / 1024).' KB';
+    return number_format(Cast::float($size) / 1024).' KB';
 }
 
 function paginate_links(mixed $_args): string
@@ -143,7 +145,7 @@ class PreviewQuery
 {
     public function get(mixed $key): mixed
     {
-        $results = $GLOBALS['uams_preview_results'] ?? [
+        $results = array_key_exists('uams_preview_results', $GLOBALS) ? StandIn::preview_results() : [
             (object) ['title' => 'Heart care', 'url' => 'https://uams-search.test/heart-care/', 'post_type' => 'page', 'excerpt' => Excerpt::make(['Find heart care and cardiology services at UAMS.'], 'heart')],
             (object) ['title' => 'Heart clinic guide', 'url' => 'https://uams-search.test/guide.pdf', 'post_type' => 'attachment', 'file_size' => 24000, 'excerpt' => Excerpt::make(['Read our heart clinic guide before your visit.'], 'heart')],
         ];

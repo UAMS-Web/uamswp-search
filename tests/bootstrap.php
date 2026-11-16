@@ -1,5 +1,8 @@
 <?php
 
+use UAMS_Search\Cast;
+use UAMS_Search\Tests\Support\StandIn;
+
 require __DIR__.'/../includes/autoload.php';
 require __DIR__.'/Support/meta-record.php';
 require __DIR__.'/Support/wp-shims.php';
@@ -11,7 +14,7 @@ $GLOBALS['uams_test_options'] = [];
 $GLOBALS['uams_test_filters'] = [];
 function get_site_option(mixed $name, mixed $default = false): mixed
 {
-    return $GLOBALS['uams_test_options'][$name] ?? $default;
+    return StandIn::options()[Cast::string($name)] ?? $default;
 }
 
 function get_option(mixed $name, mixed $default = false): mixed
@@ -26,18 +29,18 @@ function get_current_blog_id(): int
 
 function is_multisite(): bool
 {
-    return $GLOBALS['uams_test_multisite'] ?? false;
+    return StandIn::multisite();
 }
 
 /** Signed out unless a test sets `$GLOBALS['uams_test_logged_in']`. */
 function is_user_logged_in(): bool
 {
-    return $GLOBALS['uams_test_logged_in'] ?? false;
+    return StandIn::logged_in();
 }
 
 function apply_filters(mixed $name, mixed $value, mixed ...$args): mixed
 {
-    foreach ($GLOBALS['uams_test_filters'][$name] ?? [] as $fn) {
+    foreach (StandIn::filters_for(Cast::string($name)) as $fn) {
         $value = $fn($value, ...$args);
     }
 
@@ -47,12 +50,12 @@ function apply_filters(mixed $name, mixed $value, mixed ...$args): mixed
 /** The part of WordPress's accent folding the tests rely on: the common accented Latin letters. */
 function remove_accents(mixed $text): string
 {
-    return strtr($text, ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'í' => 'i', 'ï' => 'i', 'ó' => 'o', 'ö' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'É' => 'E', 'Á' => 'A', 'Ö' => 'O', 'Ü' => 'U']);
+    return strtr(Cast::string($text), ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a', 'í' => 'i', 'ï' => 'i', 'ó' => 'o', 'ö' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c', 'É' => 'E', 'Á' => 'A', 'Ö' => 'O', 'Ü' => 'U']);
 }
 
 function wp_json_encode(mixed $value, mixed $flags = 0): string|false
 {
-    return json_encode($value, $flags);
+    return json_encode($value, Cast::int($flags));
 }
 
 if (! class_exists('WP_Post')) {
@@ -79,12 +82,16 @@ if (! function_exists('get_term')) {
     /** @return object|array<string, mixed>|null */
     function get_term(mixed $id, mixed $taxonomy = ''): object|array|null
     {
-        $GLOBALS['uams_test_term_calls'][] = $id;
-        if (array_key_exists('uams_test_get_term', $GLOBALS)) {
-            return $GLOBALS['uams_test_get_term'];
+        $key = is_int($id) || is_string($id) ? $id : '';
+        StandIn::add_term_call($key);
+        if (StandIn::has_get_term()) {
+            $term = StandIn::get_term();
+
+            /** @var object|array<string, mixed>|null $term */
+            return $term;
         }
 
-        return $GLOBALS['uams_test_term_objects'][$id] ?? ($id === 501 && $taxonomy === 'degree' && function_exists('uams_test_term') ? uams_test_term(501) : null);
+        return StandIn::term_objects()[$key] ?? ($id === 501 && $taxonomy === 'degree' && function_exists('uams_test_term') ? uams_test_term(501) : null);
     }
 }
 
@@ -92,14 +99,18 @@ if (! function_exists('get_post')) {
     function get_post(mixed $id): ?WP_Post
     {
         // A test that names no post for an ID gets a blank post, or whatever `uams_test_posts_default` holds, such as null for no post at all.
-        return array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : (array_key_exists('uams_test_posts_default', $GLOBALS) ? $GLOBALS['uams_test_posts_default'] : new WP_Post);
+        $key = is_int($id) || is_string($id) ? $id : '';
+        $post = array_key_exists($key, StandIn::posts()) ? StandIn::posts()[$key] : (StandIn::has_posts_default() ? StandIn::posts_default() : new WP_Post);
+
+        /** @var WP_Post|null $post */
+        return $post;
     }
 }
 
 if (! function_exists('update_site_option')) {
     function update_site_option(mixed $name, mixed $value): bool
     {
-        $GLOBALS['uams_test_options'][$name] = $value;
+        StandIn::put_option(Cast::string($name), $value);
 
         return true;
     }
