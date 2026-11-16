@@ -174,6 +174,7 @@ namespace UAMS_Search\Tests {
     use UAMS_Search\DB;
     use UAMS_Search\Rebuild;
     use UAMS_Search\SiteNames;
+    use UAMS_Search\Tests\Support\Prepare;
     use UAMS_Search\Tests\Support\StandIn;
     use UAMS_Search\Time;
 
@@ -189,9 +190,9 @@ namespace UAMS_Search\Tests {
         /** @var list<string> Every query the screen ran. */
         public array $queries = [];
 
-        public function prepare(mixed $sql): mixed
+        public function prepare(mixed $sql, mixed ...$args): string
         {
-            return $sql;
+            return Prepare::sql(Cast::string($sql), $args);
         }
 
         public function esc_like(mixed $s): mixed

@@ -11,7 +11,11 @@ namespace {
     /** @return array<int, mixed> */
     function get_sites(mixed $args): array
     {
-        $query = is_array($args) ? $args : [];
+        $query = [];
+        foreach (is_array($args) ? $args : [] as $key => $value) {
+            $query[(string) $key] = $value;
+        }
+
         StandIn::add_sites_args($query);
         $returned = StandIn::sites_return();
         if ($returned !== null) {
