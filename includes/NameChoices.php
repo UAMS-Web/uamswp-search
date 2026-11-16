@@ -119,7 +119,7 @@ final class NameChoices
                 foreach (\is_array($rows) ? $rows : [] as $row) {
                     // lists() renumbers keys and reads each name as text, so these casts change nothing.
                     // @pest-mutate-ignore:RemoveStringCast
-                    $found[$group][(string) ($row['type'] ?? '')][] = (string) ($row['name'] ?? '');
+                    $found[$group][Cast::string($row['type'] ?? '')][] = Cast::string($row['name'] ?? '');
                 }
             }
         }

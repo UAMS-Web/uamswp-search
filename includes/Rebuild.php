@@ -341,7 +341,7 @@ final class Rebuild
         global $wpdb;
         // Read the current site and check it is still eligible
         $site = $job['sites'][$job['site_index']];
-        $id = (int) $site['id'];
+        $id = Cast::int($site['id']);
         // The site ID is cast to int and the list holds ints, so loose and strict comparison agree.
         if (! \in_array($id, Config::index_sites(), true)) { // @pest-mutate-ignore:TrueToFalse
             throw new RuntimeException('A site is no longer eligible. Cancel and start a new rebuild.');
@@ -506,7 +506,7 @@ final class Rebuild
         $previous = $job['inflight'];
         // A numeric-string attempt count compares and adds the same as the int.
         // @pest-mutate-ignore:RemoveIntegerCast
-        $attempts = $previous && $previous['object'] === $object && $previous['phase'] === $job['phase'] ? (int) $previous['attempts'] : 0;
+        $attempts = $previous && $previous['object'] === $object && $previous['phase'] === $job['phase'] ? Cast::int($previous['attempts']) : 0;
         // Give up after three attempts
         if ($attempts >= 3) {
             return true;

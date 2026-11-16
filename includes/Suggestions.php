@@ -44,7 +44,7 @@ final class Suggestions
         global $wpdb;
         // Remove the object's earlier words. Without strict types the numeric text of a database row is turned into the same integers, so the casts change no result.
         // @pest-mutate-ignore:RemoveIntegerCast
-        self::remove((int) $row['site_id'], (int) $row['object_id']);
+        self::remove(Cast::int($row['site_id']), Cast::int($row['object_id']));
         // Collect the object's distinct words
         $stop = Text::stops();
         $words = \array_slice(array_unique(Text::words(implode(' ', array_intersect_key($row, array_flip(['title', 'content', 'fields', 'terms', 'pdf']))))), 0, 10000);
@@ -142,7 +142,7 @@ final class Suggestions
 
         // Give up when no site is in scope. Without strict types the site number is turned into the same integer, so the cast changes no result.
         // @pest-mutate-ignore:RemoveIntegerCast
-        $sites = Config::sites(Config::scope($args['scope'] ?? null), (int) ($args['site'] ?? get_current_blog_id()));
+        $sites = Config::sites(Config::scope($args['scope'] ?? null), Cast::int($args['site'] ?? get_current_blog_id()));
         if ($sites === []) {
             return null;
         }

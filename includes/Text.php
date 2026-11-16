@@ -158,7 +158,7 @@ final class Text
                     foreach (Config::entry('synonyms', $word) as $synonym) {
                         // Without strict types a number is turned into the same text, so the cast changes no result.
                         // @pest-mutate-ignore:RemoveStringCast
-                        $parts = self::tokens((string) $synonym);
+                        $parts = self::tokens(Cast::string($synonym));
                         if ($parts !== []) {
                             $alternatives[] = \count($parts) > 1 ? '"'.implode(' ', $parts).'"' : $parts[0].'*';
                         }

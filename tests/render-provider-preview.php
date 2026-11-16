@@ -36,7 +36,7 @@ class WP_Term
     public function __construct(public int $term_id, public string $name) {}
 }
 
-function get_post(mixed $id): mixed
+function get_post(mixed $id): WP_Post
 {
     return new WP_Post((int) $id);
 }

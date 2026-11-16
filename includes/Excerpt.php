@@ -29,7 +29,7 @@ final class Excerpt
         foreach ($sources as $source) {
             // Without strict types a number is turned into the same text, so the cast changes no result.
             // @pest-mutate-ignore:RemoveStringCast
-            $plain = Text::plain((string) $source);
+            $plain = Text::plain(Cast::string($source));
             // Split the text into words. A source with no text has no words and leaves the fallback empty, as if it were skipped.
             $words = preg_split('/\s+/u', $plain, flags: PREG_SPLIT_NO_EMPTY) ?: [];
             $n = \count($words);

@@ -88,10 +88,12 @@ if (! function_exists('get_term')) {
 }
 
 if (! function_exists('get_post')) {
-    function get_post(mixed $id): mixed
+    function get_post(mixed $id): ?WP_Post
     {
         // A test that names no post for an ID gets a blank post, or whatever `uams_test_posts_default` holds, such as null for no post at all.
-        return array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : (array_key_exists('uams_test_posts_default', $GLOBALS) ? $GLOBALS['uams_test_posts_default'] : new WP_Post);
+        $post = array_key_exists($id, $GLOBALS['uams_test_posts'] ?? []) ? $GLOBALS['uams_test_posts'][$id] : (array_key_exists('uams_test_posts_default', $GLOBALS) ? $GLOBALS['uams_test_posts_default'] : new WP_Post);
+
+        return $post instanceof WP_Post ? $post : null;
     }
 }
 
