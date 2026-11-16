@@ -9,7 +9,12 @@ namespace {
         /** @return array<string, string> */
         function get_post_types(mixed $args = []): array
         {
-            StandIn::set_post_types_args(is_array($args) ? $args : []);
+            $query = [];
+            foreach (is_array($args) ? $args : [] as $key => $value) {
+                $query[(string) $key] = $value;
+            }
+
+            StandIn::set_post_types_args($query);
 
             return array_key_exists('uams_test_post_types', $GLOBALS) ? StandIn::post_types() : ['post' => 'post'];
         }

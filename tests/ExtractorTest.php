@@ -91,7 +91,12 @@ namespace {
         /** @return array<int, mixed>|WP_Error */
         function wp_get_object_terms(mixed $_id, mixed $taxonomy, mixed $args = []): array|WP_Error
         {
-            StandIn::add_term_args([Cast::string($taxonomy), is_array($args) ? $args : []]);
+            $query = [];
+            foreach (is_array($args) ? $args : [] as $key => $value) {
+                $query[(string) $key] = $value;
+            }
+
+            StandIn::add_term_args([Cast::string($taxonomy), $query]);
 
             return StandIn::terms()[Cast::string($taxonomy)] ?? [];
         }
@@ -490,7 +495,7 @@ namespace UAMS_Search\Tests {
         {
             StandIn::put_meta_row(42, ['custom_field' => 'raw value', 'physician_first_name' => 'ignored']);
             StandIn::add_filter('uams_search_fields', static fn (array $fields, string $type): array => ['custom_field' => 2]);
-            StandIn::add_filter('uams_search_field_value', static fn ($value, string $name, WP_Post $post): string => strtoupper($value).' '.$name.' '.$post->ID);
+            StandIn::add_filter('uams_search_field_value', static fn ($value, string $name, WP_Post $post): string => strtoupper(Cast::string($value)).' '.$name.' '.$post->ID);
             $row = Extractor::extract($this->post(['post_type' => 'provider']));
 
             self::assertSame('RAW VALUE custom_field 42', self::text($row, 'fields'));

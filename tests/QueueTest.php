@@ -510,7 +510,7 @@ namespace UAMS_Search\Tests {
             return $this->delete_fails ? false : 1;
         }
 
-        /** @param array<mixed> $row */
+        /** @param array<string, mixed> $row */
         public function replace(string $table, array $row): int
         {
             $this->replaces[] = $row;
