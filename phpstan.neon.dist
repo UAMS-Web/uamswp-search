@@ -75,7 +75,10 @@ parameters:
     excludePaths:
         analyse:
             - tests/Integration
-            - tests/Support
+            # tests/Support is analyzed except for the three files that predate the typed accessor. IntegrationTestCase extends WP_UnitTestCase, which only the Integration suite's own Composer setup provides, so it cannot be analyzed here. meta-record.php and wp-shims.php declare untyped stand-ins that the stand-in typing slice (#271) rewrites, and until then they would fail at level 6. Every other file in the folder, StandIn.php included, is analyzed.
+            - tests/Support/IntegrationTestCase.php
+            - tests/Support/meta-record.php
+            - tests/Support/wp-shims.php
 
     # Indexed for symbols but not analyzed. `php-stubs/wordpress-stubs` covers
     # core's runtime surface and stops there: `WP_UnitTestCase`, the factories
