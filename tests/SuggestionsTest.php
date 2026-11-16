@@ -56,6 +56,21 @@ namespace UAMS_Search\Tests {
             self::assertSame([['wp_uams_search_word_docs', ['site_id' => 2, 'object_id' => 9]]], $this->db->deletes);
         }
 
+        public function test_remove_stops_before_deleting_when_prepare_gives_no_statement_back(): void
+        {
+            $this->db->prepare_gives_nothing = true;
+
+            try {
+                Suggestions::remove(2, 9);
+                self::fail('A statement that cannot be prepared must stop the removal.');
+            } catch (RuntimeException $runtimeException) {
+                self::assertSame('Database operation failed', $runtimeException->getMessage());
+            }
+
+            self::assertSame([], $this->db->queries);
+            self::assertSame([], $this->db->deletes);
+        }
+
         public function test_remove_throws_the_database_error_when_the_post_cannot_be_forgotten(): void
         {
             $this->db->delete_fails = true;
@@ -222,9 +237,12 @@ namespace UAMS_Search\Tests {
         /** @var list<string> */
         public array $page_queries = [];
 
-        public function prepare(string $query, mixed ...$args): string
+        /** Whether `prepare()` gives no statement back, as `wpdb` does when it cannot fill the placeholders. */
+        public bool $prepare_gives_nothing = false;
+
+        public function prepare(string $query, mixed ...$args): ?string
         {
-            return Prepare::sql($query, $args);
+            return $this->prepare_gives_nothing ? null : Prepare::sql($query, $args);
         }
 
         public function query(string $query): int

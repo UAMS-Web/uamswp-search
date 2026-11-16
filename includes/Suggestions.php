@@ -19,12 +19,12 @@ final class Suggestions
         int $site,
         int $id
     ): void {
-        global $wpdb;
+        $wpdb = Database::get();
         // Name the dictionary tables
         $words = DB::table('words');
         $docs = DB::table('word_docs');
         // Lower the frequency of each word the object used
-        DB::exec($wpdb->prepare("UPDATE `$words` w INNER JOIN `$docs` d ON d.word=w.word SET w.frequency=GREATEST(1,w.frequency)-1 WHERE d.site_id=%d AND d.object_id=%d", $site, $id));
+        DB::exec(self::prepared('UPDATE %i w INNER JOIN %i d ON d.word=w.word SET w.frequency=GREATEST(1,w.frequency)-1 WHERE d.site_id=%d AND d.object_id=%d', $words, $docs, $site, $id));
         // Delete the object's word list
         if ($wpdb->delete($docs, ['site_id' => $site, 'object_id' => $id]) === false) {
             throw new RuntimeException($wpdb->last_error);
@@ -35,13 +35,12 @@ final class Suggestions
      * Add one indexed object's words to the dictionary, replacing its earlier
      * words.
      *
-     * @param  array<string, mixed>  $row  An index row with `site_id`,
-     *                                     `object_id` and the `title`, `content`, `fields`, `terms` and `pdf`
-     *                                     text. At most 10,000 distinct words are kept.
+     * @param  array<mixed>  $row  An index row with `site_id`,
+     *                             `object_id` and the `title`, `content`, `fields`, `terms` and `pdf`
+     *                             text. At most 10,000 distinct words are kept.
      */
     public static function record(array $row): void
     {
-        global $wpdb;
         // Remove the object's earlier words
         self::remove(Cast::int($row['site_id']), Cast::int($row['object_id']));
         // Collect the object's distinct words
@@ -60,8 +59,8 @@ final class Suggestions
                 }
 
                 // Prepare the word's links to the object and its dictionary entry
-                $doc_values[] = $wpdb->prepare('(%d,%d,%s)', $row['site_id'], $row['object_id'], $word);
-                $word_values[] = $wpdb->prepare('(%s,%s,%d,1)', $word, Phonetic::key($word), mb_strlen($word));
+                $doc_values[] = self::prepared('(%d,%d,%s)', $row['site_id'], $row['object_id'], $word);
+                $word_values[] = self::prepared('(%s,%s,%d,1)', $word, Phonetic::key($word), mb_strlen($word));
             }
 
             // Skip a chunk with no usable words
@@ -85,28 +84,31 @@ final class Suggestions
         int $site,
         ?string $type
     ): void {
-        global $wpdb;
+        $wpdb = Database::get();
         // Remove dictionary entries for objects removed by a full/partial rebuild as well.
         $docs = DB::table('word_docs');
         $index = DB::table();
-        $stale = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT d.object_id FROM `$docs` d LEFT JOIN `$index` i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.site_id=%d AND (i.id IS NULL OR i.status='error')", $site));
+        // A failed query returns null, which reads as no stale objects, so the cast changes no result.
+        // @pest-mutate-ignore:RemoveArrayCast
+        $stale = (array) $wpdb->get_col(self::prepared("SELECT DISTINCT d.object_id FROM %i d LEFT JOIN %i i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.site_id=%d AND (i.id IS NULL OR i.status='error')", $docs, $index, $site));
         // Drop the words of every object that is no longer indexed
         foreach ($stale as $id) {
-            // Without strict types the numeric text of a database row is turned into the same integer, so the cast changes no result.
-            // @pest-mutate-ignore:RemoveIntegerCast
-            self::remove($site, (int) $id);
+            self::remove($site, Cast::int($id));
         }
 
         // Record the words of the ready objects, 50 at a time
         $last = 0;
         do {
-            $where = $wpdb->prepare("site_id=%d AND object_id>%d AND status IN ('ready','scanned')", $site, $last).($type ? $wpdb->prepare(' AND post_type=%s', $type) : '');
-            $rows = $wpdb->get_results("SELECT * FROM `$index` WHERE $where ORDER BY object_id LIMIT 50", ARRAY_A);
+            $where = self::prepared("site_id=%d AND object_id>%d AND status IN ('ready','scanned')", $site, $last).($type ? self::prepared(' AND post_type=%s', $type) : '');
+            // A failed query returns null, which reads as no rows, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $rows = (array) $wpdb->get_results("SELECT * FROM `$index` WHERE $where ORDER BY object_id LIMIT 50", ARRAY_A);
             foreach ($rows as $row) {
+                // A row is an array when it came from the database, so the cast changes no result.
+                // @pest-mutate-ignore:RemoveArrayCast
+                $row = (array) $row;
                 self::record($row);
-                // Without strict types the numeric text of a database row is turned into the same integer, so the cast changes no result.
-                // @pest-mutate-ignore:RemoveIntegerCast
-                $last = (int) $row['object_id'];
+                $last = Cast::int($row['object_id']);
             }
         } while ($rows);
 
@@ -128,7 +130,7 @@ final class Suggestions
         string $search,
         array $args
     ): ?string {
-        global $wpdb;
+        $wpdb = Database::get();
         // Quoted phrases are intentional. Do not rewrite them as unquoted text.
         if (str_contains($search, '"')) {
             return null;
@@ -167,11 +169,14 @@ final class Suggestions
             // Limit candidates to words used by indexed objects in scope
             $docs = DB::table('word_docs');
             $index = DB::table();
-            // Config::sites() returns integers, and the cast keeps the SQL safe should that change, so no input tells it apart.
-            // @pest-mutate-ignore:UnwrapArrayMap
-            $scope = 'EXISTS (SELECT 1 FROM `'.$docs.'` d INNER JOIN `'.$index."` i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.word=w.word AND i.status IN ('ready','scanned') AND d.site_id IN (".implode(',', array_map(intval(...), $sites)).'))';
+            // One `%d` for each site, so the site ids reach the statement as integers
+            // Only the number of placeholders matters, not the keys that `array_fill()` gives them.
+            // @pest-mutate-ignore:DecrementInteger,IncrementInteger
+            $marks = implode(',', array_fill(0, \count($sites), '%d'));
             // Read up to 500 candidates of similar length
-            $candidates = $wpdb->get_results($wpdb->prepare("SELECT word,frequency,phonetic FROM `$t` w WHERE frequency>0 AND word_length BETWEEN %d AND %d AND $scope ORDER BY (phonetic=%s) DESC,frequency DESC,word ASC LIMIT 500", max(3, $length - 2), $length + 2, $key), ARRAY_A);
+            // A failed query returns null, which reads as no candidates, so the cast changes no result.
+            // @pest-mutate-ignore:RemoveArrayCast
+            $candidates = (array) $wpdb->get_results(self::prepared("SELECT word,frequency,phonetic FROM %i w WHERE frequency>0 AND word_length BETWEEN %d AND %d AND EXISTS (SELECT 1 FROM %i d INNER JOIN %i i ON i.site_id=d.site_id AND i.object_id=d.object_id WHERE d.word=w.word AND i.status IN ('ready','scanned') AND d.site_id IN ($marks)) ORDER BY (phonetic=%s) DESC,frequency DESC,word ASC LIMIT 500", ...[$t, max(3, $length - 2), $length + 2, $docs, $index, ...$sites, $key]), ARRAY_A);
             // Pick the best candidate
             $best = null;
             $distance = PHP_INT_MAX;
@@ -179,7 +184,10 @@ final class Suggestions
             // @pest-mutate-ignore:FalseToTrue
             $best_near = false;
             foreach ($candidates as $candidate) {
-                $d = levenshtein($word, $candidate['word']);
+                // A candidate is an array when it came from the database, so the cast changes no result.
+                // @pest-mutate-ignore:RemoveArrayCast
+                $candidate = (array) $candidate;
+                $d = levenshtein($word, Cast::string($candidate['word']));
                 if ($d > 2 && ($key === '' || $candidate['phonetic'] !== $key)) {
                     continue;
                 }
@@ -187,9 +195,7 @@ final class Suggestions
                 // A truncated phonetic key can collide for long names. Prefer an actual
                 // one/two-letter correction over a merely sound-alike, then use frequency.
                 $near = $d <= 2;
-                // The frequencies come from the database as numeric text, which compares the same without the casts.
-                // @pest-mutate-ignore:RemoveIntegerCast
-                if (! $best || ($near && ! $best_near) || ($near === $best_near && ((int) $candidate['frequency'] > (int) $best['frequency'] || ((int) $candidate['frequency'] === (int) $best['frequency'] && $d < $distance)))) {
+                if (! $best || ($near && ! $best_near) || ($near === $best_near && (Cast::int($candidate['frequency']) > Cast::int($best['frequency']) || (Cast::int($candidate['frequency']) === Cast::int($best['frequency']) && $d < $distance)))) {
                     $best = $candidate;
                     $distance = $d;
                     $best_near = $near;
@@ -198,7 +204,7 @@ final class Suggestions
 
             // Replace the word with the best candidate
             if ($best) {
-                $word = $best['word'];
+                $word = Cast::string($best['word']);
                 $changed = true;
             }
         } unset($word);
@@ -236,5 +242,25 @@ final class Suggestions
         $args['per_page'] = 1;
 
         return Query::run(array_replace($args, ['s' => $search]));
+    }
+
+    /**
+     * Fill a statement's placeholders, and stop when the database object has no statement to give back.
+     *
+     * @param  literal-string  $query  The statement, with `%i` for table names.
+     * @param  mixed  ...$args  The values for the placeholders.
+     * @return string The prepared statement.
+     *
+     * @throws RuntimeException When `prepare()` returns nothing.
+     */
+    private static function prepared(string $query, mixed ...$args): string
+    {
+        $statement = Database::get()->prepare($query, ...$args);
+        // `prepare()` returns nothing when it has no statement to give back, and an empty statement is a different statement from the one asked for
+        if (! \is_string($statement)) {
+            throw new RuntimeException('Database operation failed');
+        }
+
+        return $statement;
     }
 }
