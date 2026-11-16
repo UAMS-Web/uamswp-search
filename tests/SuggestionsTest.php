@@ -8,10 +8,10 @@ namespace UAMS_Search\Tests {
     use PHPUnit\Framework\TestCase;
     use ReflectionProperty;
     use RuntimeException;
-    use UAMS_Search\Cast;
     use UAMS_Search\DB;
     use UAMS_Search\Phonetic;
     use UAMS_Search\Suggestions;
+    use UAMS_Search\Tests\Support\Prepare;
     use UAMS_Search\Tests\Support\StandIn;
 
     /** Pins for the spelling dictionary (#5). A recording stand-in replaces `$wpdb`; `suggest()` needs the query engine and is only pinned at its early exits. */
@@ -224,14 +224,7 @@ namespace UAMS_Search\Tests {
 
         public function prepare(string $query, mixed ...$args): string
         {
-            $args = is_array($args[0] ?? null) ? $args[0] : $args;
-            $i = 0;
-
-            return (string) preg_replace_callback('/%[dsf]/', static function (array $m) use (&$i, $args): string {
-                $value = $args[$i++];
-
-                return $m[0] === '%s' ? "'".Cast::string($value)."'" : Cast::string($value);
-            }, $query);
+            return Prepare::sql($query, $args);
         }
 
         public function query(string $query): int
