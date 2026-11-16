@@ -130,6 +130,14 @@ namespace UAMS_Search\Tests {
             self::assertFalse(DB::lock());
         }
 
+        public function test_a_statement_that_prepare_does_not_give_back_is_a_failure_not_an_empty_statement(): void
+        {
+            $this->db->prepare_nothing = true;
+
+            $this->expectExceptionObject(new RuntimeException('Database operation failed'));
+            DB::lock();
+        }
+
         public function test_unlock_releases_the_same_named_lock(): void
         {
             DB::unlock();
@@ -340,6 +348,8 @@ namespace UAMS_Search\Tests {
 
     final class FailingSchemaDb
     {
+        public string $dbname = 'test';
+
         public function __construct(private SchemaDb $inner) {}
 
         /** @param array<mixed> $args */
@@ -400,9 +410,12 @@ namespace UAMS_Search\Tests {
             return $text;
         }
 
-        public function prepare(string $query, mixed ...$args): string
+        /** Whether `prepare()` gives nothing back, as `wpdb::prepare()` does when it has no statement. */
+        public bool $prepare_nothing = false;
+
+        public function prepare(string $query, mixed ...$args): ?string
         {
-            return Prepare::sql($query, $args);
+            return $this->prepare_nothing ? null : Prepare::sql($query, $args);
         }
 
         public function get_var(string $query): ?string
