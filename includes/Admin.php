@@ -106,8 +106,8 @@ final class Admin
             // A menu item is an array WordPress built, so the cast changes nothing for it.
             // @pest-mutate-ignore:RemoveArrayCast
             $item = (array) $item;
-            if (strip_tags(Cast::string($item[0] ?? '')) === 'UAMS Settings') {
-                add_submenu_page(Cast::string($item[2] ?? ''), 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
+            if (strip_tags(Cast::string($item[0])) === 'UAMS Settings') {
+                add_submenu_page(Cast::string($item[2]), 'Search', 'Search', 'manage_options', 'uams-search-site', [self::class, 'site_page']);
                 break;
             }
         }
