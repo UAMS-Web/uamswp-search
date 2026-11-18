@@ -23,17 +23,17 @@ One heading per message or symptom, as it appears in the admin screens, the **Re
 
 ### `Index is missing. Run wp uams-search index.`
 
-**Cause:** no index has been built for the site yet.
+**Cause:** the index tables are missing, or their stored schema version does not match the plugin, for example after an upgrade.
 
-**Fix:** click **Rebuild Index** on the **Index** screen, or run `wp uams-search index`.
+**Fix:** open the **Index** screen and click **Create index tables**, then rebuild.
 
 ## Rebuild messages
 
 ### `No eligible sites. Include no-index sites for signed-in previews if this is a staging install.`
 
-**Cause:** every site is marked no-index, archived or excluded, which is usual on staging.
+**Cause:** every site is marked no-index, archived, spam, deleted or not public, which is usual on staging.
 
-**Fix:** tick **Include No-Index Sites for Signed-In Previews** beside **Rebuild Index**, then start the rebuild. The CLI form of this message is `No sites are eligible.`
+**Fix:** tick **Include No-Index Sites for Signed-In Previews** beside **Rebuild index**, then start the rebuild. `wp uams-search index --all` prints `No sites are eligible. Use the rebuild button in UAMSWP Search settings to include no-index sites for signed-in previews.` for the same cause.
 
 ### `Choose at least one content type in the settings first.`
 
@@ -43,7 +43,7 @@ One heading per message or symptom, as it appears in the admin screens, the **Re
 
 **Cause:** the settings were saved while a rebuild was paused or running, so its staged rows no longer match them.
 
-**Fix:** click **Cancel rebuild**, then **Rebuild Index**.
+**Fix:** click **Cancel rebuild**, then **Rebuild index**.
 
 ### `The server is low on memory. Pause other work, then resume the rebuild.`
 
@@ -53,13 +53,13 @@ One heading per message or symptom, as it appears in the admin screens, the **Re
 
 ### `This rebuild is no longer current. Reload the page.`
 
-**Cause:** a newer rebuild was started, for example from another tab, so this tab's rebuild is no longer the active one.
+**Cause:** the rebuild this tab was driving was canceled or replaced, for example from another tab.
 
 **Fix:** reload the page.
 
 ### `A browser rebuild is active. Resume or cancel it in UAMSWP Search settings first.`
 
-**Cause:** a WP-CLI index or reindex was run while a browser rebuild was running or paused.
+**Cause:** `wp uams-search index` was run while a browser rebuild was running or paused. `reindex` prints `Resume or cancel the browser rebuild before reindexing.` for the same cause.
 
 **Fix:** finish or cancel the browser rebuild, then run the command again.
 
@@ -75,21 +75,23 @@ These appear under **Reports > Failed Items and PDFs Without Text**. See [PDFs](
 
 ### `PDF exceeds size limit`
 
-**Cause:** the file is larger than `pdf_max_mb` (20 MB by default). It stays searchable by title and file name.
+**Cause:** the file is larger than **Largest PDF, MB** (20 by default).
+
+**Note:** this and every other PDF error below drop the PDF out of search entirely, title included. Raise the limit or fix the cause, then use the retry link.
 
 ### `PDF extraction timed out`
 
-**Cause:** extraction ran past `pdf_timeout` (30 seconds by default), and the child process was killed.
+**Cause:** extraction ran past **PDF Time Limit, Seconds** (30 by default, at most 120), and the child process was killed.
 
 ### `PDF extraction requires proc_open for enforced time and memory limits`
 
-**Fix:** ask the host to allow `proc_open`. Without it, PDFs are not read during visitor requests.
+**Fix:** ask the host to allow `proc_open`. Without it, no PDF can be extracted.
 
 ### `PDF fallback needs an executable PHP CLI; set uams_search_php_binary.`
 
 **Cause:** Poppler's `pdftotext` is missing or failed, and no PHP CLI was found for the fallback parser.
 
-**Fix:** install Poppler, or return the PHP CLI's path from the `uams_search_php_binary` filter ([Filters and PHP API](Filters-and-PHP-API.md)). `wp uams-search doctor` shows what was found.
+**Fix:** install Poppler, or return the PHP CLI's path from the `uams_search_php_binary` filter ([Filters and PHP API](Filters-and-PHP-API.md)). `wp uams-search doctor` does not test the PHP CLI path the fallback uses, so check that path directly.
 
 ### `PDF file is missing or outside uploads`
 

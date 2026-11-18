@@ -64,7 +64,7 @@ Search, and optionally explain each column's score.
 | --- | --- | --- |
 | `<terms>` | | The search text. |
 | `--site=<id>` | the current site | The site to search from. |
-| `--scope=<scope>` | `site` | `site` or `install`. |
+| `--scope=<scope>` | `site` | `site` or `install`. On the main site of a subdirectory network, `site` is not offered and the search covers the whole install. |
 | `--type=<type>` | every type | Only results of this post type. |
 | `--explain` | off | Print each column's contribution to the score. |
 

@@ -17,7 +17,9 @@ Under **Network Admin > UAMSWP Search > Settings** (on a single site, **Settings
 | Sub-Sites in Whole-Website Search | `sites` | every eligible site | The sites searched by the install-wide scope. | no |
 | Source Weights | `weights` | title 5, terms 3, fields 2, content 1, pdf 1 | How much a match in each source counts. | no |
 | Content To Index: Include This Content Type | `types` | provider 1.5, expertise 1.3, location 1.2, condition 1.0, treatment 1.0, page 1.0, post 0.8, attachment 0.8 | Which post types are indexed, and each type's weight. | yes to add or remove a type; no for its weight |
-| Content To Index: fields and taxonomies | `fields`, `taxonomies` | see [Find-a-Doc content](Find-a-Doc-content.md) | Which fields and terms are read, each with a weight. | yes |
+| Largest PDF, MB | `pdf_max_mb` | 20 | Largest PDF read, 1 to 100. | yes |
+| PDF Time Limit, Seconds | `pdf_timeout` | 30 | Time allowed for one PDF's extraction, 1 to 120. | yes |
+| Content To Index: ACF Fields and Taxonomies | `fields`, `taxonomies` | see [Find-a-Doc content](Find-a-Doc-content.md) | Which fields and terms are read, each with a weight. | yes |
 | Extra Stop Words, Separated by Spaces | `stopwords` | none | Words left out of the index. | yes |
 | Synonyms, One Rule per Line | `synonyms` | none | Rules such as `heart = cardiac, cardiology`. | no |
 
@@ -27,24 +29,21 @@ Keys with no control on the screen, changed only through `uams_search_config`:
 
 | Key | Default | Effect |
 | --- | --- | --- |
-| `related_provider_weight` | 0.25 | Weight of provider names copied onto related pages. |
-| `pdf_max_mb` | 20 | Largest PDF read, in megabytes. |
-| `pdf_timeout` | 30 | Seconds allowed for one PDF's extraction. |
+| `related_provider_weight` | 0.25 | Weight of provider names copied onto related pages. Changing it flags every site for a rebuild. |
 | `extract_warn_seconds` | 5 | Extraction time above which a `UAMS Search: slow extraction` line is written to the PHP error log. |
-| `phrase_bonus` | 5 | Extra score for an exact phrase match. |
+| `phrase_bonus` | 5 | Extra score when the title contains the whole search phrase. |
 | `recency` | 0.15 | Extra score for a recent news post (`post` type), shrinking with each year since it was published. |
-| `preview_noindex` | on in `local`, `development` and `staging` environments | Default for the signed-in preview checkbox below. |
 
 ## Signed-in previews
 
-**Include No-Index Sites for Signed-In Previews** sits beside **Rebuild Index** on the **Index** screen. It lets healthy sub-sites marked no-index be indexed so signed-in users can preview them. It defaults on in `local`, `development` and `staging` environments and can be ticked on a staging host with any environment label. It does not change any site's search-engine visibility, and anonymous visitors keep the normal visibility rule.
+**Include No-Index Sites for Signed-In Previews** sits beside the **Rebuild index** button on the **Index** screen, and starting a rebuild saves it as the `preview_noindex` setting. It lets healthy sub-sites marked no-index be indexed so signed-in users can preview them. It defaults on in `local`, `development` and `staging` environments and can be ticked on a staging host with any environment label. It does not change any site's search-engine visibility, and anonymous visitors keep the normal visibility rule. The setting also decides which sites signed-in users and WP-CLI can search, and changing it flags every site for a rebuild.
 
 ## Per-site settings
 
 Under each site's **Settings > UAMSWP Search**, or **UAMS Settings > Search** where that menu exists.
 
 - **Default Search Scope:** **This site**, **All of** the main site's name (on a sub-site of a subdirectory network), or **All UAMS websites** (the Google block). On the main site of a subdirectory network, **This site** searches the whole install.
-- **Show the Existing All of UAMS Google Search** (`uams_search_google`): off by default. The block loads Google's Custom Search script, which cannot carry Subresource Integrity, so it prints nothing and the All UAMS websites scope is not offered until this is ticked or the `uams_search_google_enabled` filter returns true. Turning it on is a launch decision, recorded in the [decision log](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/DECISIONS.md) (2026-11-15).
+- **Show the Existing All of UAMS Google Search** (`uams_search_google`): off by default. The plugin supplies this per-site checkbox because the older reference theme has no usable settings hook for its Google block. The block loads Google's Custom Search script, which cannot carry Subresource Integrity, so it prints nothing and the All UAMS websites scope is not offered until this is ticked or the `uams_search_google_enabled` filter returns true. Turning it on is a launch decision, recorded in the [decision log](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/DECISIONS.md) (2026-11-15).
 
 ## PDF attachments
 

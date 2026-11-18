@@ -16,7 +16,7 @@ Each source (title, terms, fields, content, PDF) has its own full-text index, wh
 
 ## Per-field weights
 
-`weighted_data` holds each field's stemmed text so a field can carry its own weight. `JSON_TABLE` is used only when those weights differ from 1 or a field-list filter is active; the target MariaDB version supports it.
+`weighted_data` holds each field's stemmed text so a field can carry its own weight. `JSON_TABLE` is used when those weights differ from 1, when a field-list filter is active, or when `related_provider_weight` is not 1. That weight defaults to 0.25, so with default settings every query uses it. The target MariaDB version supports it.
 
 ## Short words
 

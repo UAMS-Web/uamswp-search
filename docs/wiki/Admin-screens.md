@@ -6,7 +6,7 @@ On a single-site install the three network screens are under **Settings** instea
 
 ## Index
 
-Rebuild the index and read its status. The **Rebuild Index** button runs the rebuild in the browser, and **Index Status** shows the counts per site. The **Include No-Index Sites for Signed-In Previews** checkbox sits beside the button; see [Rebuilding the index](Rebuilding-the-index.md).
+Rebuild the index and read its status. The **Rebuild index** button runs the rebuild in the browser, and **Index Status** shows the counts per site. The **Include No-Index Sites for Signed-In Previews** checkbox sits beside the button; see [Rebuilding the index](Rebuilding-the-index.md).
 
 ## Reports
 

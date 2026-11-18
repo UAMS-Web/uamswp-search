@@ -4,7 +4,7 @@ How results are rendered while UAMSWP Search answers a search, and when the them
 
 ## The template
 
-On the reference Genesis theme, the plugin supplies its own search template while its engine is selected, because the theme's template runs several secondary queries. The template renders one combined, paginated list with h1, h2 and h3 headings, visible scope and type links, safe excerpts, and the optional Google block. On other themes the plugin supplies a header, main and footer template. Either can be replaced with the `uams_search_template` filter; see [Filters and PHP API](Filters-and-PHP-API.md).
+On the reference Genesis theme, the plugin supplies its own search template while its engine is selected, because the theme's template runs several secondary queries and does not match the newer template the spec describes. The template renders one combined, paginated list with h1, h2 and h3 headings, visible scope and type links, safe excerpts, and the optional Google block. On other themes the plugin supplies a header, main and footer template, which the `uams_search_template` filter can replace; the Genesis template cannot be replaced that way. See [Filters and PHP API](Filters-and-PHP-API.md).
 
 ## Provider cards
 

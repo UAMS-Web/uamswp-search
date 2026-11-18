@@ -7,18 +7,20 @@ How PDF text is extracted, and the limits that keep extraction from slowing a si
 - PDFs are read from local files within the uploads folder. File size and modified date decide whether text extracted earlier is reused.
 - Poppler's `pdftotext` is preferred. When it is missing or fails within the time budget, the bundled PHP parser (smalot/pdfparser 2.13.1, namespaced so it cannot collide with another plugin's copy) runs in a child process with a 128 MB memory limit.
 - Both extractors share one time budget, and the parent kills a process that runs past it.
-- Extraction needs `proc_open`, and either `pdftotext` or a PHP CLI. Use `uams_search_pdftotext` or `uams_search_php_binary` when they are outside the `PATH` ([Filters and PHP API](Filters-and-PHP-API.md)). Run `wp uams-search doctor` to see what the server has.
+- Extraction needs `proc_open`, and either `pdftotext` or a PHP CLI. Use `uams_search_pdftotext` or `uams_search_php_binary` when they are outside the `PATH` ([Filters and PHP API](Filters-and-PHP-API.md)). `wp uams-search doctor` reports `proc_open` and whether `pdftotext` is on the `PATH`; it does not apply either filter or test the PHP CLI the fallback uses.
 
 ## Limits
 
 | Limit | Default | Key |
 | --- | --- | --- |
-| Largest PDF read | 20 MB | `pdf_max_mb` |
-| Time per PDF | 30 seconds | `pdf_timeout` |
-| Text kept per PDF | 16 MB | fixed |
+| Largest PDF read | 20 MB (1 to 100) | **Largest PDF, MB** |
+| Time per PDF | 30 seconds (1 to 120) | **PDF Time Limit, Seconds** |
+| Extractor output per PDF | 16 MB; more fails the PDF | fixed |
 | Memory for the PHP parser | 128 MB | fixed |
 
 When safe background extraction is unavailable, the item records an error instead of parsing during a visitor's request.
+
+**Warning:** a PDF whose extraction fails (too large, timed out, too much output, no extractor) becomes an error row and drops out of search entirely, title included, until it is fixed and retried. Only a PDF that extracts with no text keeps its title and file name matches.
 
 ## PDFs without text
 
