@@ -43,7 +43,7 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 
 **Rejected.** The session toggle in the spec: unsupported on MariaDB. A global server setting: not the plugin's to change.
 
-**Companion.** [`README.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/README.md) ("Database choices"); [`docs/VERIFICATION.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/VERIFICATION.md) ("Spec adjustments").
+**Companion.** [Database design](https://github.com/UAMS-Web/uamswp-search/wiki/Database-design) (wiki); [`docs/VERIFICATION.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/VERIFICATION.md) ("Spec adjustments").
 
 ## 2026-10-29 Rebuild a site with a transactional per-site copy, not a table rename (spec)
 
@@ -73,7 +73,7 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 
 **Rejected.** Separate full-text indexes only: a query whose words are spread across sources would not match.
 
-**Companion.** [`README.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/README.md) ("Database choices"); [`docs/VERIFICATION.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/VERIFICATION.md) ("Spec adjustments").
+**Companion.** [Database design](https://github.com/UAMS-Web/uamswp-search/wiki/Database-design) (wiki); [`docs/VERIFICATION.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/VERIFICATION.md) ("Spec adjustments").
 
 ## 2026-10-29 Rank spelling suggestions by document frequency with bounded candidate lists (spec)
 
@@ -83,7 +83,7 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 
 **Rejected.** Phonetic matching alone: it collides on long names with the same sound-key prefix. Unbounded candidate lists: unbounded background and suggestion cost, at the price of missing some corrections for rare words.
 
-**Companion.** [`README.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/README.md) ("Database choices"); [`docs/VERIFICATION.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/VERIFICATION.md) ("Spec adjustments").
+**Companion.** [Database design](https://github.com/UAMS-Web/uamswp-search/wiki/Database-design) (wiki); [`docs/VERIFICATION.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/docs/VERIFICATION.md) ("Spec adjustments").
 
 ## 2026-10-29 Bundle smalot/pdfparser as a namespaced copy under `lib/pdfparser`, not through Composer (#26)
 
@@ -145,3 +145,13 @@ Every entry heading is `## YYYY-MM-DD`, a space, and a short title. Leave exactl
 **Rejected.** Name a date or quarter now: none exists to record. Disable or remove the built phase 2 and 3 features: it discards tested work to avoid a risk the build has already taken.
 
 **Companion.** [#297](https://github.com/UAMS-Web/uamswp-search/issues/297); the open question in `docs/SPEC.md`.
+
+## 2026-11-18 Keep the overview in the README and the long-form documentation in the wiki (#363)
+
+**Decision.** The README keeps what the plugin does, its status, requirements, installation and the development notes. Settings, operations, the WP-CLI commands, filters, the results template, Find-a-Doc content, PDFs, privacy, database design, the release gates and troubleshooting move to the GitHub wiki, written in `docs/wiki/` and published by the `Publish wiki` workflow on each release and by hand.
+
+**Why.** The project owner ruled on 2026-11-18 that tickets of this kind publish the wiki from the repository, so the pages are reviewed in a pull request like any other document. One copy of each topic keeps the README and the wiki from drifting.
+
+**Rejected.** Keeping the reference in the README: it had grown past an overview, and a copy in both places drifts. Editing the wiki in the browser: no review, and each publish replaces it. GitHub Pages: more setup than this documentation needs. Accepted cost: search engines index a wiki only once the repository has 500 stars and editing is restricted, and this repository has none, so the moved pages are not found through a web search.
+
+**Companion.** [`.claude/skills/github-wiki/SKILL.md`](https://github.com/UAMS-Web/uamswp-search/blob/main/.claude/skills/github-wiki/SKILL.md); [#363](https://github.com/UAMS-Web/uamswp-search/issues/363).
