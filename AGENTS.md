@@ -6,7 +6,7 @@ Everything above the generated section below belongs to this repository and is e
 
 ## About this repository
 
-`uams search` is a network-activated WordPress multisite plugin that replaces SearchWP on the UAMS installs. It indexes posts, fields and PDF text into its own tables, searches them with InnoDB full-text indexes, and calls no external search service; the one exception is the optional Google "All UAMS websites" block, which loads Google's script on the results page. Runtime code is `uams-search.php`, `includes/`, `assets/`, `templates/`, `lib/pdfparser/` and `scripts/pdf-worker.php`, which is exactly what the `.gitattributes` keep-list puts in the download. `README.md` holds the operator view: install, settings, requirements, database choices and release gates.
+`uams search` is a network-activated WordPress multisite plugin that replaces SearchWP on the UAMS installs. It indexes posts, fields and PDF text into its own tables, searches them with InnoDB full-text indexes, and calls no external search service; the one exception is the optional Google "All UAMS websites" block, which loads Google's script on the results page. Runtime code is `uams-search.php`, `includes/`, `assets/`, `templates/`, `lib/pdfparser/` and `scripts/pdf-worker.php`, which is exactly what the `.gitattributes` keep-list puts in the download. `README.md` holds the overview: status, requirements and installation, plus the development notes. Everything longer (settings, operations, the WP-CLI commands, filters, database design, release gates and troubleshooting) is in the GitHub wiki, published from `docs/wiki/` by `.github/workflows/publish-wiki.yml`; edit the pages there, never in the browser.
 
 ### Development install
 
