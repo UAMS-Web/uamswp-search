@@ -30,13 +30,13 @@ What the gate does on a red verdict, and why it applies a label rather than flip
 - **A description edit on a pull request handed back for its code clears the label too.** The workflow cannot tell which part the finding was about. The gate's re-check finds the head unchanged since the hand-back and hands it back again without re-running the jobs (`pre-merge-check`, *A finding in the description alone*), so the cost is one comment and a label that comes back.
 - A job-level `if:` skips it unless the pull request carries `handed-back`, so a push to any other pull request starts no runner and spends no minutes.
 - It removes that one label with a single `DELETE /repos/{o}/{r}/issues/{n}/labels/handed-back` under the job's own `GITHUB_TOKEN`, leaving every other label in place. A `200` or a `404` (the label is already gone) is success with no further call. Any other status is read against the label set instead of being taken as the verdict: the step lists the pull request's labels and passes when `handed-back` is absent (logging the status it saw), fails when the label is still present, and fails when the list cannot be read, since GitHub has answered `500` for a call whose write had landed.
-- It is gated on `RUN_REMOTE_CI` like the rest of CI: the job condition starts with `vars.RUN_REMOTE_CI != 'false'`, so a private repository with the variable set to `false` skips it and bills no minutes. A skipped run removes nothing: while the switch is off, a push or a description edit leaves `handed-back` in place until a run with the switch on.
+- It is not gated on `RUN_REMOTE_CI` (UAMS-Web/uams-claude-skills#832): a private repository, where the variable is `false`, removes the label on a push too. The job-level `if:` already skips it, and bills nothing, on every pull request without the label, and it is not a required check.
 
 The job runs under its own token, so a `.claude/settings.json` that denies `gh api -X DELETE` to the gate's sessions does not reach it.
 
 ## Copying it into a repository
 
-The sync delivers this skill under `.claude/` and `.agents/` and creates no workflow under `.github/`, so a repository copies the workflow once, in its own reviewed pull request (after that, the sync keeps an existing copy current, see *To change the workflow* below):
+A repository that carries the `local-ci` profile gets the workflow from the sync, which writes `.github/workflows/clear-handed-back.yml` when it is absent and rewrites it whenever it differs from the template (a `replace` seed, UAMS-Web/uams-claude-skills#832). A repository that includes this skill without that profile copies the workflow once, in its own reviewed pull request, and the sync then keeps the copy current (see *To change the workflow* below):
 
 ```bash
 mkdir -p .github/workflows
