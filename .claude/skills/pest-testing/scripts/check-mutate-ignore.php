@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+// cspell:ignore NULLSAFE PAAMAYIM NEKUDOTAYIM VARARG LNUMBER DNUMBER
+
 /**
  * Report `@pest-mutate-ignore` annotations that do not do what they say.
  *
@@ -43,6 +45,19 @@ declare(strict_types=1);
  *              Reported only where `explode(PHP_EOL, ...)` cannot split these files, which
  *              is a CRLF runtime meeting LF files. `lineMapIsLive()` reads the installed
  *              plugin to decide, so an upstream fix retires the finding.
+ *   unattached A standalone marker whose next code, on a later line, starts no node: an
+ *              infix operator (`&&`, `||`, `and`, `or`, `xor`, `??`, `.`, `?`, `:`, the
+ *              arithmetic, bitwise and comparison operators, `instanceof`), an object or
+ *              scope operator (`->`, `?->`, `::`), `=>`, `,`, `)` or `]`. php-parser
+ *              attaches the comment to no node and no node starts on the marker's line,
+ *              so neither mechanism reaches anything (UAMS-Web/uams-claude-skills#846).
+ *              The usual shape is a long condition with the operator leading each
+ *              continuation line, as Pint leaves it: wrap the operand in parentheses and
+ *              put the marker directly above it. `+`, `-`, `&` and `?` are flagged only
+ *              after an operand, because as a prefix (unary minus, a reference, a
+ *              nullable type) they start a node and the marker attaches to it. After a
+ *              `}` they are not judged (see `OPERAND_ENDS`), so a marker above `- 1`
+ *              after a `match` or `new class` expression passes unflagged.
  *
  * BOUND. This checks the ANNOTATION, never the node beneath it. It cannot see a mutator
  * that targets the annotated node itself where the line map is dead, and it does not map
@@ -52,8 +67,26 @@ declare(strict_types=1);
  * annotated is the `adversarial-review` rule's, and out of scope here.
  *
  * Only comment tokens are inspected (`token_get_all`), so a heredoc or string that
- * contains the marker is not a finding. A comment is an annotation only when the marker
- * opens its content; a sentence that merely mentions the marker is prose about it.
+ * contains the marker is not a finding. Every comment that contains the marker is an
+ * annotation, wherever the marker sits, because the plugin's pattern matches it anywhere
+ * in the comment's text (UAMS-Web/uams-claude-skills#848). A marker is "after prose" when its
+ * own line within the comment carries text before it other than the comment opener, `*` and
+ * whitespace; a marker that begins a doc comment line is judged like a standalone one, however
+ * much text the lines above it hold. A marker after prose, as in
+ * `/** Guard kept. @pest-mutate-ignore`, is classified exactly as the plugin reads it, so a
+ * bare one is reported as `bare` and one naming a known mutator beside prose as `prose`, and the finding names the
+ * marker's own line and says it follows prose. A sentence that only mentions the marker
+ * (`// Put @pest-mutate-ignore above the node`) is counted but never flagged, in any position,
+ * when the plugin reads its tail as naming no mutator: it suppresses nothing, and its author
+ * meant no annotation, where a standalone marker with such a tail was meant as one and is
+ * flagged `inert`. Flagging these would only make every repository reword harmless prose (21
+ * such sentences in uams-statamic at 7bc77e5). The same sentence ending at the marker is a
+ * blanket suppression and is flagged `bare`, so mention the marker without its `@`
+ * (`pest-mutate-ignore`) where a rewrap could leave it at a line end.
+ *
+ *   second     The plugin reads only the FIRST marker in a comment, so a later marker in the
+ *              same comment is never applied. Reported unless it too is a mere mention
+ *              (after prose, naming no mutator), with the later marker's line.
  *
  * USAGE
  *     php check-mutate-ignore.php [path ...]
@@ -80,8 +113,13 @@ declare(strict_types=1);
  * The denominator (files scanned, annotations seen, mutator names known) is printed
  * BEFORE any finding, so a run that scanned nothing cannot read as a clean one. Two
  * controls run on every invocation: a planted bare marker, a planted inert tail and a
- * planted valid annotation must be classified as bare, inert and clean. A classifier that
- * cannot tell them apart exits 2 before it reads a single project file.
+ * planted valid annotation must be classified as bare, inert and clean, and planted
+ * markers above a leading `&&`, `||` and infix `-` (and a block marker above `&&`) must
+ * be flagged while the same marker above the parenthesized operand, above a unary
+ * minus, or after a braceless `if` is not; a bare marker after prose in a doc comment must
+ * be flagged, while a known name after prose and a sentence that mentions the marker are
+ * not. A classifier that cannot tell
+ * them apart exits 2 before it reads a single project file.
  */
 const MEASURED_VERSION = 'v5.0.2';
 const MEASURED_NODE_VISITOR_SHA256 = '26157ab3378cc9d1673019cd9a916dbdafd601a2d987c6fdd68792784dface2f';
@@ -292,7 +330,208 @@ function controlsPass(array $known): bool
         }
     }
 
+    // The attachment check: a marker above a leading `&&` or `||`, a block marker on its own
+    // line above `&&`, and a marker above an infix `-` are unattached; the same marker above
+    // the parenthesized operand, above a unary minus, or after a braceless `if` attaches
+    $marker = '    // '.MARKER.': '.$name."\n";
+    $block = '    /* '.MARKER.': '.$name." */\n";
+    $layouts = [
+        ["<?php\nif (\n    \$a\n".$marker."    && \$b !== ''\n) {}\n", 1],
+        ["<?php\n\$x = \$a\n".$marker."    || \$b;\n", 1],
+        ["<?php\n\$x = \$a\n".$block."    && \$b;\n", 1],
+        ["<?php\n\$x = \$a\n".$marker."    - 1;\n", 1],
+        ["<?php\nif (\n    \$a\n    && (\n".$marker."        \$b !== ''\n    )\n) {}\n", 0],
+        ["<?php\n\$x = [\n".$marker."    -1,\n];\n", 0],
+        ["<?php\nif (\$a)\n".$marker."    -\$b;\n", 0],
+        // #848: a marker after prose is read like any other
+        ["<?php\n/**\n * Guard kept. ".MARKER."\n */\nfunction f() {}\n", 1],
+        ["<?php\n// Guard kept. ".MARKER.': '.$name."\n\$a = 1;\n", 0],
+        ["<?php\n// Put ".MARKER." above the node.\n\$a = 1;\n", 0],
+    ];
+
+    foreach ($layouts as [$planted, $expected]) {
+        if (count(scanSource($planted, 'control', $known, true)['findings']) !== $expected) {
+            return false;
+        }
+    }
+
     return true;
+}
+
+/**
+ * Tokens that, as the first code after a standalone marker on a later line, leave the
+ * marker attached to no node. php-parser attaches a comment to the next node that STARTS
+ * after it, and an infix operator, an object or scope operator, a separator or a closer
+ * starts none: the expression it belongs to began on an earlier line. Measured with a
+ * visitor recording which node carries the comment, php-parser v5.9.0
+ * (9e33da9553fe): every token here left the comment on no node. Names are compared as
+ * `token_name()` strings, so PHP 8 tokens need no constant on PHP 7.4.
+ */
+const UNATTACHED_AFTER = [
+    'T_BOOLEAN_AND', 'T_BOOLEAN_OR', 'T_LOGICAL_AND', 'T_LOGICAL_OR', 'T_LOGICAL_XOR',
+    'T_COALESCE', 'T_IS_EQUAL', 'T_IS_NOT_EQUAL', 'T_IS_IDENTICAL', 'T_IS_NOT_IDENTICAL',
+    'T_IS_SMALLER_OR_EQUAL', 'T_IS_GREATER_OR_EQUAL', 'T_SPACESHIP', 'T_POW', 'T_SL', 'T_SR',
+    'T_INSTANCEOF', 'T_OBJECT_OPERATOR', 'T_NULLSAFE_OBJECT_OPERATOR', 'T_DOUBLE_COLON',
+    'T_PAAMAYIM_NEKUDOTAYIM', 'T_DOUBLE_ARROW',
+    '.', ':', '*', '/', '%', '<', '>', '|', '^', ')', ']', ',',
+];
+
+/**
+ * Tokens that are an infix operator after an operand and a prefix (unary minus, a
+ * reference, a nullable type) anywhere else. As a prefix they start a node, and the
+ * marker attaches to it (measured: `ArrayItem`, `Arg`, `Param`, `Expr_UnaryMinus`), so
+ * these are flagged only when the code before the marker ends an operand.
+ */
+const UNATTACHED_AFTER_OPERAND = [
+    '+', '-', '&', '?', 'T_AMPERSAND_FOLLOWED_BY_VAR_OR_VARARG', 'T_AMPERSAND_NOT_FOLLOWED_BY_VAR_OR_VARARG',
+];
+
+/**
+ * Tokens an operand can end with, so that a following `+`, `-`, `&` or `?` is infix. A
+ * `)` or `]` counts only when it does not close a control structure's condition or an
+ * attribute (see `closesOperand()`), and any name after `::` counts, keywords included
+ * (`Foo::class`). A `}` does not count: after a block it starts a new statement, which
+ * the marker attaches to, and a token check cannot tell that from the end of a `match`
+ * or `new class` expression, so a marker after those is not judged.
+ */
+const OPERAND_ENDS = [
+    'T_VARIABLE', 'T_STRING', 'T_NAME_QUALIFIED', 'T_NAME_FULLY_QUALIFIED', 'T_NAME_RELATIVE',
+    'T_LNUMBER', 'T_DNUMBER', 'T_CONSTANT_ENCAPSED_STRING', 'T_END_HEREDOC', 'T_INC', 'T_DEC',
+    'T_LINE', 'T_FILE', 'T_DIR', 'T_CLASS_C', 'T_FUNC_C', 'T_METHOD_C', 'T_NS_C', 'T_TRAIT_C',
+    ')', ']', '"',
+];
+
+/** Keywords whose parenthesized condition a braceless body follows: `if ($a) -$b;`. */
+const CONDITION_KEYWORDS = ['T_IF', 'T_ELSEIF', 'T_WHILE', 'T_FOR', 'T_FOREACH', 'T_DECLARE', 'T_SWITCH'];
+
+/**
+ * The index of the nearest code token before `$index`, or -1.
+ *
+ * @param  list<array{0: int, 1: string, 2: int}|string>  $tokens
+ */
+function previousCode(array $tokens, int $index): int
+{
+    $index--;
+
+    while ($index >= 0 && isTrivia($tokens[$index])) {
+        $index--;
+    }
+
+    return $index;
+}
+
+/**
+ * Whether the code token at `$index` ends an operand, so that a following `+`, `-`, `&`
+ * or `?` is an infix operator.
+ *
+ * @param  list<array{0: int, 1: string, 2: int}|string>  $tokens
+ */
+function closesOperand(array $tokens, int $index): bool
+{
+    if ($index < 0) {
+        return false;
+    }
+
+    $kind = tokenKind($tokens[$index]);
+    $before = previousCode($tokens, $index);
+
+    if ($before >= 0 && in_array(tokenKind($tokens[$before]), ['T_DOUBLE_COLON', 'T_PAAMAYIM_NEKUDOTAYIM'], true)) {
+        return true;
+    }
+
+    if (! in_array($kind, OPERAND_ENDS, true)) {
+        return false;
+    }
+
+    if ($kind !== ')' && $kind !== ']') {
+        return true;
+    }
+
+    // Find the opener this closer matches; an attribute's `#[` is one token on PHP 8
+    $depth = 0;
+
+    for ($at = $index; $at >= 0; $at--) {
+        $here = tokenKind($tokens[$at]);
+
+        if ($here === ')' || $here === ']') {
+            $depth++;
+        } elseif ($here === '(' || $here === '[' || $here === 'T_ATTRIBUTE') {
+            $depth--;
+        }
+
+        if ($depth === 0) {
+            if ($here === 'T_ATTRIBUTE') {
+                return false;
+            }
+
+            $keyword = previousCode($tokens, $at);
+
+            return ! ($here === '(' && $keyword >= 0 && in_array(tokenKind($tokens[$keyword]), CONDITION_KEYWORDS, true));
+        }
+    }
+
+    return true;
+}
+
+/**
+ * A token's kind as one string: the character itself, or its `token_name()`.
+ *
+ * @param  array{0: int, 1: string, 2: int}|string  $token
+ */
+function tokenKind($token): string
+{
+    return is_array($token) ? token_name($token[0]) : $token;
+}
+
+/**
+ * Whether a token is whitespace or a comment, which the attachment search steps over.
+ *
+ * @param  array{0: int, 1: string, 2: int}|string  $token
+ */
+function isTrivia($token): bool
+{
+    return is_array($token) && in_array($token[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true);
+}
+
+/**
+ * The reason a standalone marker attaches to no node, or null when it attaches.
+ *
+ * Only a marker whose next code starts a LATER line than the marker itself is judged: a
+ * node starting on the marker's own line is still reached by the plugin's line map. The
+ * lines are counted from the token texts, so a `//` comment holding its newline (PHP 7.4)
+ * and one leaving it to the whitespace (PHP 8) count the same.
+ *
+ * @param  list<array{0: int, 1: string, 2: int}|string>  $tokens
+ */
+function unattachedReason(array $tokens, int $at): ?string
+{
+    $text = $tokens[$at][1];
+    $gap = '';
+    $next = $at + 1;
+
+    while (isset($tokens[$next]) && isTrivia($tokens[$next])) {
+        $gap .= $tokens[$next][1];
+        $next++;
+    }
+
+    $markerLine = $tokens[$at][2] + substr_count(substr($text, 0, (int) strpos($text, MARKER)), "\n");
+    $line = $tokens[$at][2] + substr_count($text.$gap, "\n");
+
+    if (! isset($tokens[$next]) || $line <= $markerLine) {
+        return null;
+    }
+
+    $kind = tokenKind($tokens[$next]);
+
+    if (! in_array($kind, UNATTACHED_AFTER, true)) {
+        if (! in_array($kind, UNATTACHED_AFTER_OPERAND, true) || ! closesOperand($tokens, previousCode($tokens, $at))) {
+            return null;
+        }
+    }
+
+    $shown = is_array($tokens[$next]) ? $tokens[$next][1] : $tokens[$next];
+
+    return 'unattached: the next code is `'.$shown.'` on line '.$line.', which starts no node, so the marker attaches to no node and suppresses nothing; put it directly above the operand, wrapping an operand after a leading operator in parentheses';
 }
 
 /**
@@ -305,9 +544,14 @@ function scanSource(string $source, string $label, array $known, bool $lineMapLi
 {
     $findings = [];
     $annotations = 0;
-    $lines = preg_split('/\R/', $source) ?: [];
+    $tokens = token_get_all($source);
 
-    foreach (token_get_all($source) as $token) {
+    $offset = 0;
+
+    foreach ($tokens as $index => $token) {
+        $start = $offset;
+        $offset += strlen(is_array($token) ? $token[1] : $token);
+
         if (! is_array($token) || ($token[0] !== T_COMMENT && $token[0] !== T_DOC_COMMENT)) {
             continue;
         }
@@ -319,31 +563,80 @@ function scanSource(string $source, string $label, array $known, bool $lineMapLi
             continue;
         }
 
-        $body = preg_replace('{^(/\*\*?|//|#)}', '', $text, 1) ?? $text;
-        $lead = substr($body, 0, (int) strpos($body, MARKER));
+        // The plugin matches the FIRST marker anywhere in the comment, so a marker after prose is
+        // an annotation too (UAMS-Web/uams-claude-skills#848). It is prose-led when its own line
+        // within the comment carries text before it, other than the opener, `*` and whitespace.
+        $textLines = explode("\n", $text);
+        $markerOffset = substr_count(substr($text, 0, $at), "\n");
+        $ownLine = $textLines[$markerOffset] ?? '';
+        $lead = substr($ownLine, 0, (int) strpos($ownLine, MARKER));
 
-        if (trim($lead, " \t\r\n*") !== '') {
-            continue;
+        if ($markerOffset === 0) {
+            $lead = preg_replace('{^\s*(/\*\*?|//|#)}', '', $lead, 1) ?? $lead;
         }
+
+        $proseLed = trim($lead, " \t\r*") !== '';
 
         $annotations++;
         $where = $label.':'.$line;
-        $first = trim(explode("\n", $text)[0]);
+        $first = trim($textLines[0]);
 
-        $thisLine = $lines[$line - 1] ?? '';
-        $markerAt = strpos($thisLine, MARKER);
-        $before = $markerAt === false ? '' : substr($thisLine, 0, $markerAt);
+        if ($proseLed) {
+            $where = $label.':'.($line + $markerOffset);
+            $first = trim($ownLine);
+        }
 
-        if (trim($before, " \t/*#") !== '' && ! $lineMapLive) {
+        // Only the first marker is read, so a later one in the same comment is never applied.
+        // It is reported unless it too is a mere mention: after prose, naming no mutator.
+        $second = strpos($text, MARKER, $at + strlen(MARKER));
+
+        if ($second !== false) {
+            $secondOffset = substr_count(substr($text, 0, $second), "\n");
+            $secondLine = $textLines[$secondOffset] ?? '';
+            $secondLead = substr($secondLine, 0, (int) strpos($secondLine, MARKER));
+            $secondMention = trim($secondLead, " \t\r*") !== ''
+                && (classifyAnnotation(substr($text, $second), $known)['kind'] ?? null) === 'inert';
+
+            if (! $secondMention) {
+                $findings[] = [
+                    $label.':'.($line + $secondOffset),
+                    'second marker in one comment: the plugin reads only the first marker in a comment, so this one is never applied; give it a comment of its own',
+                    trim($secondLine),
+                ];
+            }
+        }
+
+        $found = classifyAnnotation($text, $known);
+
+        // A sentence that mentions the marker and suppresses nothing is counted, not flagged,
+        // wherever it sits.
+        if ($proseLed && ($found['kind'] ?? null) === 'inert') {
+            continue;
+        }
+
+        // Standalone means the comment begins its line: nothing but whitespace before it.
+        $lineStart = strrpos(substr($source, 0, $start), "\n");
+        $before = substr($source, $lineStart === false ? 0 : $lineStart + 1, $start - ($lineStart === false ? 0 : $lineStart + 1));
+
+        $standalone = trim($before) === '';
+
+        if (! $standalone && ! $lineMapLive) {
             $findings[] = [$where, 'trailing: does not begin its line, so it attaches to the NEXT node', $first];
 
             continue;
         }
 
-        $found = classifyAnnotation($text, $known);
+        $unattached = $standalone ? unattachedReason($tokens, $index) : null;
+
+        if ($unattached !== null) {
+            $findings[] = [$where, $unattached, $first];
+
+            continue;
+        }
 
         if ($found !== null) {
-            $findings[] = [$where, $found['kind'].': '.$found['detail'], $first];
+            $detail = $found['detail'].($proseLed ? '; the marker follows prose in its comment, which the plugin reads like any marker' : '');
+            $findings[] = [$where, $found['kind'].': '.$detail, $first];
         }
     }
 
